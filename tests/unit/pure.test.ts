@@ -1,0 +1,213 @@
+import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { pickUsername, slugifyUsername } from '../../src/lib/username';
+import { safeRedirect } from '../../src/lib/safe-redirect';
+import { dateParts, formatClock, formatRange, formatShortDate, formatWhen, isoWeekday, localToUtc, relativeTime, utcToLocal } from '../../src/lib/time';
+import { isFlashKey, withFlash } from '../../src/lib/flash';
+import { taskDisplayStatus } from '../../src/lib/tasks';
+import { contrastRatio, contrastReport, mixHex, onColor } from '../../src/lib/theme/contrast';
+import { buildThemeCss } from '../../src/lib/theme/css';
+import { DEFAULT_THEME, LEGACY_THEME_V1 } from '../../src/lib/theme/defaults';
+import { THEME_PRESETS } from '../../src/lib/theme/presets';
+import { ThemeSchema } from '../../src/lib/theme/schema';
+import { detectImage } from '../../src/lib/storage/magic-bytes';
+import { buildCsp, makeNonce, originOf } from '../../src/lib/security/csp';
+import { CLASS_KEYS, MEMBER_KEYS } from '../../src/lib/visibility/audiences';
+
+const sql = readFileSync(new URL('../../supabase/migrations/20261005120700_reference_data.sql', import.meta.url), 'utf8');
+const sqlV2 = readFileSync(new URL('../../supabase/migrations/20261012120000_theme_default_v2.sql', import.meta.url), 'utf8');
+
+describe('username', () => {
+  it('menghilangkan diakritik dan simbol', () => {
+    expect(slugifyUsername('Ánita Dwi Pütri')).toBe('anita_dwi_putri');
+    expect(slugifyUsername('Budi, S.Kom')).toBe('budi_s_kom');
+  });
+  it('selalu memenuhi ^[a-z0-9_]{3,30}$', () => {
+    for (const n of ['Al', '  ', '###', 'a'.repeat(50)]) expect(/^[a-z0-9_]{3,30}$/.test(slugifyUsername(n))).toBe(true);
+  });
+  it('menambah sufiks saat bentrok, tetap ≤30 karakter', () => {
+    expect(pickUsername('budi', new Set())).toBe('budi');
+    expect(pickUsername('budi', new Set(['budi']))).toBe('budi_2');
+    expect(pickUsername('budi', new Set(['budi', 'budi_2']))).toBe('budi_3');
+    const long = 'a'.repeat(30);
+    expect(pickUsername(long, new Set([long])).length).toBe(30);
+  });
+});
+
+describe('safeRedirect', () => {
+  it('menolak target eksternal dan trik slash', () => {
+    for (const x of ['//evil.com', '/\\evil', 'https://evil.com', 'evil', '', null, undefined]) expect(safeRedirect(x)).toBe('/');
+  });
+  it('mempertahankan path internal', () => expect(safeRedirect('/tasks?status=completed')).toBe('/tasks?status=completed'));
+});
+
+describe('waktu zona kelas', () => {
+  it('mengonversi waktu dinding ke UTC', () => {
+    expect(localToUtc('2026-10-05T08:00', 'Asia/Jakarta')).toBe('2026-10-05T01:00:00.000Z');
+    expect(localToUtc('2026-10-05T08:00', 'Asia/Makassar')).toBe('2026-10-05T00:00:00.000Z');
+    expect(localToUtc('2026-10-05T08:00', 'Asia/Jayapura')).toBe('2026-10-04T23:00:00.000Z');
+  });
+  it('utcToLocal adalah kebalikannya', () => {
+    for (const tz of ['Asia/Jakarta', 'Asia/Makassar', 'Asia/Jayapura']) expect(utcToLocal(localToUtc('2026-12-31T23:30', tz), tz)).toBe('2026-12-31T23:30');
+  });
+});
+
+describe('tampilan tanggal', () => {
+  const now = new Date('2026-10-12T00:00:00Z');
+  it('relativeTime memakai bahasa Indonesia', () => {
+    expect(relativeTime('2026-10-12T00:00:20Z', now)).toBe('sekarang');
+    expect(relativeTime('2026-10-12T00:30:00Z', now)).toBe('30 menit lagi');
+    expect(relativeTime('2026-10-12T05:00:00Z', now)).toBe('5 jam lagi');
+    expect(relativeTime('2026-10-13T00:00:00Z', now)).toBe('besok');
+    expect(relativeTime('2026-10-11T00:00:00Z', now)).toBe('kemarin');
+    expect(relativeTime('2026-10-09T00:00:00Z', now)).toBe('3 hari lalu');
+    expect(relativeTime('2026-10-20T00:00:00Z', now)).toBe('8 hari lagi');
+    expect(relativeTime('2026-12-12T00:00:00Z', now)).toBe('2 bulan lagi');
+  });
+  it('dateParts, formatClock, isoWeekday mengikuti zona kelas', () => {
+    expect(dateParts('2026-10-12T17:30:00Z', 'Asia/Jakarta').day).toBe('13'); // lewat tengah malam WIB
+    expect(formatClock('2026-10-12T01:05:00Z', 'Asia/Jakarta')).toBe('08:05');
+    expect(isoWeekday('Asia/Jakarta', new Date('2026-10-12T00:00:00Z'))).toBe(1); // Senin
+    expect(isoWeekday('Asia/Jayapura', new Date('2026-10-11T16:00:00Z'))).toBe(1);
+    expect(isoWeekday('Asia/Jakarta', new Date('2026-10-11T16:00:00Z'))).toBe(7);
+  });
+  it('formatRange: satu hari dipadatkan, lintas hari menyebut dua tanggal; jam selalu bertitik dua', () => {
+    expect(formatRange('2026-10-12T01:00:00Z', '2026-10-12T03:00:00Z', 'Asia/Jakarta')).toBe('Senin, 12 Oktober 2026 · 08:00–10:00 WIB');
+    expect(formatRange('2026-10-12T01:00:00Z', '2026-10-13T03:00:00Z', 'Asia/Jakarta')).toBe('Sen, 12 Okt, 08:00 WIB – Sel, 13 Okt, 10:00 WIB');
+    // 23:30 WIB dan 00:30 WIB hari berikutnya berbeda hari menurut zona kelas, meski sama-sama 12 Oktober UTC
+    expect(formatRange('2026-10-12T16:30:00Z', '2026-10-12T17:30:00Z', 'Asia/Jakarta')).toContain(' – ');
+  });
+  it('formatWhen dan formatShortDate', () => {
+    expect(formatWhen('2026-10-12T01:05:00Z', 'Asia/Jakarta')).toBe('Sen, 12 Okt, 08:05 WIB');
+    expect(formatShortDate('2026-10-12')).toBe('12 Okt');
+  });
+});
+
+describe('flash', () => {
+  it('withFlash menyisipkan parameter sebelum hash dan memakai & bila sudah ada query', () => {
+    expect(withFlash('/tasks', 'saved')).toBe('/tasks?flash=saved');
+    expect(withFlash('/tasks?status=done', 'deleted')).toBe('/tasks?status=done&flash=deleted');
+    expect(withFlash('/members/x#top', 'created')).toBe('/members/x?flash=created#top');
+  });
+  it('isFlashKey hanya menerima kunci yang dikenal (bukan properti Object atau teks bebas)', () => {
+    expect(isFlashKey('saved')).toBe(true);
+    for (const bad of ['toString', '__proto__', '<script>', '', null]) expect(isFlashKey(bad)).toBe(false);
+  });
+});
+
+describe('taskDisplayStatus', () => {
+  const now = new Date('2026-10-05T00:00:00Z');
+  const at = (ms: number) => ({ status: 'active' as const, deadline: new Date(now.getTime() + ms) });
+  const H72 = 72 * 3_600_000;
+  it('batas 72 jam dan lewat tenggat', () => {
+    expect(taskDisplayStatus(at(H72), now)).toBe('due_soon');
+    expect(taskDisplayStatus(at(H72 + 1), now)).toBe('active');
+    expect(taskDisplayStatus(at(0), now)).toBe('due_soon');
+    expect(taskDisplayStatus(at(-1), now)).toBe('overdue');
+  });
+  it('status tersimpan menang atas tenggat', () => {
+    const past = new Date(now.getTime() - 1000);
+    expect(taskDisplayStatus({ status: 'completed', deadline: past }, now)).toBe('completed');
+    expect(taskDisplayStatus({ status: 'archived', deadline: past }, now)).toBe('archived');
+  });
+});
+
+describe('tema', () => {
+  it('rumus kontras WCAG', () => {
+    expect(contrastRatio('#000000', '#FFFFFF')).toBeGreaterThanOrEqual(20.99);
+    expect(contrastRatio('#123456', '#123456')).toBe(1);
+  });
+  it('tema bawaan lolos semua pasangan', () => {
+    expect(contrastReport(DEFAULT_THEME.palette).filter((r) => !r.ok)).toEqual([]);
+    expect(onColor(DEFAULT_THEME.palette.primary, DEFAULT_THEME.palette.text_primary)).toBe('#FFFFFF');
+  });
+  it('DEFAULT_THEME identik dengan migrasi v2 dan tema lama identik dengan seed 0008', () => {
+    const pal = (text: string) => Object.fromEntries([...text.matchAll(/"(\w+)": "(#[0-9A-Fa-f]{6})"/g)].map((m) => [m[1], m[2]]));
+    const [setPart, wherePart] = sqlV2.split('where theme =');
+    expect(pal(setPart ?? '')).toEqual(DEFAULT_THEME.palette);
+    expect(pal(wherePart ?? '')).toEqual(LEGACY_THEME_V1.palette);
+    expect(pal(sql)).toEqual(LEGACY_THEME_V1.palette);
+    expect(sqlV2).toContain(`"font_preset": "${DEFAULT_THEME.font_preset}"`);
+  });
+  it('preset palet lolos ThemeSchema dan unik', () => {
+    for (const p of THEME_PRESETS) {
+      expect(ThemeSchema.safeParse({ layout: 'standard', font_preset: 'rounded', palette: p.palette }).success, p.id).toBe(true);
+    }
+    expect(new Set(THEME_PRESETS.map((p) => p.id)).size).toBe(THEME_PRESETS.length);
+  });
+  it('onColor memilih kandidat berkontras tertinggi; mixHex bekerja di sRGB', () => {
+    expect(onColor('#F59E0B', '#EAF0FB', '#0B1220')).toBe('#0B1220');
+    expect(onColor('#0F766E', '#0E1F1D')).toBe('#FFFFFF');
+    expect(mixHex('#000000', '#FFFFFF', 0.5)).toBe('#808080');
+    expect(mixHex('#336699', '#336699', 0.7)).toBe('#336699');
+  });
+  it('CSS tema: variabel dan gradien menjaga kontras teks', () => {
+    for (const p of THEME_PRESETS) {
+      const css = buildThemeCss({ layout: 'standard', font_preset: 'rounded', palette: p.palette });
+      const get = (k: string) => css.match(new RegExp(`--${k}:(#[0-9A-F]{6})`))?.[1] ?? '';
+      expect(contrastRatio(get('theme-on-primary'), p.palette.primary), p.id).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(get('theme-on-primary'), get('theme-primary-deep')), p.id).toBeGreaterThanOrEqual(4.5);
+      expect(css).toContain(`color-scheme:${p.id === 'gerhana' ? 'dark' : 'light'}`);
+    }
+  });
+});
+
+describe('detectImage', () => {
+  const ascii = (s: string) => [...s].map((c) => c.charCodeAt(0));
+  it('mengenali JPEG, PNG, WebP dari isi file', () => {
+    expect(detectImage(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]))?.mime).toBe('image/jpeg');
+    expect(detectImage(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))?.mime).toBe('image/png');
+    expect(detectImage(new Uint8Array([...ascii('RIFF'), 1, 2, 3, 4, ...ascii('WEBP')]))?.mime).toBe('image/webp');
+  });
+  it('menolak SVG, WAV, dan data kosong', () => {
+    expect(detectImage(new Uint8Array(ascii('<svg xmlns="http://www.w3.org/2000/svg"/>')))).toBeNull();
+    expect(detectImage(new Uint8Array([...ascii('RIFF'), 1, 2, 3, 4, ...ascii('WAVE')]))).toBeNull();
+    expect(detectImage(new Uint8Array([]))).toBeNull();
+  });
+});
+
+describe('paritas katalog visibility (kode vs migrasi 0008)', () => {
+  const cat = new Map([...sql.matchAll(/\('((?:page|section|field|item)\.[a-z_.]+)','\w+','\w+',(?:null|'[a-z_.]+'),(?:null|'\w+'),'(\w+)'\)/g)].map((m) => [m[1], m[2]]));
+  it('semua kunci ada di DB dengan batas terluas yang sama', () => {
+    expect(cat.size).toBe(27);
+    for (const [k, , widest] of CLASS_KEYS) expect(cat.get(k)).toBe(widest);
+    for (const [k] of MEMBER_KEYS) expect(cat.has(k)).toBe(true);
+  });
+});
+
+describe('CSP bernonce', () => {
+  const prod = buildCsp({ nonce: 'abc123', supabaseUrl: 'https://proj.supabase.co/rest/v1' });
+  const dir = (csp: string, name: string) => csp.split('; ').find((d) => d.startsWith(`${name} `)) ?? '';
+  it('skrip dan gaya hanya boleh dari self dan nonce; tanpa unsafe-inline/eval di produksi', () => {
+    expect(dir(prod, 'script-src')).toBe("script-src 'self' 'nonce-abc123' 'strict-dynamic'");
+    expect(dir(prod, 'style-src')).toBe("style-src 'self' 'nonce-abc123'");
+    expect(prod).not.toMatch(/unsafe-inline|unsafe-eval/);
+  });
+  it('img-src memuat asal Supabase saja (tanpa path); connect-src hanya self', () => {
+    expect(dir(prod, 'img-src')).toBe("img-src 'self' data: blob: https://proj.supabase.co");
+    expect(dir(prod, 'connect-src')).toBe("connect-src 'self'");
+  });
+  it('menutup framing, plugin, dan form ke luar', () => {
+    expect(dir(prod, 'frame-ancestors')).toBe("frame-ancestors 'none'");
+    expect(dir(prod, 'object-src')).toBe("object-src 'none'");
+    expect(dir(prod, 'form-action')).toBe("form-action 'self'");
+    expect(dir(prod, 'base-uri')).toBe("base-uri 'self'");
+  });
+  it('mode dev menambah unsafe-eval dan ws: saja', () => {
+    const dev = buildCsp({ nonce: 'n', dev: true });
+    expect(dir(dev, 'script-src')).toContain("'unsafe-eval'");
+    expect(dir(dev, 'connect-src')).toBe("connect-src 'self' ws: wss:");
+    expect(dir(dev, 'style-src')).not.toContain('unsafe-inline');
+  });
+  it('URL Supabase tidak valid atau bukan http(s) tidak membuka asal tambahan', () => {
+    for (const bad of [undefined, '', 'bukan url', 'javascript:alert(1)', 'ftp://x.example']) {
+      expect(dir(buildCsp({ nonce: 'n', supabaseUrl: bad }), 'img-src')).toBe("img-src 'self' data: blob:");
+    }
+    expect(originOf('http://127.0.0.1:54321')).toBe('http://127.0.0.1:54321');
+  });
+  it('nonce acak, base64, dan berbeda tiap pemanggilan', () => {
+    const a = makeNonce(); const b = makeNonce();
+    expect(a).toMatch(/^[A-Za-z0-9+/]{22}==$/);
+    expect(a).not.toBe(b);
+  });
+});

@@ -1,0 +1,73 @@
+/* Token desain (DESIGN.md §7). Nilai warna berasal dari tema runtime (--theme-*, disuntik di <head> oleh layout);
+   di sini hanya turunan: skala brand, permukaan, semantik, radius, bayangan, ukuran, tipografi. */
+:root, .theme-scope {
+  /* Permukaan dan teks */
+  --bg: var(--theme-background);
+  --surface: var(--theme-surface);
+  --surface-2: color-mix(in srgb, var(--theme-text-primary) 4%, var(--theme-surface));
+  --surface-3: color-mix(in srgb, var(--theme-text-primary) 8%, var(--theme-surface));
+  --border: var(--theme-border);
+  --border-strong: color-mix(in srgb, var(--theme-text-secondary) 38%, var(--theme-surface));
+  --border-input: color-mix(in srgb, var(--theme-text-secondary) 80%, var(--theme-surface)); /* >= 3:1 terhadap surface */
+  --text: var(--theme-text-primary);
+  --text-2: var(--theme-text-secondary);
+  --focus: var(--theme-primary);
+
+  /* Brand */
+  --brand: var(--theme-primary);
+  --brand-50: color-mix(in srgb, var(--theme-primary) 8%, var(--theme-surface));
+  --brand-100: color-mix(in srgb, var(--theme-primary) 15%, var(--theme-surface));
+  --brand-200: color-mix(in srgb, var(--theme-primary) 28%, var(--theme-surface));
+  --brand-strong: color-mix(in srgb, var(--theme-primary) 72%, var(--theme-text-primary)); /* teks/ikon di atas tint */
+  --brand-hover: color-mix(in srgb, var(--theme-primary) 86%, var(--theme-text-primary));
+  --on-brand: var(--theme-on-primary);
+  --grad-brand: linear-gradient(135deg, var(--theme-primary) 0%, var(--theme-primary-deep) 100%);
+
+  --grad-soft: linear-gradient(135deg, var(--brand-100), var(--accent-50));
+
+  /* Aksen (warna kedua) */
+  --accent: var(--theme-secondary);
+  --accent-50: color-mix(in srgb, var(--theme-secondary) 8%, var(--theme-surface));
+  --accent-100: color-mix(in srgb, var(--theme-secondary) 16%, var(--theme-surface));
+  --accent-strong: color-mix(in srgb, var(--theme-secondary) 72%, var(--theme-text-primary));
+  --on-accent: var(--theme-on-secondary);
+
+  /* Semantik: warna asli untuk ikon/garis, -bg untuk latar chip, -text untuk teks di atas -bg */
+  --success: var(--theme-success);
+  --success-bg: color-mix(in srgb, var(--theme-success) 13%, var(--theme-surface));
+  --success-text: color-mix(in srgb, var(--theme-success) 70%, var(--theme-text-primary));
+  --warning: var(--theme-warning);
+  --warning-bg: color-mix(in srgb, var(--theme-warning) 14%, var(--theme-surface));
+  --warning-text: color-mix(in srgb, var(--theme-warning) 70%, var(--theme-text-primary));
+  --error: var(--theme-error);
+  --error-bg: color-mix(in srgb, var(--theme-error) 11%, var(--theme-surface));
+  --error-text: color-mix(in srgb, var(--theme-error) 72%, var(--theme-text-primary));
+  --on-error: var(--theme-on-error);
+
+  /* Spasi: 4 · 8 · 12 · 16 · 24 · 32 · 48 · 64 · 96 */
+  --s-1: .25rem; --s-2: .5rem; --s-3: .75rem; --s-4: 1rem; --s-5: 1.5rem; --s-6: 2rem; --s-7: 3rem; --s-8: 4rem; --s-9: 6rem;
+
+  /* Radius berjenjang: input/chip kecil, tombol/kartu sedang, hero/modal besar */
+  --r-sm: .5rem; --r-md: .75rem; --r-lg: 1rem; --r-xl: 1.5rem; --r-full: 999px;
+
+  /* Elevasi: kartu = border + sm, hover/raised = md, modal/menu = lg */
+  --shadow-sm: 0 1px 2px rgb(var(--shadow-rgb) / .06), 0 1px 3px rgb(var(--shadow-rgb) / .08);
+  --shadow-md: 0 4px 14px rgb(var(--shadow-rgb) / .09);
+  --shadow-lg: 0 18px 44px rgb(var(--shadow-rgb) / .16);
+
+  /* Tipografi */
+  --font-ui: var(--font-body), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-head: var(--font-display), var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --fs-display: clamp(2.25rem, 1.7rem + 2.2vw, 3rem);
+  --fs-h1: clamp(1.75rem, 1.5rem + 1vw, 2.25rem);
+  --fs-h2: clamp(1.375rem, 1.25rem + .5vw, 1.75rem);
+  --fs-h3: clamp(1.0625rem, 1rem + .25vw, 1.25rem);
+  --fs-body: 1rem; --fs-sm: .875rem; --fs-xs: .75rem;
+
+  /* Kontrol dan tata letak */
+  --ctl: 2.75rem; --ctl-sm: 2.25rem; --ctl-lg: 3rem;
+  --topbar-h: 3.5rem; --bottom-h: 4rem; --nav-w: 17rem; --rail-w: 4.75rem; --content-max: 90rem;
+
+  /* Gerak */
+  --t-fast: 120ms ease-out; --t-med: 200ms ease-out;
+}

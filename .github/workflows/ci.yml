@@ -1,0 +1,26 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    env: # nilai penampung agar `next build` bisa memvalidasi env; bukan rahasia
+      SUPABASE_URL: http://127.0.0.1:54321
+      SUPABASE_PUBLISHABLE_KEY: ci-placeholder
+      SUPABASE_SECRET_KEY: ci-placeholder
+      APP_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc, cache: npm }
+      - run: npm ci   # butuh package-lock.json yang di-commit
+      - run: npm run check:tokens
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+  db:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+      - run: supabase start
+      - run: supabase test db
