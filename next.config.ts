@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next';
 const config: NextConfig = {
   images: { unoptimized: true },
-  experimental: { serverActions: { bodySizeLimit: '3mb' } },
+  experimental: { serverActions: { bodySizeLimit: '3mb' }, agentUpgrade: 'security' },
   // CSP bernonce dipasang per request di src/proxy.ts. Header statis di bawah tidak bergantung pada request.
   async headers() {
     return [{ source: '/:path*', headers: [
