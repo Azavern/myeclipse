@@ -116,6 +116,7 @@ Jika `SUPABASE_SECRET_KEY` pernah terekspos (commit, log, screenshot), anggap bo
 | `npm run db:types` | Generate `src/lib/supabase/database.types.ts` |
 | `npm run check:tokens` | Larang hex dan nilai arbitrer di komponen |
 | `npm run bootstrap:admin` | Buat Ketua pertama + tautan akses |
+| `npm run seed` | Buat akun anggota dari `SEED_MEMBERS` di `scripts/seed-fixtures.ts`; idempoten, dan `-- --dry-run` hanya mencetak rencana |
 
 Daftar di atas mengikuti `blueprint.md` §20; sumber yang berlaku adalah `scripts` di `package.json`.
 
