@@ -2,6 +2,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
+import { requireActionContext } from '@/lib/action-context';
 import { env } from '@/lib/env';
 import { withFlash } from '@/lib/flash';
 import { PWD_COOKIE } from '@/lib/auth-flags';
@@ -66,6 +67,36 @@ export async function changePassword(_p: { error?: string } | null, fd: FormData
     return { error: 'Kata sandi belum bisa disimpan. Coba lagi.' };
   await supabase.auth.signOut({ scope: 'others' });
   redirect(withFlash('/settings/account', 'password'));
+}
+
+const emailForm = z.object({
+  email: z.string().trim().toLowerCase().email('Email tidak valid.').max(254, 'Email maksimal 254 karakter.'),
+  current: z.string().min(1, 'Kata sandi wajib diisi.').max(72),
+});
+
+// `updateUser({ email })` tidak dipakai: perubahan itu menunggu konfirmasi lewat email, sedangkan proyek ini
+// tidak punya pengiriman email (blueprint A-05). Re-auth kata sandi dulu, lalu Admin API menandai email baru
+// sudah terverifikasi. Id akun selalu dari sesi, dan hanya pemilik kata sandi yang bisa mengganti.
+export async function changeEmail(_p: { error?: string } | null, fd: FormData): Promise<{ error?: string } | null> {
+  const parsed = emailForm.safeParse(Object.fromEntries(fd));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Isian tidak valid.' };
+  const ctx = await requireActionContext();
+  const oldEmail = ctx?.user.email;
+  if (!ctx || !oldEmail) return { error: 'Sesi ini sudah berakhir. Masuk kembali.' };
+  if (oldEmail.toLowerCase() === parsed.data.email) return { error: 'Email itu sudah menjadi email akunmu.' };
+  if ((await ctx.supabase.auth.signInWithPassword({ email: oldEmail, password: parsed.data.current })).error)
+    return { error: 'Kata sandi salah.' };
+  const { error } = await createAdminClient().auth.admin.updateUserById(ctx.user.id, {
+    email: parsed.data.email, email_confirm: true,
+  });
+  if (error) {
+    console.error('changeEmail', error.code ?? error.status);
+    const unusable = error.code === 'email_exists' || error.code === 'email_address_invalid' || error.code === 'email_address_not_authorized';
+    return { error: unusable ? 'Email ini tidak bisa dipakai. Coba alamat lain.' : 'Email belum bisa diganti. Coba lagi.' };
+  }
+  // Email adalah identitas login: sesi di perangkat lain tidak perlu bertahan setelahnya.
+  await ctx.supabase.auth.signOut({ scope: 'others' });
+  redirect(withFlash('/settings/account', 'email'));
 }
 
 export type ResetState = { message?: string; error?: string } | null;

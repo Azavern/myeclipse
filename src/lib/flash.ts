@@ -7,6 +7,7 @@ export const FLASH = {
   uploaded: 'Gambar diperbarui.',
   removed: 'Gambar dihapus.',
   password: 'Kata sandi diperbarui.',
+  email: 'Email diperbarui.',
   draft: 'Draf disimpan.',
   requested: 'Permintaan edit dikirim ke penulis.',
   escalated: 'Permintaan diteruskan ke Ketua.',

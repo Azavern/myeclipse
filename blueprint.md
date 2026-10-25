@@ -669,6 +669,8 @@ Keputusan desain di alur ini (semuanya WAJIB):
 
 **Ganti password (login biasa)** di `/settings/account`: wajib password lama (re-auth dengan `signInWithPassword`) sebelum `updateUser`.
 
+**Ganti email (login biasa)** di `/settings/account`: wajib password saat ini (re-auth dengan `signInWithPassword`), lalu `admin.updateUserById(id, { email, email_confirm: true })` dengan id dari sesi. `updateUser({ email })` tidak dipakai karena perubahan itu menunggu konfirmasi lewat email, sedangkan proyek ini tidak punya pengiriman email (A-05).
+
 **Menonaktifkan anggota:** update `memberships.status='inactive'` lewat client JWT Ketua (RLS), lalu `admin.updateUserById(id, { ban_duration: '876000h' })`. DB memutus akses seketika (`app.is_active_member` dan `app.is_signed_in` bernilai false) walau JWT lama masih berlaku sampai kedaluwarsa. Mengaktifkan kembali = status `active` + `ban_duration: 'none'`.
 
 **Menghapus anggota:** pre-check permission dan bukan diri sendiri → `admin.deleteUser(id)` (CASCADE membersihkan DB; trigger last-admin dapat menolak) → setelah sukses, hapus objek Storage di prefix `member-media/{class_id}/{user_id}/` (best-effort; kegagalan dicatat). Urutan ini mengikuti `AGENTS.md` §8: pembersihan setelah semua langkah dependen sukses.
@@ -1817,7 +1819,7 @@ Next.js App Router. `params`/`searchParams` bersifat asinkron pada versi Next te
 | `/members/[username]` | `page.members` | `member_profile_v`, `portfolio_items`, `social_links` | `notFound()` seragam bila baris tak terlihat |
 | `/settings` | login | — | Redirect ke `/settings/profile` |
 | `/settings/profile` | login + aktif | tabel dasar milik sendiri | Profil, avatar, social, portofolio, visibility. `?onboarding=1` menampilkan checklist opsional |
-| `/settings/account` | login + aktif | — | Ganti password |
+| `/settings/account` | login + aktif | — | Ganti password dan email |
 | `/settings/class` | `class.manage` | `classes` (tabel dasar) | Identitas, gambar, link kelas, timezone |
 | `/settings/theme` | `class.manage` | `classes.theme` | Editor theme (§17.5) |
 | `/settings/visibility` | `class.manage` | `get_visibility_map`, katalog | §7.8 |
