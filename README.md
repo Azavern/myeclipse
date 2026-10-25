@@ -10,6 +10,7 @@ Nama kelas tidak ditulis di kode. Semua tampilan membaca `classes.name` (data aw
 - **Dynamic Visibility.** Ketua dan anggota mengatur siapa yang boleh melihat halaman, section, field, dan item (portofolio, social media). Audience: `public`, `authenticated`, `class_member`, `class_admin`, `self`. Data personal default-nya `class_member`; hanya identitas kelas yang `public`.
 - **Role dan permission.** Ketua dan Member. Hak admin berupa permission pada role, bukan pengecekan nama role.
 - **Modul kelas.** Identitas dan tema kelas, direktori anggota, profil, portofolio, jadwal kuliah mingguan per semester, event, tugas (dengan mata kuliah), dan beranda.
+- **Eclipse Knowledge.** Perpustakaan pengetahuan bersama: entri Markdown dengan pratinjau, pencarian/filter/sort, draf lokal, penanda bagian yang diedit, serta alur permintaan akses edit (penulis, editor, dan eskalasi ke Ketua). Entri publik dapat dibaca tanpa masuk.
 
 ## Stack
 
@@ -61,7 +62,7 @@ Bila `blueprint.md` bertentangan dengan `AGENTS.md` atau `DESIGN.md`, dua yang t
    supabase db push
    ```
 
-   Migration berada di `supabase/migrations/` (0001–0011) dan diterapkan berurutan. Jangan menjalankan ulang atau mengubah migration yang sudah diterapkan; perubahan skema ditulis sebagai migration baru.
+   Migration berada di `supabase/migrations/` (0001–0014) dan diterapkan berurutan. Jangan menjalankan ulang atau mengubah migration yang sudah diterapkan; perubahan skema ditulis sebagai migration baru.
 
 4. **Atur Auth** di dashboard Supabase (padanan `supabase/config.toml`):
 
@@ -110,7 +111,7 @@ Jika `SUPABASE_SECRET_KEY` pernah terekspos (commit, log, screenshot), anggap bo
 | `npm run lint` | ESLint |
 | `npm run typecheck` | Pemeriksaan tipe |
 | `npm test` | Tes unit (Vitest) |
-| `npm run test:db` | Tes database (pgTAP, `supabase test db`) |
+| `npm run test:db` | Tes database pgTAP lewat koneksi Postgres langsung (`POSTGRES_URL`); `-- --isolate` untuk DB berisi data |
 | `npm run test:e2e` | Tes end-to-end (Playwright) |
 | `npm run db:types` | Generate `src/lib/supabase/database.types.ts` |
 | `npm run check:tokens` | Larang hex dan nilai arbitrer di komponen |

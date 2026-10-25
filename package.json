@@ -10,7 +10,7 @@
     "db:types": "npx supabase gen types typescript --local > src/lib/supabase/database.types.ts",
     "bootstrap:admin": "tsx scripts/bootstrap-admin.ts",
     "test": "vitest run",
-    "test:db": "npx supabase test db",
+    "test:db": "node scripts/test-db.mjs",
     "check:tokens": "node scripts/check-tokens.mjs"
   },
   "dependencies": {
@@ -26,6 +26,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "pg": "^8.23.1",
     "supabase": "^2.121.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",

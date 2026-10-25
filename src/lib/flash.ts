@@ -7,6 +7,12 @@ export const FLASH = {
   uploaded: 'Gambar diperbarui.',
   removed: 'Gambar dihapus.',
   password: 'Kata sandi diperbarui.',
+  draft: 'Draf disimpan.',
+  requested: 'Permintaan edit dikirim ke penulis.',
+  escalated: 'Permintaan diteruskan ke Ketua.',
+  approved: 'Permintaan edit disetujui.',
+  rejected: 'Permintaan edit ditolak.',
+  revoked: 'Akses edit dicabut.',
 } as const;
 
 export type FlashKey = keyof typeof FLASH;

@@ -118,10 +118,10 @@ export function Segmented({ label, items }: { label: string; items: { href: stri
     </nav>
   );
 }
-export function EmptyState({ icon = 'sparkles', title, children, action, compact, page }: { icon?: IconName; title: string; children?: ReactNode; action?: ReactNode; compact?: boolean; page?: boolean }) {
+export function EmptyState({ icon = 'sparkles', title, children, action, compact, slim, page }: { icon?: IconName; title: string; children?: ReactNode; action?: ReactNode; compact?: boolean; slim?: boolean; page?: boolean }) {
   const Title = page ? 'h1' : 'p'; // state yang menggantikan seluruh halaman memegang h1
   return (
-    <div className={cx('empty', compact && 'empty--compact')}>
+    <div className={cx('empty', compact && 'empty--compact', slim && 'empty--slim')}>
       <div className="empty__art"><Icon name={icon} size={compact ? 28 : 36} /></div>
       <Title className="empty__title">{title}</Title>
       {children && <p className="empty__text">{children}</p>}

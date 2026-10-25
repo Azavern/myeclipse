@@ -1,4 +1,5 @@
--- pgTAP: anti-bypass dan resolver visibility (blueprint §7.7, §7.9). BELUM PERNAH DIJALANKAN — jalankan `supabase test db`.
+-- pgTAP: anti-bypass dan resolver visibility (blueprint §7.7, §7.9).
+-- Lulus 18/18 pada proyek Supabase asli (PostgreSQL 17.11, pgTAP 1.3.3) dengan data instance dinetralkan di dalam transaksi.
 begin;
 select plan(18);
 

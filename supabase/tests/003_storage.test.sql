@@ -1,7 +1,13 @@
 -- pgTAP 003: policy Storage (blueprint §13.3, AC-VIS-12, AC-STORAGE).
 -- Prinsip yang diuji: visibilitas objek = visibilitas baris yang mereferensikannya; tulis/hapus dibatasi folder + permission.
--- Dijalankan lokal dengan shim pgTAP + stub Supabase (storage.objects berisi RLS saja); BELUM dijalankan lewat `supabase test db`.
+-- Lulus 40/40 pada proyek Supabase asli (PostgreSQL 17.11, pgTAP 1.3.3) dengan data instance dinetralkan di dalam transaksi.
 begin;
+-- Supabase Storage memasang trigger storage.protect_objects_delete yang menolak
+-- setiap DELETE langsung dari SQL. Storage API sendiri membuka gerbang itu lewat
+-- GUC di bawah; tanpa ini seluruh berkas berhenti di DELETE pertama. Nilainya
+-- lokal transaksi dan hanya mematikan pengaman "hapus tidak sengaja" — GRANT dan
+-- policy DELETE yang justru diuji di sini tetap berlaku.
+select set_config('storage.allow_delete_query', 'true', true);
 select plan(40);
 
 create function public.t_rows(q text) returns bigint language plpgsql as $$

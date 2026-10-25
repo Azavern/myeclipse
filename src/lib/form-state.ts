@@ -15,7 +15,12 @@ export const invalid = (e: ZodError, fd: FormData): FormState => ({
 });
 export function dbMessage(e: { code?: string }): string { // blueprint §9.7; detail teknis hanya di log
   if (e.code === '42501') return FORBIDDEN;
-  if (e.code === '23514' || e.code === '22P02' || e.code === '22007') return 'Isian tidak memenuhi aturan.';
+  if (e.code === '23514' || e.code === '22P02' || e.code === '22007' || e.code === '22023') return 'Isian tidak memenuhi aturan.';
+  if (e.code === '40001') return 'Entri ini sudah diubah di tempat lain. Muat ulang sebelum menyimpan.';
+  if (e.code === 'EC055') return 'Akses edit untuk entri ini sudah ada.';
+  if (e.code === 'EC056') return 'Permintaan edit untuk entri ini masih menunggu.';
+  if (e.code === 'EC057') return 'Permintaan ini sudah diputuskan atau tidak dapat diteruskan.';
+  if (e.code === 'EC050' || e.code === 'EC051' || e.code === 'EC052' || e.code === 'EC053' || e.code === 'EC054') return 'Tindakan ini tidak diizinkan untuk entri ini.';
   if (e.code === '23505') return 'Data yang sama sudah ada.';
   if (e.code === 'P0002') return 'Data tidak ditemukan.';
   if (e.code === 'EC020') return 'Akun ini sudah aktif.';

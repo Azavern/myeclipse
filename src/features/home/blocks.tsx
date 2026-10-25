@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { ExtLink } from '@/components/states';
 import { Icon, type IconName } from '@/components/ui/icon';
-import { Avatar, DateBadge, EmptyState, StatTile, type Tone } from '@/components/ui/primitives';
+import { Avatar, DateBadge, EmptyState, StatTile, Tile, type Tone } from '@/components/ui/primitives';
 import { MemberCard, type MemberItem } from '@/features/members/member-card';
 import { TaskRow, type TaskItem } from '@/features/tasks/task-row';
 import { cx } from '@/lib/cx';
@@ -27,32 +27,83 @@ function BlockCard({ id, title, icon, href, linkLabel, flush, children }: {
   );
 }
 
-export function Hero({ name, tagline, highlight, highlightUrl, coverUrl, todayLabel, guest }: {
-  name: string; tagline: string | null; highlight: string | null; highlightUrl: string | null; coverUrl?: string; todayLabel: string; guest: boolean;
+export type OverviewTile = { icon: IconName; value: number; label: string; tone: Tone };
+
+// Daftar metrik dipakai dua kali: sebagai kartu statistik (anggota) dan sebagai panel kaca di hero tamu.
+export function overviewTiles(ov: Overview): OverviewTile[] {
+  const tiles: OverviewTile[] = [];
+  if (ov.members_count !== null) tiles.push({ icon: 'users', value: ov.members_count, label: 'Anggota aktif', tone: 'brand' });
+  if (ov.upcoming_events_count !== null) tiles.push({ icon: 'calendar-days', value: ov.upcoming_events_count, label: 'Event mendatang', tone: 'accent' });
+  if (ov.active_tasks_count !== null) tiles.push({ icon: 'tasks', value: ov.active_tasks_count, label: 'Tugas aktif', tone: 'brand' });
+  if (ov.due_soon_tasks_count !== null) tiles.push({ icon: 'hourglass', value: ov.due_soon_tasks_count, label: 'Tenggat dalam 3 hari', tone: ov.due_soon_tasks_count > 0 ? 'warning' : 'success' });
+  return tiles;
+}
+
+export function Hero({ name, tagline, description, highlight, highlightUrl, coverUrl, todayLabel, guest, stats, secondary }: {
+  name: string; tagline: string | null; description?: string | null; highlight: string | null; highlightUrl: string | null;
+  coverUrl?: string; todayLabel: string; guest: boolean; stats?: OverviewTile[];
+  secondary?: { href: string; label: string; icon: IconName } | null;
 }) {
   return (
-    <section className={cx('hero', coverUrl && 'hero--cover')} aria-labelledby="class-name">
+    <section className={cx('hero', coverUrl && 'hero--cover', guest && 'hero--guest')} aria-labelledby="class-name">
       {coverUrl && <img className="hero__img" src={coverUrl} alt="" width={1600} height={900} decoding="async" fetchPriority="high" />}
-      <div className="hero__meta"><span className="chip chip--onhero"><Icon name="calendar" size={14} />{todayLabel}</span></div>
-      <h1 id="class-name" className="hero__title">{name}</h1>
-      {tagline && <p className="hero__tagline">{tagline}</p>}
-      {(highlight || guest) && (
+      <div className="hero__body">
         <div className="hero__meta">
+          <span className="chip chip--onhero"><Icon name="calendar" size={14} />{todayLabel}</span>
           {highlight && (highlightUrl
             ? <ExtLink href={highlightUrl} className="chip chip--onhero"><Icon name="sparkles" size={14} />{highlight}</ExtLink>
             : <span className="chip chip--onhero"><Icon name="sparkles" size={14} />{highlight}</span>)}
-          {guest && <Link href="/login" className="btn btn--onhero btn--sm"><Icon name="log-in" size={16} />Masuk</Link>}
-        </div>)}
+        </div>
+        <h1 id="class-name" className="hero__title">{name}</h1>
+        {tagline && <p className="hero__tagline">{tagline}</p>}
+        {guest && description && <p className="hero__desc">{description}</p>}
+        {guest && (
+          <div className="hero__actions">
+            <Link href="/login" className="btn btn--onhero-solid btn--lg"><Icon name="log-in" size={18} />Masuk ke kelas</Link>
+            {secondary && <Link href={secondary.href} className="btn btn--onhero btn--lg"><Icon name={secondary.icon} size={18} />{secondary.label}</Link>}
+          </div>)}
+      </div>
+      {guest && stats && stats.length > 0 && (
+        <ul className="hero__stats" aria-label="Ringkasan kelas">
+          {stats.map((s) => (
+            <li key={s.label} className="hero__stat">
+              <span className="hero__stat-icon"><Icon name={s.icon} size={18} /></span>
+              <span className="hero__stat-value">{s.value}</span>
+              <span className="hero__stat-label">{s.label}</span>
+            </li>))}
+        </ul>)}
+    </section>
+  );
+}
+
+export type ExploreItem = { href: string; label: string; desc: string; icon: IconName };
+
+// Pintu masuk ke halaman publik yang memang boleh dilihat tamu; urutannya mengikuti navigasi utama.
+export function ExploreBlock({ items }: { items: ExploreItem[] }) {
+  return (
+    <section className="explore" aria-labelledby="h-explore">
+      <div className="section__head">
+        <h2 id="h-explore" className="section__title"><Icon name="sparkles" size={20} />Jelajahi kelas</h2>
+      </div>
+      <ul className="explore__grid">
+        {items.map((i) => (
+          <li key={i.href}>
+            <Link href={i.href} className="card card--link explore__card">
+              <Tile icon={i.icon} />
+              <span className="explore__text">
+                <span className="explore__label">{i.label}</span>
+                <span className="explore__desc">{i.desc}</span>
+              </span>
+              <Icon name="arrow-right" size={18} className="explore__go" />
+            </Link>
+          </li>))}
+      </ul>
     </section>
   );
 }
 
 export function OverviewTiles({ ov }: { ov: Overview }) {
-  const tiles: { icon: IconName; value: number; label: string; tone: Tone }[] = [];
-  if (ov.members_count !== null) tiles.push({ icon: 'users', value: ov.members_count, label: 'Anggota aktif', tone: 'brand' });
-  if (ov.upcoming_events_count !== null) tiles.push({ icon: 'calendar-days', value: ov.upcoming_events_count, label: 'Event mendatang', tone: 'accent' });
-  if (ov.active_tasks_count !== null) tiles.push({ icon: 'tasks', value: ov.active_tasks_count, label: 'Tugas aktif', tone: 'brand' });
-  if (ov.due_soon_tasks_count !== null) tiles.push({ icon: 'hourglass', value: ov.due_soon_tasks_count, label: 'Tenggat dalam 3 hari', tone: ov.due_soon_tasks_count > 0 ? 'warning' : 'success' });
+  const tiles = overviewTiles(ov);
   if (tiles.length === 0) return null;
   return (
     <section aria-label="Ringkasan kelas"><div className="stat-grid">{tiles.map((t) => <StatTile key={t.label} {...t} />)}</div></section>
@@ -64,7 +115,7 @@ export function ScheduleBlock({ rows, tz, now, dayName }: { rows: ScheduleItem[]
   return (
     <BlockCard id="h-sched" icon="calendar" title={<>Kuliah hari ini<span className="muted"> · {dayName} ({zoneLabel(tz)})</span></>} href="/schedule" linkLabel="Semua jadwal">
       {rows.length === 0
-        ? <EmptyState compact icon="calendar" title="Tidak ada jadwal hari ini">Waktunya istirahat atau mengejar tugas.</EmptyState>
+        ? <EmptyState slim icon="calendar" title="Tidak ada jadwal hari ini">Waktunya istirahat atau mengejar tugas.</EmptyState>
         : (
           <ol className="tl">
             {rows.slice(0, 6).map((r) => {
@@ -90,7 +141,7 @@ export function TasksBlock({ rows, tz, now }: { rows: TaskItem[]; tz: string; no
   return (
     <BlockCard id="h-tasks" icon="tasks" title="Tugas" href="/tasks" linkLabel="Semua tugas" flush>
       {rows.length === 0
-        ? <EmptyState compact icon="check-circle" title="Tidak ada tugas aktif">Semua tugas sudah beres.</EmptyState>
+        ? <EmptyState slim icon="check-circle" title="Tidak ada tugas aktif">Semua tugas sudah beres.</EmptyState>
         : <ul className="rows">{rows.map((t) => <TaskRow key={t.id} t={t} tz={tz} now={now} />)}</ul>}
     </BlockCard>
   );
@@ -100,7 +151,7 @@ export function EventsBlock({ rows, tz }: { rows: EventItem[]; tz: string }) {
   return (
     <BlockCard id="h-events" icon="calendar-days" title="Event mendatang" href="/events" linkLabel="Semua event" flush>
       {rows.length === 0
-        ? <EmptyState compact icon="calendar-days" title="Belum ada event mendatang">Kegiatan kelas akan muncul di sini.</EmptyState>
+        ? <EmptyState slim icon="calendar-days" title="Belum ada event mendatang">Kegiatan kelas akan muncul di sini.</EmptyState>
         : (
           <ul className="rows">
             {rows.map((e) => (
@@ -127,7 +178,7 @@ export function ActivityBlock({ rows }: { rows: ActivityWeek[] }) {
   return (
     <BlockCard id="h-act" icon="activity" title={`Aktivitas ${rows.length} pekan terakhir`}>
       {total === 0
-        ? <EmptyState compact icon="activity" title="Belum ada aktivitas">Perubahan jadwal, tugas, dan event akan tercatat di sini.</EmptyState>
+        ? <EmptyState slim icon="activity" title="Belum ada aktivitas">Perubahan jadwal, tugas, dan event akan tercatat di sini.</EmptyState>
         : (
           <>
             <ol className="bars" aria-labelledby="h-act">

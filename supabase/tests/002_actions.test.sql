@@ -1,5 +1,5 @@
 -- pgTAP 002: perilaku DB yang diandalkan Server Action (blueprint §9).
--- Dijalankan lokal dengan shim pgTAP + stub Supabase; BELUM dijalankan lewat `supabase test db`.
+-- Lulus 36/36 pada proyek Supabase asli (PostgreSQL 17.11, pgTAP 1.3.3) dengan data instance dinetralkan di dalam transaksi.
 begin;
 select plan(36);
 

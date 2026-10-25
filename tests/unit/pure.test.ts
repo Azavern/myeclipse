@@ -13,9 +13,13 @@ import { ThemeSchema } from '../../src/lib/theme/schema';
 import { detectImage } from '../../src/lib/storage/magic-bytes';
 import { buildCsp, makeNonce, originOf } from '../../src/lib/security/csp';
 import { CLASS_KEYS, MEMBER_KEYS } from '../../src/lib/visibility/audiences';
+import { parseInline, parseMarkdown, safeHref, splitRawBlocks, tocOf } from '../../src/lib/knowledge/markdown';
+import { computeHighlights, parseHighlights } from '../../src/lib/knowledge/diff';
+import { normalizeTag, normalizeTags, parseTagsJson } from '../../src/lib/knowledge/tags';
 
 const sql = readFileSync(new URL('../../supabase/migrations/20261005120700_reference_data.sql', import.meta.url), 'utf8');
 const sqlV2 = readFileSync(new URL('../../supabase/migrations/20261012120000_theme_default_v2.sql', import.meta.url), 'utf8');
+const sqlKnowledge = readFileSync(new URL('../../supabase/migrations/20261023120000_knowledge.sql', import.meta.url), 'utf8');
 
 describe('username', () => {
   it('menghilangkan diakritik dan simbol', () => {
@@ -166,12 +170,87 @@ describe('detectImage', () => {
   });
 });
 
-describe('paritas katalog visibility (kode vs migrasi 0008)', () => {
-  const cat = new Map([...sql.matchAll(/\('((?:page|section|field|item)\.[a-z_.]+)','\w+','\w+',(?:null|'[a-z_.]+'),(?:null|'\w+'),'(\w+)'\)/g)].map((m) => [m[1], m[2]]));
+describe('paritas katalog visibility (kode vs migrasi 0008 + 0014)', () => {
+  const cat = new Map([...`${sql}\n${sqlKnowledge}`.matchAll(/\('((?:page|section|field|item)\.[a-z_.]+)'\s*,\s*'\w+'\s*,\s*'\w+'\s*,\s*(?:null|'[a-z_.]+')\s*,\s*(?:null|'\w+')\s*,\s*'(\w+)'\)/g)].map((m) => [m[1], m[2]]));
   it('semua kunci ada di DB dengan batas terluas yang sama', () => {
-    expect(cat.size).toBe(27);
+    expect(cat.size).toBe(28);
     for (const [k, , widest] of CLASS_KEYS) expect(cat.get(k)).toBe(widest);
     for (const [k] of MEMBER_KEYS) expect(cat.has(k)).toBe(true);
+  });
+});
+
+describe('Markdown pengetahuan yang aman', () => {
+  it('HTML mentah tetap teks, bukan markup', () => {
+    const blocks = parseMarkdown('<script>alert(1)</script>');
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toMatchObject({ kind: 'paragraph', text: '<script>alert(1)</script>' });
+  });
+  it('hanya tautan https yang sah', () => {
+    expect(safeHref('https://contoh.id/a?b=1')).toBe('https://contoh.id/a?b=1');
+    for (const bad of ['javascript:alert(1)', 'http://contoh.id', 'https://user:pass@contoh.id', 'https://localhost']) {
+      expect(safeHref(bad), bad).toBeNull();
+    }
+  });
+  it('tautan berbahaya tidak menjadi token link', () => {
+    const tokens = parseInline('[klik](javascript:alert(1)) dan **aman**');
+    expect(tokens.some((t) => t.t === 'link')).toBe(false);
+    expect(tokens.some((t) => t.t === 'strong')).toBe(true);
+  });
+  it('tebal, miring, kode, dan URL telanjang dikenali', () => {
+    const tokens = parseInline('**a** *b* `c` https://contoh.id/x.');
+    expect(tokens.map((t) => t.t)).toEqual(['strong', 'text', 'em', 'text', 'code', 'text', 'link', 'text']);
+    const link = tokens.find((t) => t.t === 'link');
+    expect(link && 'href' in link ? link.href : '').toBe('https://contoh.id/x');
+  });
+  it('heading dipetakan ke h2–h4 dengan id unik dan TOC', () => {
+    const blocks = parseMarkdown('# Satu\n\n## Satu\n\n### Tiga');
+    expect(blocks.filter((b) => b.kind === 'heading').map((b) => b.kind === 'heading' && [b.level, b.id]))
+      .toEqual([[2, 'satu'], [2, 'satu-2'], [3, 'tiga']]);
+    expect(tocOf(blocks).map((h) => h.id)).toEqual(['satu', 'satu-2', 'tiga']);
+  });
+  it('blok kode tetap utuh meski berisi baris kosong', () => {
+    const raw = splitRawBlocks('```js\nconst a = 1;\n\nconst b = 2;\n```\n\nTeks');
+    expect(raw).toHaveLength(2);
+    const blocks = parseMarkdown(raw.join('\n\n'));
+    expect(blocks[0]).toMatchObject({ kind: 'code', lang: 'js', code: 'const a = 1;\n\nconst b = 2;' });
+    expect(blocks[1]).toMatchObject({ kind: 'paragraph', text: 'Teks' });
+  });
+  it('daftar berpoin dan bernomor', () => {
+    expect(parseMarkdown('- a\n- b')[0]).toMatchObject({ kind: 'list', ordered: false, items: ['a', 'b'] });
+    expect(parseMarkdown('1. a\n2. b')[0]).toMatchObject({ kind: 'list', ordered: true, items: ['a', 'b'] });
+  });
+});
+
+describe('Penyorotan suntingan pengetahuan', () => {
+  it('menandai blok yang ditambah atau diubah, bukan blok yang sama', () => {
+    expect(computeHighlights('A\n\nB', 'A\n\nB\n\nC', '2026-10-23T00:00:00.000Z'))
+      .toEqual({ blocks: [2], at: '2026-10-23T00:00:00.000Z' });
+    expect(computeHighlights('A\n\nB', 'A\n\nB diubah', 'x')).toEqual({ blocks: [1], at: 'x' });
+  });
+  it('tanpa perubahan berarti tanpa anotasi', () => {
+    expect(computeHighlights('A\n\nB', 'A\n\nB')).toBeNull();
+  });
+  it('anotasi dari DB divalidasi dan diurutkan', () => {
+    expect(parseHighlights({ blocks: [3, 1, 1, -1, '2', 2.5], at: 'x' })).toEqual({ blocks: [1, 3], at: 'x' });
+    expect(parseHighlights({ blocks: [] })).toBeNull();
+    expect(parseHighlights({ blocks: 'x' })).toBeNull();
+    expect(parseHighlights(null)).toBeNull();
+  });
+});
+
+describe('Normalisasi hashtag pengetahuan', () => {
+  it('menyeragamkan #, spasi, dan simbol', () => {
+    expect(normalizeTag(' #UI/UX ')).toBe('ui-ux');
+    expect(normalizeTag('Belajar  Python')).toBe('belajar-python');
+    expect(normalizeTag('###')).toBe('');
+  });
+  it('menghapus duplikat dan membatasi sepuluh tag', () => {
+    expect(normalizeTags(['UI/UX', 'ui ux', 'UI-UX', 1, 'Go'])).toEqual(['ui-ux', 'go']);
+    expect(normalizeTags(Array.from({ length: 15 }, (_, i) => `tag-${i}`))).toHaveLength(10);
+  });
+  it('JSON rusak tidak melempar galat', () => {
+    expect(parseTagsJson('bukan json')).toEqual([]);
+    expect(parseTagsJson('["A B","a-b"]')).toEqual(['a-b']);
   });
 });
 
