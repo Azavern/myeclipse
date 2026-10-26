@@ -38,15 +38,16 @@ export default async function MemberPage({ params }: { params: Promise<{ usernam
       <Crumbs items={[{ label: 'Anggota', href: '/members' }, { label: p.full_name }]} />
       <div className="stack">
         <section className="card profile" aria-labelledby="member-name">
-          <div className="profile__band" aria-hidden="true" />
+          <div className="profile__band">
+            <div className="profile__identity">
+              <Chip className="chip--onhero" icon="user">{p.role_name}</Chip>
+              {p.nickname && <Chip className="chip--onhero" icon="at">{p.nickname}</Chip>}
+            </div>
+          </div>
           <div className="profile__body">
             <Avatar name={p.full_name} src={p.avatar_path ? media.get(p.avatar_path) : undefined} size="xl" className="profile__avatar" />
             <div className="stack stack--sm">
               <h1 id="member-name" className="profile__name">{p.full_name}</h1>
-              <div className="cluster">
-                <Chip tone="brand" icon="user">{p.role_name}</Chip>
-                {p.nickname && <Chip icon="at">{p.nickname}</Chip>}
-              </div>
             </div>
             {p.bio && <p className="pre prose">{p.bio}</p>}
             {socials.length > 0 && (

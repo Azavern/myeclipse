@@ -16,7 +16,7 @@ const schema = z.object({
   kind: z.enum(['project', 'achievement', 'organization', 'competition', 'creative_work', 'certificate', 'experience']),
   occurred_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal tidak valid.'),
 });
-const base = { perm: null, owned: true, table: 'portfolio_items', schema, paths: ['/settings/profile', '/members'], to: '/settings/profile', build: (d: z.infer<typeof schema>) => d };
+const base = { perm: null, owned: true, table: 'portfolio_items', schema, paths: ['/settings/portfolio', '/settings/profile', '/members'], to: '/settings/portfolio', build: (d: z.infer<typeof schema>) => d };
 
 export async function createPortfolioItem(_p: FormState, fd: FormData) { return runSave({ ...base, fd }); }
 export async function updatePortfolioItem(_p: FormState, fd: FormData) {
@@ -39,7 +39,7 @@ async function mediaCtx(fd: FormData) {
     writeResult(await ctx.supabase.from('portfolio_items').update({ media_path: path }).eq('id', id).eq('user_id', ctx.user.id).select('id'));
   return { ctx, id, old: (data as { media_path: string | null }).media_path, write, back: `/settings/portfolio/${id}/edit` };
 }
-const mediaPaths = () => ['/settings/profile', '/members'].forEach((p) => revalidatePath(p));
+const mediaPaths = () => ['/settings/portfolio', '/settings/profile', '/members'].forEach((p) => revalidatePath(p));
 
 export async function uploadPortfolioMedia(_p: FormState, fd: FormData): Promise<FormState> {
   const file = fd.get('file');

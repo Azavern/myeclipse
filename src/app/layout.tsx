@@ -1,5 +1,6 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { headers } from 'next/headers';
+import { PwaRegister } from '@/components/pwa-register';
 import '../styles/tokens.css';
 import '../styles/base.css';
 import '../styles/components.css';
@@ -10,7 +11,31 @@ import { buildThemeCss } from '@/lib/theme/css';
 import { fontClass } from '@/lib/theme/fonts';
 import { ThemeSchema } from '@/lib/theme/schema';
 
-export const metadata: Metadata = { title: { default: 'Eclipse', template: '%s · Eclipse' }, robots: { index: false, follow: false } };
+export const metadata: Metadata = {
+  title: { default: 'Eclipse', template: '%s · Eclipse' },
+  applicationName: 'Eclipse',
+  robots: { index: false, follow: false },
+  icons: {
+    icon: [
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: '/icons/apple-touch-icon.png',
+  },
+  appleWebApp: { capable: true, title: 'Eclipse', statusBarStyle: 'default' },
+};
+
+export async function generateViewport(): Promise<Viewport> {
+  const cls = await getClass().catch(() => null);
+  const parsed = ThemeSchema.safeParse(cls?.theme);
+  const theme = parsed.success ? parsed.data : DEFAULT_THEME;
+  return {
+    themeColor: theme.palette.primary,
+    width: 'device-width',
+    initialScale: 1,
+    viewportFit: 'cover',
+  };
+}
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const [cls, nonce] = await Promise.all([getClass(), headers().then((h) => h.get('x-nonce') ?? undefined)]);
@@ -23,6 +48,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <a className="skip" href="#main">Lewati ke konten</a>
         {children}
+        <PwaRegister />
       </body>
     </html>
   );

@@ -6,7 +6,7 @@ import { Markdown } from '@/components/markdown';
 import { Chip, Notice } from '@/components/ui/primitives';
 import { cx } from '@/lib/cx';
 import type { FormState } from '@/lib/form-state';
-import { runCommand, type CommandId } from '@/lib/knowledge/editor-insert';
+import { continueList, runCommand, type CommandId, type EditResult } from '@/lib/knowledge/editor-insert';
 import { KB_VISIBILITY_HINT, KB_VISIBILITY_LABEL, KB_VISIBILITY_OPTIONS, KB_STATUS_LABEL } from '@/lib/knowledge/labels';
 import { MAX_TAGS, normalizeTag, normalizeTags } from '@/lib/knowledge/tags';
 
@@ -203,12 +203,11 @@ export function KnowledgeEditor({ action, entry, categories, tagSuggestions, bac
     setTagInput('');
   }
 
-  // Tombol dan pintasan memakai fungsi murni yang sama, lalu mengembalikan fokus
-  // dan pilihan ke textarea agar pengguna bisa langsung mengetik.
-  function run(id: CommandId) {
+  // Tombol, pintasan, dan lanjutan daftar memakai fungsi murni yang sama, lalu
+  // mengembalikan fokus dan pilihan ke textarea agar pengguna bisa langsung mengetik.
+  function apply(result: EditResult) {
     const el = textareaRef.current;
     if (!el) return;
-    const result = runCommand(id, form.content, { start: el.selectionStart, end: el.selectionEnd });
     setField('content', result.value);
     requestAnimationFrame(() => {
       el.focus();
@@ -216,7 +215,18 @@ export function KnowledgeEditor({ action, entry, categories, tagSuggestions, bac
     });
   }
 
+  function run(id: CommandId) {
+    const el = textareaRef.current;
+    if (!el) return;
+    apply(runCommand(id, form.content, { start: el.selectionStart, end: el.selectionEnd }));
+  }
+
   function onEditorKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
+      const el = e.currentTarget;
+      const result = continueList(form.content, { start: el.selectionStart, end: el.selectionEnd });
+      if (result) { e.preventDefault(); apply(result); return; }
+    }
     const id = shortcutFor(e);
     if (!id) return;
     e.preventDefault();
@@ -461,7 +471,7 @@ function MarkdownHelp() {
             </div>
             <div>
               <dt>Daftar</dt>
-              <dd><code>- item</code> atau <code>1. item</code>; subitem menjorok dua spasi. Tugas: <code>- [ ]</code> belum, <code>- [x]</code> selesai.</dd>
+              <dd><code>- item</code> atau <code>1. item</code>; subitem menjorok dua spasi. Enter melanjutkan nomor berikutnya; Enter pada item kosong mengakhiri daftar. Tugas: <code>- [ ]</code> belum, <code>- [x]</code> selesai.</dd>
             </div>
             <div>
               <dt>Kutipan</dt>

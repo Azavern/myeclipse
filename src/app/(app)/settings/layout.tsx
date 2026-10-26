@@ -8,7 +8,8 @@ export default async function SettingsLayout({ children }: { children: ReactNode
   const viewer = await getViewer();
   if (!viewer.user || viewer.status !== 'active') return <>{children}</>;
   const account: NavItem[] = [
-    { href: '/settings/profile', label: 'Profil saya', icon: 'user', match: ['/settings/profile', '/settings/portfolio', '/settings/social'] },
+    { href: '/settings/profile', label: 'Profil saya', icon: 'user', match: ['/settings/profile', '/settings/social'] },
+    { href: '/settings/portfolio', label: 'Portofolio', icon: 'briefcase' },
     { href: '/settings/account', label: 'Keamanan', icon: 'lock' },
   ];
   const manage: NavItem[] = [

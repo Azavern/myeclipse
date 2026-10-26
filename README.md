@@ -9,8 +9,9 @@ Nama kelas tidak ditulis di kode. Semua tampilan membaca `classes.name` (data aw
 - **Autentikasi tanpa pendaftaran mandiri.** Akun dibuat Ketua, lalu anggota masuk lewat tautan akses sekali pakai.
 - **Dynamic Visibility.** Ketua dan anggota mengatur siapa yang boleh melihat halaman, section, field, dan item (portofolio, social media). Audience: `public`, `authenticated`, `class_member`, `class_admin`, `self`. Data personal default-nya `class_member`; hanya identitas kelas yang `public`.
 - **Role dan permission.** Ketua dan Member. Hak admin berupa permission pada role, bukan pengecekan nama role.
-- **Modul kelas.** Identitas dan tema kelas, direktori anggota, profil, portofolio, jadwal kuliah mingguan per semester, event, tugas (dengan mata kuliah), dan beranda.
+- **Modul kelas.** Identitas dan tema kelas, direktori anggota, profil, portofolio (halaman pengelolaan terpisah dari profil), jadwal kuliah mingguan per semester, event, tugas (dengan mata kuliah), dan beranda.
 - **Eclipse Knowledge.** Perpustakaan pengetahuan bersama: entri Markdown dengan pratinjau, pencarian/filter/sort, draf lokal, penanda bagian yang diedit, serta alur permintaan akses edit (penulis, editor, dan eskalasi ke Ketua). Entri publik dapat dibaca tanpa masuk.
+- **PWA.** Manifest, service worker, dan halaman offline membuat aplikasi dapat dipasang ke beranda. Hanya aset statis yang di-cache; halaman berisi data anggota tidak disimpan di cache.
 
 ## Stack
 

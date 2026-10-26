@@ -14,7 +14,7 @@ import { detectImage } from '../../src/lib/storage/magic-bytes';
 import { buildCsp, makeNonce, originOf } from '../../src/lib/security/csp';
 import { CLASS_KEYS, MEMBER_KEYS } from '../../src/lib/visibility/audiences';
 import { parseInline, parseMarkdown, safeHref, splitRawBlocks, tocOf } from '../../src/lib/knowledge/markdown';
-import { applyLine, applyWrap, insertSnippet, runCommand } from '../../src/lib/knowledge/editor-insert';
+import { applyLine, applyWrap, continueList, insertSnippet, runCommand } from '../../src/lib/knowledge/editor-insert';
 import { computeHighlights, parseHighlights } from '../../src/lib/knowledge/diff';
 import { normalizeTag, normalizeTags, parseTagsJson } from '../../src/lib/knowledge/tags';
 
@@ -314,6 +314,21 @@ describe('Penyisipan Markdown editor', () => {
     const r = applyLine('halo', { start: 2, end: 2 }, 'unordered');
     expect(r.value).toBe('- halo');
     expect(r.start).toBe(4);
+  });
+  it('daftar bernomor melanjutkan nomor item sebelumnya pada indentasi yang sama', () => {
+    const r = applyLine('1. satu\ndua', { start: 9, end: 9 }, 'ordered');
+    expect(r.value).toBe('1. satu\n2. dua');
+    expect(applyLine('1. satu\n  dua', { start: 11, end: 11 }, 'ordered').value).toBe('1. satu\n  1. dua');
+    expect(applyLine('1. satu\n\ndua', { start: 10, end: 10 }, 'ordered').value).toBe('1. satu\n\n1. dua');
+    expect(applyLine('  - a', { start: 4, end: 4 }, 'unordered').value).toBe('  a');
+  });
+  it('Enter melanjutkan nomor dan item kosong mengakhiri daftar', () => {
+    const next = continueList('1. Hari ini cerah', { start: 17, end: 17 });
+    expect(next?.value).toBe('1. Hari ini cerah\n2. ');
+    expect(next?.start).toBe(21);
+    expect(continueList('1. a\n2. ', { start: 9, end: 9 })?.value).toBe('1. a\n');
+    expect(continueList('bukan daftar', { start: 3, end: 3 })).toBeNull();
+    expect(continueList('1. a', { start: 0, end: 4 })).toBeNull();
   });
   it('potongan tabel dan blok kode menyeleksi bagian yang perlu diganti', () => {
     expect(insertSnippet('Teks', { start: 4, end: 4 }, '---').value).toBe('Teks\n\n---');

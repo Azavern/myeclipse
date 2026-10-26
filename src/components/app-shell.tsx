@@ -63,7 +63,10 @@ export async function AppFrame({ children }: { children: ReactNode }) {
       ...(pendingKnowledge > 0 ? { badge: pendingKnowledge } : {}),
     });
   }
-  const account: NavItem[] = viewer.user ? [{ href: '/settings/profile', label: 'Profil saya', icon: 'user', match: ['/settings/profile', '/settings/portfolio', '/settings/social', '/settings/account'] }] : [];
+  const account: NavItem[] = viewer.user ? [
+    { href: '/settings/profile', label: 'Profil saya', icon: 'user', match: ['/settings/profile', '/settings/social', '/settings/account'] },
+    { href: '/settings/portfolio', label: 'Portofolio saya', icon: 'briefcase' },
+  ] : [];
   const canManage = viewer.can('class.manage');
   const manage: NavItem[] = canManage || viewer.can('members.manage')
     ? [{ href: canManage ? '/settings/class' : '/settings/members', label: 'Pengelolaan kelas', icon: 'settings',

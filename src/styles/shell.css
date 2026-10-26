@@ -10,6 +10,11 @@
 .container--narrow { max-width: 62rem; }
 .page-enter { animation: rise var(--t-med) both; }
 
+/* Konten masuk saat menggulir (dipasang oleh components/scroll-reveal.tsx). */
+.reveal { opacity: 0; transform: translateY(1.25rem); transition: opacity .45s ease, transform .55s cubic-bezier(.2, .7, .2, 1); }
+.reveal--in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } }
+
 /* Sidebar / rail ------------------------------------------------------------ */
 .sidebar { display: none; }
 @media (min-width: 768px) {
@@ -67,9 +72,44 @@
 .tab[aria-current=page] { background: var(--brand-100); color: var(--brand-strong); }
 
 /* Lembar "Lainnya" (mobile) -------------------------------------------------------- */
-.sheet { position: fixed; inset: auto 0 0 0; width: 100%; max-width: none; margin: 0; max-height: 85dvh; overflow-y: auto; border-radius: var(--r-xl) var(--r-xl) 0 0; border-width: 1px 0 0; }
+.sheet { position: fixed; inset: auto 0 0 0; width: 100%; max-width: none; margin: 0; max-height: 85dvh; overflow-y: auto; border-radius: var(--r-xl) var(--r-xl) 0 0; border-width: 1px 0 0; transition: transform var(--t-med) ease; }
 .sheet[open] { animation: rise var(--t-med); }
-.sheet__grab { width: 2.5rem; height: .25rem; margin: var(--s-3) auto 0; border-radius: var(--r-full); background: var(--border-strong); }
+.sheet--dragging { transition: none; animation: none; }
+.sheet__drag { touch-action: none; }
+.sheet--closing { transform: translateY(100%); }
+/* Geseran memakai langkah kelas, bukan atribut style (diblokir CSP). */
+.sheet[data-drag="4"] { transform: translateY(4px); }
+.sheet[data-drag="8"] { transform: translateY(8px); }
+.sheet[data-drag="12"] { transform: translateY(12px); }
+.sheet[data-drag="16"] { transform: translateY(16px); }
+.sheet[data-drag="20"] { transform: translateY(20px); }
+.sheet[data-drag="24"] { transform: translateY(24px); }
+.sheet[data-drag="28"] { transform: translateY(28px); }
+.sheet[data-drag="32"] { transform: translateY(32px); }
+.sheet[data-drag="36"] { transform: translateY(36px); }
+.sheet[data-drag="40"] { transform: translateY(40px); }
+.sheet[data-drag="44"] { transform: translateY(44px); }
+.sheet[data-drag="48"] { transform: translateY(48px); }
+.sheet[data-drag="52"] { transform: translateY(52px); }
+.sheet[data-drag="56"] { transform: translateY(56px); }
+.sheet[data-drag="60"] { transform: translateY(60px); }
+.sheet[data-drag="64"] { transform: translateY(64px); }
+.sheet[data-drag="68"] { transform: translateY(68px); }
+.sheet[data-drag="72"] { transform: translateY(72px); }
+.sheet[data-drag="76"] { transform: translateY(76px); }
+.sheet[data-drag="80"] { transform: translateY(80px); }
+.sheet[data-drag="84"] { transform: translateY(84px); }
+.sheet[data-drag="88"] { transform: translateY(88px); }
+.sheet[data-drag="92"] { transform: translateY(92px); }
+.sheet[data-drag="96"] { transform: translateY(96px); }
+.sheet[data-drag="100"] { transform: translateY(100px); }
+.sheet[data-drag="104"] { transform: translateY(104px); }
+.sheet[data-drag="108"] { transform: translateY(108px); }
+.sheet[data-drag="112"] { transform: translateY(112px); }
+.sheet[data-drag="116"] { transform: translateY(116px); }
+.sheet[data-drag="120"] { transform: translateY(120px); }
+.sheet__grab { width: 2.5rem; height: .25rem; margin: var(--s-3) auto 0; border-radius: var(--r-full); background: var(--border-strong); cursor: grab; }
+.sheet--dragging .sheet__grab { cursor: grabbing; }
 .sheet__head { display: flex; align-items: center; justify-content: space-between; padding: var(--s-3) var(--s-4) 0; font-weight: 700; font-family: var(--font-head); }
 .sheet__body { display: grid; gap: var(--s-4); padding: var(--s-3) var(--s-3) calc(var(--s-4) + env(safe-area-inset-bottom)); }
 @media (min-width: 768px) { .sheet { display: none !important; } }

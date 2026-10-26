@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: 'Tambah portofolio' };
 
 export default function Page() {
   return (
-    <ManageNew perm={null} next="/settings/portfolio/new" icon="briefcase" title="Tambah portofolio" parent={{ label: 'Profil saya', href: '/settings/profile' }}
+    <ManageNew perm={null} next="/settings/portfolio/new" icon="briefcase" title="Tambah portofolio" parent={{ label: 'Portofolio', href: '/settings/portfolio' }}
       action={createPortfolioItem} fields={portfolioFields(null)}
       tips={['Gambar bisa ditambahkan setelah item tersimpan, lewat halaman Ubah.', 'Pilih siapa yang boleh melihat tiap item.', 'Maksimal jumlah item per anggota dibatasi.']} />
   );

@@ -1,0 +1,16 @@
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body {
+  min-height: 100dvh; margin: 0; display: grid; place-items: center; padding: 1.5rem;
+  background: #F2F7F6; color: #0E1F1D;
+  font: 400 1rem/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.offline { max-width: 26rem; text-align: center; }
+.offline__mark { margin: 0 auto 1.5rem; border-radius: 1.25rem; box-shadow: 0 8px 24px rgb(14 31 29 / .14); }
+h1 { margin: 0 0 .75rem; font-size: clamp(1.5rem, 5vw, 2rem); line-height: 1.2; }
+p { margin: 0 0 1.5rem; color: #455E5A; }
+.offline__retry {
+  display: inline-block; min-height: 2.75rem; padding: 0 1.25rem; line-height: 2.75rem;
+  border-radius: .75rem; background: #0F766E; color: #fff; font-weight: 700; text-decoration: none;
+}
+.offline__retry:focus-visible { outline: 2px solid #0F766E; outline-offset: 3px; }

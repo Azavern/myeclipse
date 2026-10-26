@@ -12,7 +12,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const { id } = await params;
   return (
     <ManageEdit perm={null} ownerOnly next={`/settings/portfolio/${id}/edit`} id={id} table="portfolio_items" icon="briefcase" title="Ubah portofolio"
-      parent={{ label: 'Profil saya', href: '/settings/profile' }} deleteTitle="Hapus item portofolio?" consequence="Item ini akan hilang dari profilmu."
+      parent={{ label: 'Portofolio', href: '/settings/portfolio' }} deleteTitle="Hapus item portofolio?" consequence="Item ini akan hilang dari profilmu."
       action={updatePortfolioItem} remove={deletePortfolioItem} fieldsFor={portfolioFields} extraCols={['media_path']}
       after={async (row) => {
         const path = typeof row.media_path === 'string' ? row.media_path : null;

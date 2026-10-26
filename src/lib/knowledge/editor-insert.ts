@@ -7,11 +7,11 @@ export type EditResult = { value: string; start: number; end: number };
 export type LineKind = 'heading' | 'unordered' | 'ordered' | 'task' | 'quote';
 
 const LINE_PATTERN: Record<LineKind, RegExp> = {
-  heading: /^#{1,6}\s+/,
-  unordered: /^[-*+]\s+(?!\[[ xX]\]\s)/,
-  ordered: /^\d+[.)]\s+/,
-  task: /^[-*+]\s+\[[ xX]\]\s+/,
-  quote: /^>\s?/,
+  heading: /^\s*#{1,6}\s+/,
+  unordered: /^\s*[-*+]\s+(?!\[[ xX]\]\s)/,
+  ordered: /^\s*\d+[.)]\s+/,
+  task: /^\s*[-*+]\s+\[[ xX]\]\s+/,
+  quote: /^\s*>\s?/,
 };
 
 // Saat mengganti jenis awalan (mis. H3 pada baris H2, atau daftar bernomor pada
@@ -81,6 +81,15 @@ export function applyWrap(
   };
 }
 
+// Nomor urut melanjutkan item sebelumnya pada indentasi yang sama, bukan selalu
+// mulai dari 1. Baris kosong dianggap batas daftar baru.
+export function nextOrderedNumber(value: string, lineStart: number, indent: string): number {
+  if (lineStart === 0) return 1;
+  const previous = value.slice(0, lineStart - 1).split('\n').at(-1) ?? '';
+  const match = /^(\s*)(\d+)[.)]\s+/.exec(previous);
+  return match && match[1] === indent ? Number(match[2]) + 1 : 1;
+}
+
 // Beri awalan pada baris terpilih (judul, daftar, kutipan, checklist).
 // Bila semua baris sudah memakai jenis yang sama, awalan dilepas.
 export function applyLine(
@@ -95,7 +104,7 @@ export function applyLine(
   const block = value.slice(lineStart, lineEnd);
   const lines = block.split('\n');
   const pattern = LINE_PATTERN[kind];
-  const sameHeading = new RegExp(`^#{${headingLevel}}\\s+`);
+  const sameHeading = new RegExp(`^\\s*#{${headingLevel}}\\s+`);
   const meaningful = lines.filter((line) => line.trim() !== '');
   const alreadyApplied = meaningful.length > 0 && meaningful.every((line) =>
     (kind === 'heading' ? sameHeading : pattern).test(line));
@@ -103,20 +112,23 @@ export function applyLine(
   const caretLine = block.slice(0, Math.max(0, s - lineStart)).split('\n').length - 1;
   let addedAtCaret = 0;
   let removedAtCaret = 0;
-  let orderedIndex = 1;
+  const firstIndent = /^\s*/.exec(meaningful[0] ?? '')?.[0] ?? '';
+  let orderedIndex = nextOrderedNumber(value, lineStart, firstIndent);
 
   const replacement = lines.map((line, i) => {
     if (alreadyApplied) {
-      const stripped = line.replace(pattern, '');
+      const indent = /^[ \t]*/.exec(line)?.[0] ?? '';
+      const stripped = indent + line.slice(indent.length).replace(pattern, '');
       if (i === caretLine) removedAtCaret = line.length - stripped.length;
       return stripped;
     }
     if (line.trim() === '') return line;
+    const indent = /^[ \t]*/.exec(line)?.[0] ?? '';
     const marker = kind === 'heading'
       ? `${'#'.repeat(headingLevel)} `
       : kind === 'ordered' ? `${orderedIndex++}. ` : PREFIX[kind];
     if (i === caretLine) addedAtCaret = marker.length;
-    return marker + line.replace(STRIP_ON_ADD[kind], '');
+    return indent + marker + line.slice(indent.length).replace(STRIP_ON_ADD[kind], '');
   }).join('\n');
 
   const next = value.slice(0, lineStart) + replacement + value.slice(lineEnd);
@@ -141,6 +153,28 @@ export function insertSnippet(
   const start = selectFrom === undefined ? base + snippet.length : base + selectFrom;
   const end = selectFrom === undefined || selectTo === undefined ? start : base + selectTo;
   return { value: before + inserted + after, start, end };
+}
+
+// Enter pada item bernomor menambahkan nomor berikutnya. Item kosong mengakhiri
+// daftar dengan melepas nomornya, sama seperti editor teks lain.
+export function continueList(value: string, selection: EditSelection): EditResult | null {
+  const { s, e } = normalize(value, selection);
+  if (s !== e) return null;
+  const lineStart = value.lastIndexOf('\n', s - 1) + 1;
+  const lineEnd = value.indexOf('\n', s);
+  const block = value.slice(lineStart, lineEnd === -1 ? value.length : lineEnd);
+  const match = /^(\s*)(\d+)([.)])(\s+)(.*)$/.exec(block);
+  if (!match) return null;
+  const [, indent = '', number = '1', delimiter = '.', , rest = ''] = match;
+  const prefixLength = block.length - rest.length;
+  if (s < lineStart + prefixLength) return null;
+  if (rest.trim() === '') {
+    const caret = lineStart + indent.length;
+    return { value: value.slice(0, lineStart) + indent + value.slice(lineStart + prefixLength), start: caret, end: caret };
+  }
+  const inserted = `\n${indent}${Number(number) + 1}${delimiter} `;
+  const caret = s + inserted.length;
+  return { value: value.slice(0, s) + inserted + value.slice(s), start: caret, end: caret };
 }
 
 export type CommandId =

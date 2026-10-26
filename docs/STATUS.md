@@ -6,18 +6,27 @@ Dokumen ini mencatat keadaan yang BENAR-BENAR terverifikasi, bukan rencana. Atur
 
 Semua halaman, alur akun, CRUD, pengaturan, tema, Storage, dan **Eclipse Knowledge** yang dirancang sudah ada. Pada sesi ini dependensi sudah terpasang, sehingga `typecheck`, tes unit, pemeriksaan token, dan `next build` benar-benar dijalankan dan hijau. Migrasi 0014 sudah diterapkan ke proyek Supabase terhubung (`udlxcngowgbydlxhofdl`) lewat `npx supabase db push`, dan keempat berkas pgTAP dijalankan pada PostgreSQL 17.11 proyek itu dengan pgTAP 1.3.3 asli: **199/199 lulus** (001 18, 002 36, 003 40, 004 105) setelah data instance dinetralkan di dalam transaksi yang di-`rollback`. **Yang belum terjadi:** RLS/RPC Knowledge diuji lewat PostgREST dengan JWT pengguna sungguhan, `npx supabase test db` sendiri (butuh Docker), dan alur Knowledge yang butuh login (tulis/edit/kelola) diuji di browser. Jangan menganggap alur Knowledge sudah terbukti penuh sampai langkah "Sebelum deploy" hijau.
 
+## Rilis 0.2.0
+
+- **PWA.** `app/manifest.ts` memakai nama dan tema kelas dari DB, ikon 192/512 + maskable, service worker di `public/sw.js`, dan halaman offline statis. Service worker hanya menyimpan aset statis; dokumen berisi data anggota tidak pernah masuk cache. Pendaftaran hanya di produksi; di dev registrasi lama dicabut.
+- **Daftar bernomor.** Toolbar melanjutkan nomor item sebelumnya (termasuk indentasi), dan Enter pada item bernomor menambahkan nomor berikutnya; Enter pada item kosong mengakhiri daftar.
+- **Animasi gulir.** `components/scroll-reveal.tsx` memberi kelas `reveal`/`reveal--in` pada kartu dan baris saat masuk viewport. Konten yang dialirkan setelah layout ikut dipindai lewat `MutationObserver`. Preferensi `prefers-reduced-motion` dimatikan lewat CSS.
+- **Sheet "Lainnya".** Bagian atas dapat digeser ke bawah untuk menutup (ambang 96px atau gestur cepat), selain tombol tutup dan backdrop. Gerakan memakai kelas `[data-drag]`, bukan atribut style, karena CSP menolak style inline.
+- **Portofolio terpisah.** Pengelolaan portofolio pindah ke `/settings/portfolio`; halaman profil hanya menampilkan tombol ke halaman itu. Pintasan **Portofolio saya** ada di sidebar/menu "Lainnya" dan sub-navigasi Pengaturan.
+- **Hero profil anggota.** Role dan nama panggilan dipindah ke area berwarna di kanan foto, sehingga nama lengkap mendapat baris sendiri di bawahnya.
+
 ## Isi aplikasi
 
 Manajer paket: **npm** (`package-lock.json`). Node 22 (`.nvmrc`); runtime sesi ini: Next 16.4.2, TypeScript 5.9.3, Vitest 3.2.7.
 
-Rute (39 halaman + 1 route handler):
+Rute (40 halaman + 1 route handler + manifest):
 
 | Kelompok | Rute |
 |---|---|
 | Publik/auth `(auth)` | `/login`, `/forgot-password`, `/set-password`, `/auth/confirm` |
 | Aplikasi `(app)` | `/` (Beranda), `/class`, `/schedule` (+ `new`, `[id]/edit`), `/events` (+ `new`, `[id]`, `[id]/edit`), `/tasks` (+ `new`, `[id]`, `[id]/edit`), `/members`, `/members/[username]` |
 | Knowledge `(app)/knowledge` | `/knowledge` (penjelajah publik), `/knowledge/[slug]`, `/knowledge/new`, `/knowledge/[slug]/edit`, `/knowledge/[slug]/request-edit`, `/knowledge/manage`, `/knowledge/manage/requests` |
-| Pengaturan `(app)/settings` | `profile`, `account`, `class`, `visibility`, `theme`, `members`, `members/[id]`, `portfolio/new`, `portfolio/[id]/edit`, `social/new`, `social/[id]/edit`; `/settings` hanya mengalihkan ke `/settings/profile` |
+| Pengaturan `(app)/settings` | `profile`, `portfolio`, `portfolio/new`, `portfolio/[id]/edit`, `account`, `class`, `visibility`, `theme`, `members`, `members/[id]`, `social/new`, `social/[id]/edit`; `/settings` hanya mengalihkan ke `/settings/profile` |
 | Lain-lain | `/api/health` (cron harian, Bearer `CRON_SECRET`), `/dev/ui` (galeri state; `notFound()` saat `NODE_ENV=production`) |
 
 Database: migrasi **0001–0014** (`supabase/migrations`), seluruhnya sudah diterapkan di proyek Supabase `udlxcngowgbydlxhofdl`. Tes DB yang ada: `supabase/tests/001_visibility`, `002_actions`, `003_storage`, dan `004_knowledge` — total 199 pemeriksaan (18 + 36 + 40 + 105).
@@ -42,7 +51,7 @@ Database: migrasi **0001–0014** (`supabase/migrations`), seluruhnya sudah dite
 - Sidebar ikon ≥1024px, **rel ikon 768–1023px** (bukan BottomNav), bilah atas + tab bawah <768px. Rel ikon untuk tablet menyimpang dari blueprint §16 karena DESIGN.md v2 yang menentukan; ubah di `src/components/nav.tsx` + `src/styles/shell.css` bila blueprint yang ingin diikuti.
 - Beranda: tamu mendapat hero dengan deskripsi kelas, tombol **Masuk ke kelas**, panel ringkasan di dalam hero, dan pintasan ke halaman publik yang memang terlihat; anggota melihat kartu KPI setelah hero. Urutan preset `profile_focused` diterapkan di semua lebar layar. Blueprint menyebut ponsel mengabaikan preset; di sini tidak.
 - Grafik tren aktivitas memakai batang HTML (kelas `.pct-N`), bukan SVG, supaya tidak butuh atribut `style` (lihat CSP).
-- Tidak ada atribut `style` inline di mana pun. Pratinjau tema memakai CSSOM (`setProperty`), SVG memakai atribut `fill`.
+- Tidak ada atribut `style` inline di mana pun. Sheet "Lainnya" memakai kelas `[data-drag]` agar tetap patuh CSP. **Temuan:** Chrome juga memblokir perubahan CSSOM (`element.style.setProperty`) di bawah `style-src` saat ini, sehingga pratinjau tema yang memakai cara itu belum berfungsi; perlu diperbaiki terpisah.
 - Form: `useActionState`, toast lewat cookie flash (`lib/flash.ts`), unggah gambar lewat `ImageForm`; hapus lewat `<dialog>` konfirmasi.
 - Knowledge: layout baca dua kolom di ≥1024px (isi + TOC/aksi), editor/pratinjau berdampingan di desktop dan tab Editor/Pratinjau di layar sempit. Warna sorotan memakai token `--warning-bg`/`--warning`, jadi ikut tema terang/gelap.
 
@@ -71,15 +80,20 @@ Database: migrasi **0001–0014** (`supabase/migrations`), seluruhnya sudah dite
 
 | Cek | Hasil | Catatan |
 |---|---|---|
-| `npm test` | **59/59 lulus** | Vitest 3.2.7 asli, termasuk tes parser Markdown (tabel, daftar bertingkat, checklist, kutipan bertingkat, gambar, escape, baris baru), penyisipan sintaks editor, tautan aman, diff blok, normalisasi tag, dan paritas katalog 28 kunci. |
+| `npm test` | **61/61 lulus** | Vitest 3.2.7 asli, termasuk tes parser Markdown (tabel, daftar bertingkat, checklist, kutipan bertingkat, gambar, escape, baris baru), penomoran daftar dan lanjutan Enter, penyisipan sintaks editor, tautan aman, diff blok, normalisasi tag, dan paritas katalog 28 kunci. |
 | `npm run typecheck` | **0 error** | `tsc --noEmit`, strict + `noUncheckedIndexedAccess`; TypeScript 5.9.3, dependensi asli terpasang. |
 | `npm run check:tokens` | bersih | Tidak ada warna hex/rgb/hsl atau nilai arbitrer di `src/components`, `src/features`, `src/app`. |
-| `npm run build` | **sukses** | Next 16.4.2; 39 route halaman + `/api/health`; semua route Knowledge terdaftar. Build tidak memanggil Supabase saat prerender karena halaman dinamis. |
+| `npm run build` | **sukses** | Next 16.4.2; 40 route halaman + `/api/health` + `/manifest.webmanifest`; semua route Knowledge terdaftar. Build tidak memanggil Supabase saat prerender karena halaman dinamis. |
 | Migrasi 0014 ke Supabase | **diterapkan** | `npx supabase db push --db-url` ke `udlxcngowgbydlxhofdl` (MyEclipse): `20261023120000` masuk, `migration list` remote kini 14/14. `pgtap` 1.3.3 dipasang di schema `extensions`. |
 | Tes DB 001–004 dengan pgTAP asli | **199/199 lulus** | PostgreSQL 17.11 proyek Supabase, pgTAP 1.3.3. Dijalankan dengan `npm run test:db -- --isolate` (`scripts/test-db.mjs`, driver `pg`) karena `supabase test db` menuntut Docker. Data instance dinetralkan di dalam transaksi yang selalu `rollback`; sesudahnya jumlah baris tidak berubah (1 kelas, 1 anggota, 1 profil, 1 event, 5 tugas, 1 objek Storage, 16 aturan visibility). |
 | Tes DB terhadap data asli | **tidak bersih, bukan bug** | Tanpa isolasi: 001 13/18, 002 30/36, 004 104/105. Semuanya karena data/setelan asli: `page.members` dan `page.events` publik, 1 event + 1 logo + 5 tugas, dan 1 Ketua lama sehingga penjaga "pengelola terakhir" tidak menyala. 003 berhenti karena trigger Storage (lihat temuan di atas), bukan karena data. |
 | `npx supabase test db` | **tetap tidak bisa di sandbox** | CLI 2.121.0: dengan `--db-url` pun perintah ini menjalankan `pg_prove` di container dan gagal `docker: command not found`. Login akun dan proyek linked sudah benar; `db push`, `db query`, dan `migration list` berjalan normal. |
 | Renderer Markdown | **aman pada uji render** | `react-dom/server` dipakai untuk merender `<script>`, tabel, gambar `https`, checklist, daftar bertingkat, kutipan bertingkat, dan blok kode; keluaran meng-escape teks, tidak ada tag skrip/atribut HTML yang dieksekusi. |
+| PWA | **lulus di Chrome headless** | `/manifest.webmanifest` 200 dengan ikon 192/512/maskable; `Page.getInstallabilityErrors` kosong; service worker aktif dan mengendalikan halaman; navigasi saat offline menampilkan `/offline.html`. |
+| Animasi gulir | **lulus di Chrome headless** | Dengan `prefers-reduced-motion: no-preference`, elemen mendapat `.reveal`; setelah digulir ke viewport menjadi `.reveal--in` dengan opacity 1 dan transform none. |
+| Sheet "Lainnya" | **lulus di Chrome headless** | Pointer sintetis: geser 44px kembali ke posisi semula; geser 130px menutup dialog. Gerakan terlihat lewat `transform` dari kelas `[data-drag]`. |
+| Hero profil anggota | **lulus geometri** | Di 1280px dan 390px, kotak role/nama panggilan berada di kanan avatar tanpa tumpang tindih dan di dalam area berwarna. |
+| Halaman portofolio terpisah | **hanya build + typecheck** | Rute `/settings/portfolio` terdaftar dan redirect ke login berjalan; alur login, tambah, ubah, dan hapus item belum diuji di browser. |
 | Penanda notifikasi Knowledge | **hanya typecheck + build** | Query hitungan memakai embed `knowledge_entries!inner(author_id)` dan `head: true`; belum diuji terhadap PostgREST/RLS sungguhan. |
 | PostgREST / JWT | **belum** | pgTAP berjalan sebagai `postgres` lalu berganti role dengan `set_config`; tidak ada permintaan HTTP ber-JWT. |
 | Halaman Knowledge di browser | **sebagian** | Chrome headless: penjelajah anonim + state kosong, redirect ke login untuk halaman tulis/kelola, dan halaman 404 slug tidak dikenal (build produksi) berjalan. Entri berisi, editor, draf lokal, sorotan, TOC, dan salin tautan belum diuji karena DB belum punya entri. |
@@ -95,6 +109,8 @@ Database: migrasi **0001–0014** (`supabase/migrations`), seluruhnya sudah dite
 - Halaman entri Knowledge yang berisi: TOC, sorotan blok, aksi penulis/Ketua, dan pratinjau Markdown — DB belum punya entri, jadi rute ini baru diuji sebagai 404.
 - Tampilan Markdown, sorotan, TOC, editor/pratinjau di ponsel, tablet, dan desktop; pemeriksaan aksesibilitas manual (fokus, pembaca layar).
 - `npm audit` dan interaktivitas klien lain yang sudah ada sebelumnya (dialog, toast, unggah/crop gambar, pratinjau tema).
+- Geser sheet dengan sentuhan jari sungguhan, animasi gulir pada perangkat nyata, dan pemasangan PWA dari prompt browser Android/iOS.
+- Alur portofolio setelah login: tambah, ubah, hapus, unggah gambar, dan kembali ke `/settings/portfolio` (bukan `/settings/profile`).
 
 ## Sebelum deploy (urutan)
 
