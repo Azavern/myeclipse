@@ -1,11 +1,12 @@
 'use client';
-import { useActionState, useEffect, useRef, useState } from 'react';
+import { Fragment, useActionState, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Icon } from '@/components/ui/icon';
 import { Markdown } from '@/components/markdown';
 import { Chip, Notice } from '@/components/ui/primitives';
 import { cx } from '@/lib/cx';
 import type { FormState } from '@/lib/form-state';
+import { runCommand, type CommandId } from '@/lib/knowledge/editor-insert';
 import { KB_VISIBILITY_HINT, KB_VISIBILITY_LABEL, KB_VISIBILITY_OPTIONS, KB_STATUS_LABEL } from '@/lib/knowledge/labels';
 import { MAX_TAGS, normalizeTag, normalizeTags } from '@/lib/knowledge/tags';
 
@@ -20,6 +21,72 @@ const timeLabel = (iso: string) => {
   try { return new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }); }
   catch { return '—'; }
 };
+
+type Tool = { id: CommandId; name: string; keys: string; aria: string; label: ReactNode };
+
+const TOOLBAR: { group: string; items: Tool[] }[] = [
+  {
+    group: 'Judul',
+    items: [
+      { id: 'heading2', name: 'Judul bagian', keys: 'Ctrl/⌘+Alt+1', aria: 'Control+Alt+1 Meta+Alt+1', label: 'H2' },
+      { id: 'heading3', name: 'Subjudul', keys: 'Ctrl/⌘+Alt+2', aria: 'Control+Alt+2 Meta+Alt+2', label: 'H3' },
+    ],
+  },
+  {
+    group: 'Penekanan',
+    items: [
+      { id: 'bold', name: 'Tebal', keys: 'Ctrl/⌘+B', aria: 'Control+B Meta+B', label: <strong>B</strong> },
+      { id: 'italic', name: 'Miring', keys: 'Ctrl/⌘+I', aria: 'Control+I Meta+I', label: <em>I</em> },
+      { id: 'strike', name: 'Coret', keys: 'Ctrl/⌘+Shift+X', aria: 'Control+Shift+X Meta+Shift+X', label: <s>S</s> },
+      { id: 'codeInline', name: 'Kode sebaris', keys: 'Ctrl/⌘+E', aria: 'Control+E Meta+E', label: <code>{'`'}</code> },
+    ],
+  },
+  {
+    group: 'Tautan',
+    items: [
+      { id: 'link', name: 'Tautan', keys: 'Ctrl/⌘+K', aria: 'Control+K Meta+K', label: <Icon name="link" size={16} /> },
+      { id: 'image', name: 'Gambar', keys: '', aria: '', label: <Icon name="image" size={16} /> },
+    ],
+  },
+  {
+    group: 'Blok',
+    items: [
+      { id: 'unordered', name: 'Daftar berpoin', keys: 'Ctrl/⌘+Shift+8', aria: 'Control+Shift+8 Meta+Shift+8', label: '•' },
+      { id: 'ordered', name: 'Daftar bernomor', keys: 'Ctrl/⌘+Shift+7', aria: 'Control+Shift+7 Meta+Shift+7', label: '1.' },
+      { id: 'task', name: 'Daftar tugas', keys: 'Ctrl/⌘+Shift+9', aria: 'Control+Shift+9 Meta+Shift+9', label: '☑' },
+      { id: 'quote', name: 'Kutipan', keys: 'Ctrl/⌘+Shift+.', aria: 'Control+Shift+. Meta+Shift+.', label: '”' },
+      { id: 'codeBlock', name: 'Blok kode', keys: 'Ctrl/⌘+Alt+C', aria: 'Control+Alt+C Meta+Alt+C', label: '```' },
+      { id: 'table', name: 'Tabel', keys: '', aria: '', label: 'Tabel' },
+      { id: 'hr', name: 'Garis pemisah', keys: '', aria: '', label: '―' },
+    ],
+  },
+];
+
+function shortcutFor(e: KeyboardEvent<HTMLTextAreaElement>): CommandId | null {
+  if (!(e.ctrlKey || e.metaKey)) return null;
+  if (e.altKey && !e.shiftKey) {
+    if (e.code === 'Digit1') return 'heading2';
+    if (e.code === 'Digit2') return 'heading3';
+    if (e.code === 'Digit3') return 'heading4';
+    if (e.code === 'KeyC') return 'codeBlock';
+    return null;
+  }
+  if (e.shiftKey) {
+    if (e.code === 'KeyX') return 'strike';
+    if (e.code === 'Digit7') return 'ordered';
+    if (e.code === 'Digit8') return 'unordered';
+    if (e.code === 'Digit9') return 'task';
+    if (e.code === 'Period') return 'quote';
+    return null;
+  }
+  switch (e.key.toLowerCase()) {
+    case 'b': return 'bold';
+    case 'i': return 'italic';
+    case 'e': return 'codeInline';
+    case 'k': return 'link';
+    default: return null;
+  }
+}
 
 // Editor memakai satu state terkontrol agar draf lokal, pratinjau, dan nilai
 // server selalu sama. Penyimpanan ke perangkat memakai debounce; tidak ada
@@ -42,6 +109,7 @@ export function KnowledgeEditor({ action, entry, categories, tagSuggestions, bac
   const [pane, setPane] = useState<'edit' | 'preview'>('edit');
   const [preview, setPreview] = useState(true);
   const [online, setOnline] = useState(true);
+  const [helpOpen, setHelpOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const alertRef = useRef<HTMLDivElement>(null);
@@ -135,29 +203,24 @@ export function KnowledgeEditor({ action, entry, categories, tagSuggestions, bac
     setTagInput('');
   }
 
-  function wrap(before: string, after: string, placeholder: string) {
+  // Tombol dan pintasan memakai fungsi murni yang sama, lalu mengembalikan fokus
+  // dan pilihan ke textarea agar pengguna bisa langsung mengetik.
+  function run(id: CommandId) {
     const el = textareaRef.current;
     if (!el) return;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const selected = form.content.slice(start, end) || placeholder;
-    const next = `${form.content.slice(0, start)}${before}${selected}${after}${form.content.slice(end)}`;
-    setField('content', next);
+    const result = runCommand(id, form.content, { start: el.selectionStart, end: el.selectionEnd });
+    setField('content', result.value);
     requestAnimationFrame(() => {
       el.focus();
-      el.setSelectionRange(start + before.length, start + before.length + selected.length);
+      el.setSelectionRange(result.start, result.end);
     });
   }
 
-  function prefixLines(prefix: string) {
-    const el = textareaRef.current;
-    if (!el) return;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const selected = form.content.slice(start, end);
-    const lines = (selected || 'Teks').split('\n').map((l) => `${prefix}${l}`).join('\n');
-    setField('content', `${form.content.slice(0, start)}${lines}${form.content.slice(end)}`);
-    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(start + prefix.length, start + lines.length); });
+  function onEditorKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    const id = shortcutFor(e);
+    if (!id) return;
+    e.preventDefault();
+    run(id);
   }
 
   function discardDraft() {
@@ -298,22 +361,38 @@ export function KnowledgeEditor({ action, entry, categories, tagSuggestions, bac
       <div className="kb-edit" data-pane={pane} data-preview={preview ? 'on' : 'off'}>
         <div className="kb-edit__editor">
           <div className="kb-toolbar" role="toolbar" aria-label="Sisipkan Markdown">
-            <button type="button" className="btn btn--ghost btn--sm" aria-label="Judul bagian" onClick={() => wrap('## ', '', 'Judul bagian')}>H2</button>
-            <button type="button" className="btn btn--ghost btn--sm" aria-label="Tebal" onClick={() => wrap('**', '**', 'teks tebal')}><strong>B</strong></button>
-            <button type="button" className="btn btn--ghost btn--sm" aria-label="Miring" onClick={() => wrap('*', '*', 'teks miring')}><em>I</em></button>
-            <button type="button" className="btn btn--ghost btn--sm" aria-label="Tautan" onClick={() => wrap('[', '](https://)', 'label tautan')}><Icon name="link" size={16} /></button>
-            <button type="button" className="btn btn--ghost btn--sm" aria-label="Daftar berpoin" onClick={() => prefixLines('- ')}><Icon name="menu" size={16} /></button>
-            <button type="button" className="btn btn--ghost btn--sm" aria-label="Kutipan" onClick={() => prefixLines('> ')}>”</button>
-            <button type="button" className="btn btn--ghost btn--sm" aria-label="Blok kode" onClick={() => wrap('\n```\n', '\n```\n', 'kode')}><Icon name="code" size={16} /></button>
+            {TOOLBAR.map((group, gi) => (
+              <Fragment key={group.group}>
+                {gi > 0 && <span className="kb-toolbar__sep" aria-hidden="true" />}
+                <div className="kb-toolbar__group" role="group" aria-label={group.group}>
+                  {group.items.map((tool) => (
+                    <button key={tool.id} type="button" className="btn btn--ghost btn--sm"
+                      title={tool.keys ? `${tool.name} (${tool.keys})` : tool.name}
+                      aria-label={tool.name} aria-keyshortcuts={tool.aria || undefined}
+                      onMouseDown={(e) => e.preventDefault()} onClick={() => run(tool.id)}>
+                      {tool.label}
+                    </button>
+                  ))}
+                </div>
+              </Fragment>
+            ))}
+            <span className="kb-toolbar__sep" aria-hidden="true" />
+            <button type="button" className="btn btn--ghost btn--sm" aria-expanded={helpOpen}
+              aria-controls="kb-md-help" onClick={() => setHelpOpen((v) => !v)}>
+              <Icon name="help-circle" size={16} />Bantuan
+            </button>
           </div>
+          {helpOpen && <MarkdownHelp />}
           <label className="sr-only" htmlFor="kb-content">Isi Markdown</label>
           <textarea id="kb-content" ref={textareaRef} name="content" required value={form.content}
             className="kb-edit__textarea" maxLength={50000}
             aria-invalid={state?.fieldErrors?.content ? true : undefined}
-            onChange={(e) => setField('content', e.currentTarget.value)} />
+            aria-describedby="kb-content-hint"
+            onChange={(e) => setField('content', e.currentTarget.value)}
+            onKeyDown={onEditorKeyDown} />
           <div className="kb-edit__foot">
             <span className="field__count" aria-hidden="true">{form.content.length}/50.000</span>
-            <span className="muted">Markdown: judul, tebal, miring, tautan, daftar, kutipan, dan blok kode.</span>
+            <span className="muted" id="kb-content-hint">Markdown: judul, penekanan, daftar, tabel, tautan, gambar, dan kode. Buka Bantuan untuk sintaks dan pintasan.</span>
           </div>
           {state?.fieldErrors?.content?.[0] && <p className="field__error"><Icon name="alert-circle" size={16} /><span>{state.fieldErrors.content[0]}</span></p>}
         </div>
@@ -347,5 +426,86 @@ export function KnowledgeEditor({ action, entry, categories, tagSuggestions, bac
         </button>
       </div>
     </form>
+  );
+}
+
+// Panduan singkat untuk pengguna yang tidak menghafal sintaks. Isinya mengikuti
+// fitur yang benar-benar didukung parser di lib/knowledge/markdown.ts.
+function MarkdownHelp() {
+  return (
+    <section className="kb-help" id="kb-md-help" aria-labelledby="kb-help-title">
+      <h3 id="kb-help-title" className="kb-help__title">Bantuan Markdown</h3>
+      <div className="kb-help__grid">
+        <div>
+          <h4 className="kb-help__sub">Sintaks</h4>
+          <dl className="kb-help__list">
+            <div>
+              <dt>Judul</dt>
+              <dd><code>##</code> bagian, <code>###</code> subbagian, <code>####</code> sampai <code>######</code> untuk tingkat lebih dalam.</dd>
+            </div>
+            <div>
+              <dt>Penekanan</dt>
+              <dd><code>**tebal**</code>, <code>*miring*</code>, <code>***tebal miring***</code>, <code>~~coret~~</code>.</dd>
+            </div>
+            <div>
+              <dt>Kode</dt>
+              <dd><code>`sebaris`</code>; blok dengan tiga backtick. Nama bahasa boleh ditulis setelah backtick pembuka.</dd>
+            </div>
+            <div>
+              <dt>Tautan</dt>
+              <dd><code>[teks](https://alamat)</code>; tambahkan <code>"tooltip"</code> setelah alamat bila perlu. Hanya alamat <code>https://</code>.</dd>
+            </div>
+            <div>
+              <dt>Gambar</dt>
+              <dd><code>![teks alternatif](https://alamat-gambar)</code>. Hanya alamat <code>https://</code>; kosongkan teks alternatif hanya bila gambar murni hiasan.</dd>
+            </div>
+            <div>
+              <dt>Daftar</dt>
+              <dd><code>- item</code> atau <code>1. item</code>; subitem menjorok dua spasi. Tugas: <code>- [ ]</code> belum, <code>- [x]</code> selesai.</dd>
+            </div>
+            <div>
+              <dt>Kutipan</dt>
+              <dd><code>&gt;</code> di awal baris; kutipan bertingkat <code>&gt; &gt;</code>.</dd>
+            </div>
+            <div>
+              <dt>Tabel</dt>
+              <dd><code>| Judul | Nilai |</code> lalu <code>| --- | --- |</code>. Rata kiri <code>:---</code>, tengah <code>:---:</code>, kanan <code>---:</code>.</dd>
+            </div>
+            <div>
+              <dt>Garis pemisah</dt>
+              <dd><code>---</code> pada baris tersendiri.</dd>
+            </div>
+            <div>
+              <dt>Paragraf dan baris baru</dt>
+              <dd>Pisahkan paragraf dengan satu baris kosong. Akhiri baris dengan dua spasi atau <code>{'\\'}</code> untuk baris baru tanpa paragraf baru.</dd>
+            </div>
+            <div>
+              <dt>Escape</dt>
+              <dd><code>{'\\*'}</code> menampilkan tanda bintang apa adanya.</dd>
+            </div>
+          </dl>
+        </div>
+        <div>
+          <h4 className="kb-help__sub">Pintasan</h4>
+          <dl className="kb-help__list">
+            <div><dt>Tebal</dt><dd><code>Ctrl/⌘ + B</code></dd></div>
+            <div><dt>Miring</dt><dd><code>Ctrl/⌘ + I</code></dd></div>
+            <div><dt>Kode sebaris</dt><dd><code>Ctrl/⌘ + E</code></dd></div>
+            <div><dt>Tautan</dt><dd><code>Ctrl/⌘ + K</code></dd></div>
+            <div><dt>Coret</dt><dd><code>Ctrl/⌘ + Shift + X</code></dd></div>
+            <div><dt>Daftar bernomor</dt><dd><code>Ctrl/⌘ + Shift + 7</code></dd></div>
+            <div><dt>Daftar berpoin</dt><dd><code>Ctrl/⌘ + Shift + 8</code></dd></div>
+            <div><dt>Daftar tugas</dt><dd><code>Ctrl/⌘ + Shift + 9</code></dd></div>
+            <div><dt>Kutipan</dt><dd><code>Ctrl/⌘ + Shift + .</code></dd></div>
+            <div><dt>Judul H2/H3/H4</dt><dd><code>Ctrl/⌘ + Alt + 1/2/3</code></dd></div>
+            <div><dt>Blok kode</dt><dd><code>Ctrl/⌘ + Alt + C</code></dd></div>
+          </dl>
+        </div>
+      </div>
+      <p className="kb-help__note muted">
+        Blok yang dipilih dibungkus otomatis, dan menekan perintah yang sama sekali lagi melepasnya.
+        HTML mentah ditampilkan sebagai teks dan garis bawah tidak didukung; gunakan tebal atau miring.
+      </p>
+    </section>
   );
 }

@@ -8,7 +8,15 @@ import type { CookieToSet } from '@/lib/supabase/cookie-types';
 // header permintaan `content-security-policy` untuk skripnya sendiri.
 export async function proxy(request: NextRequest) {
   const nonce = makeNonce();
-  const csp = buildCsp({ nonce, supabaseUrl: process.env.SUPABASE_URL, dev: process.env.NODE_ENV !== 'production' });
+  // Gambar di entri Knowledge boleh berasal dari host https mana pun; halaman lain tetap ketat.
+  const allowHttpsImages = request.nextUrl.pathname === '/knowledge'
+    || request.nextUrl.pathname.startsWith('/knowledge/');
+  const csp = buildCsp({
+    nonce,
+    supabaseUrl: process.env.SUPABASE_URL,
+    dev: process.env.NODE_ENV !== 'production',
+    allowHttpsImages,
+  });
 
   // Dibangun ulang setiap kali dipanggil supaya header `cookie` hasil refresh ikut terkirim ke render berikutnya.
   const next = () => {

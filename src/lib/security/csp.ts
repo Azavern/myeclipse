@@ -1,10 +1,13 @@
 // Content-Security-Policy berbasis nonce (blueprint §23). Fungsi murni agar bisa dites tanpa runtime Next.
-// Tidak ada klien Supabase di browser, jadi connect-src cukup 'self'. Satu-satunya asal luar adalah host Storage Supabase untuk <img>.
+// Tidak ada klien Supabase di browser, jadi connect-src cukup 'self'. Asal luar untuk <img> adalah
+// host Storage Supabase, ditambah https: pada rute Knowledge agar gambar di entri Markdown tampil.
 
 export type CspInput = {
   nonce: string;
   supabaseUrl?: string; // asal Supabase untuk img-src (URL bertanda tangan Storage)
   dev?: boolean;
+  /** Hanya untuk halaman Knowledge: pemuat gambar dari host https mana pun di entri Markdown. */
+  allowHttpsImages?: boolean;
 };
 
 // Asal (origin) dari URL; null bila tidak valid atau bukan http(s), sehingga CSP tetap ketat (fail closed).
@@ -18,14 +21,14 @@ export function originOf(url: string | undefined): string | null {
   }
 }
 
-export function buildCsp({ nonce, supabaseUrl, dev = false }: CspInput): string {
+export function buildCsp({ nonce, supabaseUrl, dev = false, allowHttpsImages = false }: CspInput): string {
   const media = originOf(supabaseUrl);
   const directives: [string, string[]][] = [
     ['default-src', ["'self'"]],
     // React di mode dev memakai eval untuk menyusun call stack; produksi tidak membutuhkannya.
     ['script-src', ["'self'", `'nonce-${nonce}'`, "'strict-dynamic'", ...(dev ? ["'unsafe-eval'"] : [])]],
     ['style-src', ["'self'", `'nonce-${nonce}'`]],
-    ['img-src', ["'self'", 'data:', 'blob:', ...(media ? [media] : [])]],
+    ['img-src', ["'self'", 'data:', 'blob:', ...(media ? [media] : []), ...(allowHttpsImages ? ['https:'] : [])]],
     ['font-src', ["'self'"]],
     ['connect-src', ["'self'", ...(dev ? ['ws:', 'wss:'] : [])]], // ws: hanya untuk HMR di dev
     ['object-src', ["'none'"]],

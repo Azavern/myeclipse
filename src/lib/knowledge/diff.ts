@@ -10,10 +10,22 @@ const normalize = (block: string) => block.replace(/\s+/g, ' ').trim();
 // menunjuk blok yang benar, termasuk blok kode dan daftar.
 const keyOf = (b: MarkdownBlock): string => {
   if (b.kind === 'code') return `code:${b.lang}\n${b.code}`;
-  if (b.kind === 'list') return `list:${b.ordered}:${b.items.join('\n')}`;
+  if (b.kind === 'list') {
+    const tasks = b.items.map((item) => {
+      const mark = item.checked === null ? '' : item.checked ? '[x] ' : '[ ] ';
+      const children = item.children.length ? `{${item.children.map(keyOf).join('|')}}` : '';
+      return `${mark}${item.text}${children}`;
+    }).join('\n');
+    return `list:${b.ordered}:${tasks}`;
+  }
+  if (b.kind === 'quote') return `quote:${b.blocks.map(keyOf).join('\n')}`;
+  if (b.kind === 'table') {
+    const rows = [b.header, ...b.rows].map((row) => row.join('|')).join('\n');
+    return `table:${b.align.join(',')}:${rows}`;
+  }
   if (b.kind === 'hr') return 'hr';
   if (b.kind === 'heading') return `heading:${b.level}:${b.text}`;
-  return `${b.kind}:${b.text}`;
+  return `paragraph:${b.text}`;
 };
 
 // LCS blok: blok baru yang tidak punya pasangan di versi lama dianggap berubah.

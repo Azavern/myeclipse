@@ -162,7 +162,8 @@ Do not implement “popular” sorting based on expensive writes on every view i
 - Live rendered preview beside the editor on desktop.
 - Preview can be hidden/shown.
 - Mobile layout uses Editor / Preview tabs or a clear stacked layout.
-- Basic toolbar may insert Markdown syntax for headings, bold, italic, links, lists, quotes, and code blocks; raw Markdown remains supported.
+- Toolbar inserts Markdown syntax for headings, bold, italic, strikethrough, inline/block code, links, images, lists (including nested and task lists), quotes, tables, and horizontal rules; raw Markdown remains supported.
+- Common keyboard shortcuts are available while the editor is focused (for example Ctrl/Cmd+B, I, E, K, Shift+X, Shift+7/8/9, Alt+1/2/3), and selecting text before pressing a toolbar button wraps that selection.
 - Preview must match the published rendering.
 - Sanitize rendered output and validate URL protocols; do not permit script execution or unsafe HTML.
 - Warn before leaving with unsaved work.

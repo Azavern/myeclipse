@@ -2638,7 +2638,7 @@ Tes memakai Supabase lokal. Tes tidak membuktikan perilaku konfigurasi produksi 
 | Dependensi | Rantai pasok | Lockfile, `pnpm audit` pada CI, tidak menambah paket tanpa kebutuhan terbukti |
 | Ketersediaan data | Free tier tanpa PITR | Ekspor DB berkala manual (§24.3) |
 
-CSP baseline (nonce dihasilkan per request di `proxy.ts`):
+CSP baseline (nonce dihasilkan per request di `proxy.ts`). Rute `/knowledge*` menambahkan `https:` pada `img-src` agar gambar di entri Markdown dapat dimuat; halaman lain tetap hanya origin Supabase:
 
 ```text
 default-src 'self'; script-src 'self' 'nonce-{nonce}' 'strict-dynamic';

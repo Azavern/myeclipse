@@ -14,6 +14,7 @@ import { detectImage } from '../../src/lib/storage/magic-bytes';
 import { buildCsp, makeNonce, originOf } from '../../src/lib/security/csp';
 import { CLASS_KEYS, MEMBER_KEYS } from '../../src/lib/visibility/audiences';
 import { parseInline, parseMarkdown, safeHref, splitRawBlocks, tocOf } from '../../src/lib/knowledge/markdown';
+import { applyLine, applyWrap, insertSnippet, runCommand } from '../../src/lib/knowledge/editor-insert';
 import { computeHighlights, parseHighlights } from '../../src/lib/knowledge/diff';
 import { normalizeTag, normalizeTags, parseTagsJson } from '../../src/lib/knowledge/tags';
 
@@ -216,8 +217,112 @@ describe('Markdown pengetahuan yang aman', () => {
     expect(blocks[1]).toMatchObject({ kind: 'paragraph', text: 'Teks' });
   });
   it('daftar berpoin dan bernomor', () => {
-    expect(parseMarkdown('- a\n- b')[0]).toMatchObject({ kind: 'list', ordered: false, items: ['a', 'b'] });
-    expect(parseMarkdown('1. a\n2. b')[0]).toMatchObject({ kind: 'list', ordered: true, items: ['a', 'b'] });
+    const ul = parseMarkdown('- a\n- b')[0];
+    const ol = parseMarkdown('1. a\n2. b')[0];
+    expect(ul).toMatchObject({ kind: 'list', ordered: false });
+    expect(ol).toMatchObject({ kind: 'list', ordered: true });
+    if (ul?.kind !== 'list' || ol?.kind !== 'list') throw new Error('bukan daftar');
+    expect(ul.items.map((i) => i.text)).toEqual(['a', 'b']);
+    expect(ol.items.map((i) => i.text)).toEqual(['a', 'b']);
+  });
+  it('daftar bertingkat dan checklist', () => {
+    const block = parseMarkdown('- Utama\n  - Sub satu\n  - [x] Sub selesai\n    - Sub-sub\n- Lain')[0];
+    if (block?.kind !== 'list') throw new Error('bukan daftar');
+    expect(block.items.map((i) => i.text)).toEqual(['Utama', 'Lain']);
+    const nested = block.items[0]?.children[0];
+    if (nested?.kind !== 'list') throw new Error('bukan daftar bertingkat');
+    expect(nested.items.map((i) => [i.text, i.checked])).toEqual([['Sub satu', null], ['Sub selesai', true]]);
+    expect(nested.items[1]?.children[0]).toMatchObject({ kind: 'list' });
+  });
+  it('kutipan bertingkat menjadi blok bersarang', () => {
+    const block = parseMarkdown('> Satu\n>\n> > Dua')[0];
+    if (block?.kind !== 'quote') throw new Error('bukan kutipan');
+    expect(block.blocks[0]).toMatchObject({ kind: 'paragraph', text: 'Satu' });
+    expect(block.blocks[1]).toMatchObject({ kind: 'quote' });
+  });
+  it('pipa di dalam sel tabel dapat di-escape', () => {
+    const block = parseMarkdown('| A | B |\n| --- | --- |\n| x \\| y | z |')[0];
+    if (block?.kind !== 'table') throw new Error('bukan tabel');
+    expect(parseInline(block.rows[0]?.[0] ?? '')).toEqual([{ t: 'text', v: 'x | y' }]);
+  });
+  it('tabel dengan perataan kolom', () => {
+    const block = parseMarkdown('| Nama | Umur | Kota |\n| :--- | ---: | :---: |\n| Andi | 20 | Bandung |\n| Budi | 21 |' )[0];
+    expect(block).toEqual({
+      kind: 'table',
+      header: ['Nama', 'Umur', 'Kota'],
+      align: ['left', 'right', 'center'],
+      rows: [['Andi', '20', 'Bandung'], ['Budi', '21', '']],
+    });
+  });
+  it('gambar dan tautan dengan judul hanya menerima https', () => {
+    expect(parseInline('![Diagram](https://contoh.id/a.png "Judul")')[0])
+      .toEqual({ t: 'image', alt: 'Diagram', src: 'https://contoh.id/a.png', title: 'Judul' });
+    expect(parseInline('[a](https://contoh.id "Petunjuk")')[0])
+      .toMatchObject({ t: 'link', href: 'https://contoh.id/', title: 'Petunjuk' });
+    expect(parseInline('![x](http://contoh.id/a.png)').some((t) => t.t === 'image')).toBe(false);
+    for (const bad of ['https://127.0.0.1/a.png', 'https://10.0.0.5/a.png', 'https://[::1]/a.png', 'https://localhost/a.png']) {
+      expect(parseInline(`![x](${bad})`).some((t) => t.t === 'image'), bad).toBe(false);
+    }
+  });
+  it('tebal-miring gabungan dikenali', () => {
+    const tokens = parseInline('***a*** **b** ~~c~~');
+    expect(tokens.map((t) => t.t)).toEqual(['strong', 'text', 'strong', 'text', 'del']);
+    expect(tokens[0]?.t === 'strong' ? tokens[0].v[0] : null).toMatchObject({ t: 'em' });
+  });
+  it('escape dan baris baru', () => {
+    const escaped = parseMarkdown('\\# Bukan judul')[0];
+    if (escaped?.kind !== 'paragraph') throw new Error('escape seharusnya menjadi paragraf');
+    expect(parseInline(escaped.text)).toEqual([{ t: 'text', v: '# Bukan judul' }]);
+    expect(parseInline('\\*bukan miring\\*')[0]).toEqual({ t: 'text', v: '*bukan miring*' });
+    expect(parseMarkdown('Baris satu  \nBaris dua')[0]).toMatchObject({ kind: 'paragraph', text: 'Baris satu\nBaris dua' });
+    expect(parseMarkdown('Baris satu\\\nBaris dua')[0]).toMatchObject({ kind: 'paragraph', text: 'Baris satu\nBaris dua' });
+    expect(parseMarkdown('Baris satu\nBaris dua')[0]).toMatchObject({ kind: 'paragraph', text: 'Baris satu Baris dua' });
+  });
+  it('judul tingkat 5 dan 6 dipertahankan', () => {
+    const levels = parseMarkdown('##### Lima\n\n###### Enam')
+      .map((b) => (b.kind === 'heading' ? b.level : 0));
+    expect(levels).toEqual([5, 6]);
+  });
+});
+
+describe('Penyisipan Markdown editor', () => {
+  it('membungkus pilihan dan mengembalikan pilihan di dalam penanda', () => {
+    const r = applyWrap('halo dunia', { start: 5, end: 10 }, '**', '**', 'teks');
+    expect(r.value).toBe('halo **dunia**');
+    expect(r.value.slice(r.start, r.end)).toBe('dunia');
+  });
+  it('menekan perintah yang sama melepas bungkus', () => {
+    const r = applyWrap('halo **dunia**', { start: 7, end: 12 }, '**', '**', 'teks');
+    expect(r.value).toBe('halo dunia');
+    expect(r.value.slice(r.start, r.end)).toBe('dunia');
+  });
+  it('pilihan kosong memakai contoh teks yang langsung tersorot', () => {
+    const r = applyWrap('', { start: 0, end: 0 }, '**', '**', 'teks tebal');
+    expect(r.value).toBe('**teks tebal**');
+    expect(r.value.slice(r.start, r.end)).toBe('teks tebal');
+  });
+  it('pilihan beberapa baris dibungkus per baris', () => {
+    expect(applyWrap('a\nb', { start: 0, end: 3 }, '**', '**', 'x').value).toBe('**a**\n**b**');
+  });
+  it('awalan baris untuk daftar, nomor urut, dan judul', () => {
+    expect(applyLine('satu\ndua', { start: 0, end: 8 }, 'unordered').value).toBe('- satu\n- dua');
+    expect(applyLine('a\nb\nc', { start: 0, end: 5 }, 'ordered').value).toBe('1. a\n2. b\n3. c');
+    expect(applyLine('## A', { start: 0, end: 4 }, 'heading', 3).value).toBe('### A');
+    expect(applyLine('## A', { start: 0, end: 4 }, 'heading', 2).value).toBe('A');
+  });
+  it('kursor tetap di posisi yang sama setelah awalan ditambahkan', () => {
+    const r = applyLine('halo', { start: 2, end: 2 }, 'unordered');
+    expect(r.value).toBe('- halo');
+    expect(r.start).toBe(4);
+  });
+  it('potongan tabel dan blok kode menyeleksi bagian yang perlu diganti', () => {
+    expect(insertSnippet('Teks', { start: 4, end: 4 }, '---').value).toBe('Teks\n\n---');
+    const table = runCommand('table', '', { start: 0, end: 0 });
+    expect(table.value).toContain('| --- | --- |');
+    expect(table.value.slice(table.start, table.end)).toBe('Judul');
+    const code = runCommand('codeBlock', '', { start: 0, end: 0 });
+    expect(code.value).toBe('```\nkode\n```');
+    expect(code.value.slice(code.start, code.end)).toBe('kode');
   });
 });
 
@@ -277,6 +382,11 @@ describe('CSP bernonce', () => {
     expect(dir(dev, 'script-src')).toContain("'unsafe-eval'");
     expect(dir(dev, 'connect-src')).toBe("connect-src 'self' ws: wss:");
     expect(dir(dev, 'style-src')).not.toContain('unsafe-inline');
+  });
+  it('https: untuk gambar hanya dibuka bila rute memintanya', () => {
+    expect(dir(buildCsp({ nonce: 'n', allowHttpsImages: true }), 'img-src'))
+      .toBe("img-src 'self' data: blob: https:");
+    expect(dir(buildCsp({ nonce: 'n' }), 'img-src')).toBe("img-src 'self' data: blob:");
   });
   it('URL Supabase tidak valid atau bukan http(s) tidak membuka asal tambahan', () => {
     for (const bad of [undefined, '', 'bukan url', 'javascript:alert(1)', 'ftp://x.example']) {
