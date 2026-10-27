@@ -11,7 +11,8 @@ import { DEFAULT_THEME, LEGACY_THEME_V1 } from '../../src/lib/theme/defaults';
 import { THEME_PRESETS } from '../../src/lib/theme/presets';
 import { ThemeSchema } from '../../src/lib/theme/schema';
 import { detectImage } from '../../src/lib/storage/magic-bytes';
-import { buildCsp, makeNonce, originOf } from '../../src/lib/security/csp';
+import { allowsHttpsImages, buildCsp, makeNonce, originOf } from '../../src/lib/security/csp';
+import { blockedHost, decodeEntities, displayOrigin, parsePreview, previewUrl, safeImage } from '../../src/lib/preview/meta';
 import { CLASS_KEYS, MEMBER_KEYS } from '../../src/lib/visibility/audiences';
 import { parseInline, parseMarkdown, safeHref, splitRawBlocks, tocOf } from '../../src/lib/knowledge/markdown';
 import { applyLine, applyWrap, continueList, insertSnippet, runCommand } from '../../src/lib/knowledge/editor-insert';
@@ -413,5 +414,68 @@ describe('CSP bernonce', () => {
     const a = makeNonce(); const b = makeNonce();
     expect(a).toMatch(/^[A-Za-z0-9+/]{22}==$/);
     expect(a).not.toBe(b);
+  });
+  it('https: untuk gambar hanya dibuka pada rute yang memang menampilkan gambar luar', () => {
+    for (const p of ['/knowledge', '/knowledge/entri', '/members/budi', '/settings/portfolio']) expect(allowsHttpsImages(p)).toBe(true);
+    for (const p of ['/members', '/settings/portfolio/new', '/settings/portfolio/3/edit', '/settings/account', '/', '/knowledgebase']) {
+      expect(allowsHttpsImages(p)).toBe(false);
+    }
+  });
+});
+
+describe('Pratinjau tautan portofolio', () => {
+  const html = `<!doctype html><html><head><title>Judul halaman</title>
+    <meta property="og:title" content="Eclipse &amp; Kelas">
+    <meta name="description" content="Deskripsi biasa">
+    <meta property="og:description" content="Deskripsi OG">
+    <meta property="og:site_name" content="GitHub">
+    <meta property="og:image" content="/cover.png?v=2">
+    </head><body>isi</body></html>`;
+
+  it('mengambil judul, deskripsi, situs, dan gambar absolut dari Open Graph', () => {
+    expect(parsePreview(html, 'https://github.com/budi/repo')).toEqual({
+      title: 'Eclipse & Kelas', description: 'Deskripsi OG', site: 'GitHub', image: 'https://github.com/cover.png?v=2',
+    });
+  });
+  it('kembali ke <title>, deskripsi biasa, dan twitter card; nilai pertama yang menang', () => {
+    const fallback = '<title>  Halo   dunia </title><meta name="description" content="Ringkasan">'
+      + '<meta name="twitter:image" content="https://cdn.example.com/a.jpg">'
+      + '<meta property="og:title" content="Satu"><meta property="og:title" content="Dua">';
+    expect(parsePreview(fallback, 'https://example.com/')).toEqual({
+      title: 'Satu', description: 'Ringkasan', site: null, image: 'https://cdn.example.com/a.jpg',
+    });
+  });
+  it('menolak gambar non-https, host internal, dan memangkas teks yang kepanjangan', () => {
+    expect(safeImage('http://example.com/a.png', 'https://example.com/')).toBeNull();
+    expect(safeImage('https://127.0.0.1/a.png', 'https://example.com/')).toBeNull();
+    expect(safeImage('javascript:alert(1)', 'https://example.com/')).toBeNull();
+    expect(safeImage(undefined, 'https://example.com/')).toBeNull();
+    expect(parsePreview('<meta property="og:image" content="https://localhost/a.png">', 'https://example.com/').image).toBeNull();
+    expect(parsePreview(`<meta property="og:title" content="${'x'.repeat(300)}">`, 'https://example.com/').title).toHaveLength(120);
+  });
+  it('menerima hanya tautan https publik tanpa kredensial di port standar', () => {
+    expect(previewUrl('https://www.github.com/budi')?.host).toBe('github.com');
+    const bad = ['http://github.com', 'https://user:pw@github.com', 'https://github.com:8443',
+      'https://localhost/x', 'https://192.168.1.10/x', 'https://[::1]/x', 'https://10.0.0.5/x', 'https:///tanpa-host', 'bukan url'];
+    for (const u of bad) expect(previewUrl(u)).toBeNull();
+  });
+  it('menandai seluruh rentang alamat internal sebagai host terlarang', () => {
+    for (const ip of ['10.1.2.3', '127.0.0.1', '127.0.0.1.', '0.0.0.0', '169.254.169.254', '172.16.0.1', '172.31.255.255',
+      '192.168.0.1', '100.64.0.1', '224.0.0.1', 'fc00::1', 'fe80::1', '::1', 'localhost', '[::ffff:127.0.0.1]']) {
+      expect(blockedHost(ip)).toBe(true);
+    }
+    for (const ip of ['8.8.8.8', '172.32.0.1', '172.15.0.1', '192.169.0.1', '2606:4700::1111', 'github.com']) {
+      expect(blockedHost(ip)).toBe(false);
+    }
+  });
+  it('memakai origin tautan sebagai teks pengganti gambar', () => {
+    expect(displayOrigin('https://www.myeclipse.my.id/proyek/12?x=1')).toBe('https://www.myeclipse.my.id');
+    expect(displayOrigin('https://myeclipse.my.id')).toBe('https://myeclipse.my.id');
+    expect(displayOrigin('http://example.com')).toBeNull();
+    expect(displayOrigin('bukan url')).toBeNull();
+  });
+  it('mendekode entitas dan membuang karakter kendali', () => {
+    expect(decodeEntities('a &amp; b &#39;c&#39; &#x41;')).toBe("a & b 'c' A");
+    expect(parsePreview('<meta property="og:title" content="Baris\u0000satu">', 'https://example.com/').title).toBe('Baris satu');
   });
 });

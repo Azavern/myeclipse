@@ -37,8 +37,8 @@ export async function saveMyVisibility(_p: FormState, fd: FormData): Promise<For
   if (!ctx) return failState(FORBIDDEN, fd);
   const { error } = await ctx.supabase.rpc('save_my_visibility', { p_rules: rules });
   if (error) { console.error('saveMyVisibility', error.code); return failState(dbMessage(error), fd); }
-  revalidatePath('/settings/profile'); revalidatePath('/members');
-  redirect(withFlash('/settings/profile', 'saved'));
+  revalidatePath('/settings/account'); revalidatePath('/members');
+  redirect(withFlash('/settings/account', 'saved'));
 }
 
 // ---- Foto profil (bucket member-media; path {class_id}/{user_id}/avatar/{uuid}.ext) ----

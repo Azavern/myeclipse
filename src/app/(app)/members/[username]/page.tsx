@@ -1,10 +1,14 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { LinkPreviewMedia } from '@/components/link-preview';
+import { PortfolioText } from '@/components/portfolio-text';
 import { ExtLink, NoAccess } from '@/components/states';
 import { Icon } from '@/components/ui/icon';
-import { Avatar, Chip, Crumbs, EmptyState, StorageImage } from '@/components/ui/primitives';
+import { Avatar, Chip, Crumbs, EmptyState } from '@/components/ui/primitives';
 import { KIND_ICON, KIND_LABEL, PLATFORM_ICON, PLATFORM_LABEL } from '@/features/fields';
+import { displayOrigin } from '@/lib/preview/meta';
+import { linkPreviews } from '@/lib/preview/server';
 import { signMany } from '@/lib/storage/sign';
 import { createClient } from '@/lib/supabase/server';
 import { formatDateOnly } from '@/lib/time';
@@ -33,6 +37,12 @@ export default async function MemberPage({ params }: { params: Promise<{ usernam
   const items = (pf.data ?? []) as Item[];
   const socials = (so.data ?? []) as Social[];
   const media = await signMany(supabase, 'member-media', [p.avatar_path, ...items.map((i) => i.media_path)]);
+  // Gambar yang sudah diunggah selalu menang. Pratinjau tautan hanya diambil untuk item yang gambarnya
+  // benar-benar tidak tersedia (belum diunggah, atau objeknya gagal ditandatangani), jadi tidak ada
+  // permintaan ke situs luar saat gambarnya ada.
+  const previews = await linkPreviews(
+    items.filter((i) => i.url && !(i.media_path && media.get(i.media_path))).map((i) => i.url),
+  );
   return (
     <>
       <Crumbs items={[{ label: 'Anggota', href: '/members' }, { label: p.full_name }]} />
@@ -66,21 +76,28 @@ export default async function MemberPage({ params }: { params: Promise<{ usernam
             ? <EmptyState compact icon="briefcase" title="Belum ada portofolio yang ditampilkan">Proyek dan pencapaian akan muncul di sini.</EmptyState>
             : (
               <ul className="portfolio-grid">
-                {items.map((i) => (
-                  <li key={i.id}>
-                    <article className="card card--flush portfolio-card">
-                      <StorageImage src={i.media_path ? media.get(i.media_path) : undefined} alt={`Gambar ${i.title}`} width={640} height={360} icon={KIND_ICON[i.kind] ?? 'folder'} />
-                      <div className="portfolio-card__body">
-                        <div className="cluster">
-                          <Chip tone="accent" icon={KIND_ICON[i.kind] ?? 'folder'}>{KIND_LABEL[i.kind] ?? i.kind}</Chip>
-                          <span className="muted nums">{formatDateOnly(i.occurred_on)}</span>
+                {items.map((i) => {
+                  const own = i.media_path ? media.get(i.media_path) : undefined;
+                  const pv = i.url ? previews.get(i.url) : undefined;
+                  // Seluruh kartu menjadi tautan lewat judul ber-lapis `.stretch` (tab baru); tombol
+                  // "Baca selengkapnya" duduk di atas lapisan itu. Item tanpa `url` tetap kartu biasa.
+                  return (
+                    <li key={i.id}>
+                      <article className="card card--flush portfolio-card">
+                        <LinkPreviewMedia src={own ?? pv?.image} icon={KIND_ICON[i.kind] ?? 'folder'}
+                          site={pv?.site ?? null} label={i.url ? displayOrigin(i.url) : null}
+                          alt={own ? `Gambar ${i.title}` : ''} />
+                        <div className="portfolio-card__body">
+                          <div className="cluster">
+                            <Chip tone="accent" icon={KIND_ICON[i.kind] ?? 'folder'}>{KIND_LABEL[i.kind] ?? i.kind}</Chip>
+                            <span className="muted nums">{formatDateOnly(i.occurred_on)}</span>
+                          </div>
+                          <PortfolioText title={i.title} text={i.description} href={i.url} />
+                          {i.url && <p className="portfolio-card__go">Lihat karya<Icon name="external-link" size={14} /><span className="sr-only"> (dibuka di tab baru)</span></p>}
                         </div>
-                        <h3>{i.title}</h3>
-                        {i.description && <p className="muted pre clamp-3">{i.description}</p>}
-                        {i.url && <p><ExtLink href={i.url}>Lihat karya</ExtLink></p>}
-                      </div>
-                    </article>
-                  </li>))}
+                      </article>
+                    </li>);
+                })}
               </ul>)}
         </section>
       </div>

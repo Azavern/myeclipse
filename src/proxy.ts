@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
-import { buildCsp, makeNonce } from '@/lib/security/csp';
+import { allowsHttpsImages, buildCsp, makeNonce } from '@/lib/security/csp';
 import type { CookieToSet } from '@/lib/supabase/cookie-types';
 
 // Dua tugas saja: (1) memasang CSP bernonce, (2) me-refresh cookie sesi. Tanpa logika otorisasi (blueprint §3.4).
@@ -8,9 +8,8 @@ import type { CookieToSet } from '@/lib/supabase/cookie-types';
 // header permintaan `content-security-policy` untuk skripnya sendiri.
 export async function proxy(request: NextRequest) {
   const nonce = makeNonce();
-  // Gambar di entri Knowledge boleh berasal dari host https mana pun; halaman lain tetap ketat.
-  const allowHttpsImages = request.nextUrl.pathname === '/knowledge'
-    || request.nextUrl.pathname.startsWith('/knowledge/');
+  // Gambar Knowledge dan pratinjau tautan portofolio boleh dari host https mana pun; halaman lain tetap ketat.
+  const allowHttpsImages = allowsHttpsImages(request.nextUrl.pathname);
   const csp = buildCsp({
     nonce,
     supabaseUrl: process.env.SUPABASE_URL,

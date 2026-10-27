@@ -921,7 +921,7 @@ export type VisibilityKey = keyof typeof VISIBILITY;
 **UI konfigurasi:**
 
 - **Ketua:** `/settings/visibility`, daftar datar dikelompokkan per `group`. Tiap baris: label, `AudienceSelect` (opsi dibatasi `widest`; `self` hanya untuk scope member), nilai efektif, dan catatan bila efektif ≠ pilihan ("Dibatasi halaman Anggota: hanya anggota kelas" atau "Page sumber data tertutup"). Opsi "Gunakan default" = hapus aturan. Satu form per grup dengan tombol **Simpan** (RPC `save_class_visibility`, atomik). Tidak ada auto-submit saat select berubah.
-- **Anggota:** di `/settings/profile`, `AudienceSelect` di samping avatar, nickname, bio, section portofolio, section social, dan tiap item. Opsi dibatasi `widest` dan ditampilkan nilai efektif dengan catatan ceiling. Simpan lewat `save_my_visibility` (key-level) dan aksi CRUD item (per item).
+- **Anggota:** di `/settings/account`, `AudienceSelect` di samping avatar, nickname, bio, section portofolio, section social, dan tiap item. Opsi dibatasi `widest` dan ditampilkan nilai efektif dengan catatan ceiling. Simpan lewat `save_my_visibility` (key-level) dan aksi CRUD item (per item).
 - `VisibilityBadge` (ikon + teks, bukan warna saja) menunjukkan audience efektif pada item di halaman milik sendiri.
 
 ### 7.9 Anti-bypass (checklist wajib lulus di pgTAP)
@@ -1818,8 +1818,8 @@ Next.js App Router. `params`/`searchParams` bersifat asinkron pada versi Next te
 | `/members` | `page.members` | `member_profile_v` | Grid; cari tidak dibuat |
 | `/members/[username]` | `page.members` | `member_profile_v`, `portfolio_items`, `social_links` | `notFound()` seragam bila baris tak terlihat |
 | `/settings` | login | — | Redirect ke `/settings/profile` |
-| `/settings/profile` | login + aktif | tabel dasar milik sendiri | Profil, avatar, social, portofolio, visibility. `?onboarding=1` menampilkan checklist opsional |
-| `/settings/account` | login + aktif | — | Ganti password dan email |
+| `/settings/profile` | login + aktif | tabel dasar milik sendiri | Profil, avatar, social, portofolio. `?onboarding=1` menampilkan checklist opsional |
+| `/settings/account` | login + aktif | `visibility_rules` milik sendiri | Ganti password dan email; visibilitas profil |
 | `/settings/class` | `class.manage` | `classes` (tabel dasar) | Identitas, gambar, link kelas, timezone |
 | `/settings/theme` | `class.manage` | `classes.theme` | Editor theme (§17.5) |
 | `/settings/visibility` | `class.manage` | `get_visibility_map`, katalog | §7.8 |
@@ -2382,7 +2382,7 @@ Urutan = ketergantungan. Setiap fase berakhir dengan: lint, typecheck, tes yang 
 - **Selesai bila:** AC-CLASS, AC-THEME, AC-VIS-07, AC-VIS-13, AC-STORAGE.
 
 ### Fase 4 — Anggota dan profil
-- `/settings/members` (create, edit identitas, role, status, tautan akses, hapus), `/members`, `/members/[username]`, `/settings/profile` (profil, avatar, social, portofolio, visibility), `/settings/account`.
+- `/settings/members` (create, edit identitas, role, status, tautan akses, hapus), `/members`, `/members/[username]`, `/settings/profile` (profil, avatar, social, portofolio), `/settings/account` (kata sandi, email, visibilitas profil).
 - **Selesai bila:** AC-MEMBERS, AC-PROFILE, AC-PORTFOLIO, sisa AC-AUTH.
 
 ### Fase 5 — Jadwal, event, tugas
@@ -2486,6 +2486,7 @@ Format: `AC-<MODUL>-nn`. Setiap butir harus bisa dibuktikan oleh tes (pgTAP, Vit
 5. Item `self` tidak terlihat orang lain; item `public` terlihat anonim hanya bila ceiling page mengizinkan.
 6. Portofolio urut tanggal terbaru lebih dulu.
 7. Link social dan link portofolio dapat dibuka dari profil (tab baru, `rel="noopener noreferrer"`); URL tak valid tidak dapat disimpan (PRD §24).
+8. Gambar kartu portofolio berurutan: gambar unggahan → `og:image` tautan (diambil server, hanya https publik, cache 24 jam, timeout 4 detik) → kotak pengganti berisi origin tautan (mis. `https://www.example.com`). Pengambilan yang gagal tidak menampilkan galat. Judul dipangkas dua baris dan deskripsi tiga baris agar tinggi kartu konstan; teks yang terpotong memberi **Baca selengkapnya** yang membuka dialog berisi teks utuh. Seluruh kartu adalah tautan ke `url` di tab baru. Daftar di `/settings/portfolio` memakai thumbnail yang sama.
 
 ### AC-SCHEDULE — Jadwal
 1. Hanya `schedule.manage` yang dapat membuat/mengubah/menghapus; member hanya melihat.

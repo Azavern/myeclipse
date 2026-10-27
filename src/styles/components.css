@@ -314,8 +314,26 @@ dialog[open] { animation: rise var(--t-med); }
 .profile__body { display: grid; gap: var(--s-4); padding: 0 var(--s-5) var(--s-5); }
 .profile__avatar { position: relative; z-index: 1; margin-top: -3.5rem; border: 4px solid var(--surface); box-shadow: var(--shadow-md); } /* .profile__band berposisi, jadi avatar harus ikut berposisi agar tampil di atas banner */
 .profile__name { font-size: var(--fs-h1); }
-.portfolio-card { display: grid; grid-template-rows: auto 1fr; padding: 0; overflow: hidden; }
-.portfolio-card__body { display: grid; gap: var(--s-2); align-content: start; padding: var(--s-4); }
+.portfolio-card { position: relative; display: grid; grid-template-rows: auto 1fr; height: 100%; padding: 0; overflow: hidden; transition: box-shadow var(--t-fast), border-color var(--t-fast); }
+.portfolio-card__body { display: flex; flex-direction: column; gap: var(--s-2); padding: var(--s-4); }
+.portfolio-card__title a.stretch { color: inherit; text-decoration: none; }
+.portfolio-card__more { align-self: flex-start; display: inline-flex; align-items: center; gap: .25rem; padding: 0; border: 0; background: none; color: var(--brand-strong); font: inherit; font-size: var(--fs-sm); font-weight: 600; text-decoration: underline; text-underline-offset: .18em; }
+.portfolio-card__more:hover { text-decoration-thickness: 2px; }
+.portfolio-card__go { display: inline-flex; align-items: center; gap: .375rem; margin-top: auto; padding-top: var(--s-1); color: var(--brand-strong); font-weight: 600; }
+.portfolio-card:has(.stretch):hover { border-color: var(--brand-200); box-shadow: var(--shadow-md); }
+.portfolio-card:has(.stretch):hover .portfolio-card__title a.stretch { text-decoration: underline; }
+/* Pratinjau tautan (components/link-preview.tsx): gambar Open Graph dari situs sumber ditumpuk di atas
+   lapisan pengganti, jadi hotlink yang ditolak host tetap meninggalkan kotak bergaya, bukan gambar rusak. */
+.media--link { display: grid; place-items: center; color: var(--brand-strong); }
+.media--link .media__ph { grid-area: 1 / 1; }
+.media--link img { position: absolute; inset: 0; }
+.media__ph { display: grid; place-items: center; gap: var(--s-2); padding: var(--s-4); color: var(--brand-strong); text-align: center; }
+.media__domain { max-width: 100%; font-size: var(--fs-sm); font-weight: 700; overflow-wrap: anywhere; }
+.dialog--read .dialog__body { max-height: min(70dvh, 36rem); overflow-y: auto; }
+.media__site { position: absolute; z-index: 2; left: var(--s-3); bottom: var(--s-3); display: inline-flex; align-items: center; gap: .375rem; max-width: calc(100% - var(--s-5)); padding: var(--s-1) var(--s-3); border-radius: var(--r-full); background: var(--surface); color: var(--text-2); font-size: var(--fs-xs); font-weight: 600; box-shadow: var(--shadow-sm); }
+.media__site-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.thumb { display: grid; place-items: center; flex: none; width: 2.25rem; height: 2.25rem; overflow: hidden; border-radius: var(--r-sm); background: var(--grad-soft); }
+.thumb img { width: 100%; height: 100%; object-fit: cover; }
 .link-card { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-4); }
 .link-card .ext { margin-left: auto; color: var(--text-2); }
 .facts dd { margin: 0; }

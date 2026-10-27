@@ -6,11 +6,11 @@ import { ImageForm } from '@/components/image-form';
 import { NoAccess } from '@/components/states';
 import { Icon } from '@/components/ui/icon';
 import { Chip, EmptyState, LinkButton, Notice, PageHeader, Tile } from '@/components/ui/primitives';
-import { PLATFORM_ICON, PLATFORM_LABEL, profileFields, visibilityFields, type Row } from '@/features/fields';
-import { removeAvatar, saveMyVisibility, updateProfile, uploadAvatar } from '@/features/profile/actions';
+import { PLATFORM_ICON, PLATFORM_LABEL, profileFields, type Row } from '@/features/fields';
+import { removeAvatar, updateProfile, uploadAvatar } from '@/features/profile/actions';
 import { signMany } from '@/lib/storage/sign';
 import { createClient } from '@/lib/supabase/server';
-import { AUDIENCE_LABEL, MEMBER_KEYS } from '@/lib/visibility/audiences';
+import { AUDIENCE_LABEL } from '@/lib/visibility/audiences';
 import { getViewer } from '@/lib/visibility/server';
 
 export const metadata: Metadata = { title: 'Profil saya' };
@@ -25,14 +25,12 @@ export default async function ProfileSettings({ searchParams }: { searchParams: 
   if (viewer.status !== 'active') return <NoAccess />;
   const supabase = await createClient();
   const me = viewer.user.id;
-  const [prof, rules, so, v, sp] = await Promise.all([
+  const [prof, so, v, sp] = await Promise.all([
     supabase.from('member_profiles').select('full_name,nickname,bio').eq('user_id', me).maybeSingle(),
-    supabase.from('visibility_rules').select('key,audience').eq('owner_id', me),
     supabase.from('social_links').select('id,platform,label,visibility').eq('user_id', me).limit(10),
     supabase.from('member_profile_v').select('username,role_name,avatar_path').eq('user_id', me).maybeSingle(),
     searchParams,
   ]);
-  const current = Object.fromEntries(((rules.data ?? []) as { key: string; audience: string }[]).map((r) => [r.key, r.audience]));
   const socials = (so.data ?? []) as Soc[];
   const mine = v.data as Me | null;
   const avatar = mine?.avatar_path ? (await signMany(supabase, 'member-media', [mine.avatar_path])).get(mine.avatar_path) : undefined;
@@ -48,15 +46,6 @@ export default async function ProfileSettings({ searchParams }: { searchParams: 
         <section className="card" aria-labelledby="h-data">
           <div className="card__head"><h2 id="h-data" className="card__title"><Icon name="user" size={20} />Data diri</h2></div>
           <EntityForm action={updateProfile} fields={profileFields(prof.data as Row | null)} submit="Simpan profil" />
-        </section>
-        <section className="card" aria-labelledby="h-vis">
-          <div className="card__head">
-            <div>
-              <h2 id="h-vis" className="card__title"><Icon name="eye" size={20} />Siapa yang boleh melihat</h2>
-              <p className="card__desc">Pilihanmu tidak pernah lebih terbuka dari halaman Anggota. Awalnya hanya anggota kelas yang melihat datamu.</p>
-            </div>
-          </div>
-          <EntityForm action={saveMyVisibility} fields={visibilityFields(MEMBER_KEYS, current)} submit="Simpan visibilitas" />
         </section>
         <section className="card" aria-labelledby="h-pf">
           <div className="card__head">

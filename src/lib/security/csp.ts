@@ -1,6 +1,13 @@
 // Content-Security-Policy berbasis nonce (blueprint §23). Fungsi murni agar bisa dites tanpa runtime Next.
-// Tidak ada klien Supabase di browser, jadi connect-src cukup 'self'. Asal luar untuk <img> adalah
-// host Storage Supabase, ditambah https: pada rute Knowledge agar gambar di entri Markdown tampil.
+// Tidak ada klien Supabase di browser, jadi connect-src cukup 'self'. Asal luar untuk <img> adalah host
+// Storage Supabase, ditambah https: pada rute yang menampilkan gambar pihak ketiga (allowsHttpsImages).
+
+// Rute yang menampilkan gambar dari host https mana pun: entri Knowledge (gambar di Markdown) dan pratinjau
+// tautan portofolio (gambar Open Graph dari situs sumber, lihat src/lib/preview/server.ts).
+export function allowsHttpsImages(pathname: string): boolean {
+  return pathname === '/knowledge' || pathname.startsWith('/knowledge/')
+    || pathname.startsWith('/members/') || pathname === '/settings/portfolio';
+}
 
 export type CspInput = {
   nonce: string;
