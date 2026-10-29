@@ -4,7 +4,7 @@ Dokumen ini mencatat keadaan yang BENAR-BENAR terverifikasi, bukan rencana. Atur
 
 ## Ringkasan
 
-Semua halaman, alur akun, CRUD, pengaturan, tema, Storage, dan **Eclipse Knowledge** yang dirancang sudah ada. Pada sesi ini dependensi sudah terpasang, sehingga `typecheck`, tes unit, pemeriksaan token, dan `next build` benar-benar dijalankan dan hijau. Migrasi 0014 sudah diterapkan ke proyek Supabase terhubung (`udlxcngowgbydlxhofdl`) lewat `npx supabase db push`, dan keempat berkas pgTAP dijalankan pada PostgreSQL 17.11 proyek itu dengan pgTAP 1.3.3 asli: **199/199 lulus** (001 18, 002 36, 003 40, 004 105) setelah data instance dinetralkan di dalam transaksi yang di-`rollback`. **Yang belum terjadi:** RLS/RPC Knowledge diuji lewat PostgREST dengan JWT pengguna sungguhan, `npx supabase test db` sendiri (butuh Docker), dan alur Knowledge yang butuh login (tulis/edit/kelola) diuji di browser. Jangan menganggap alur Knowledge sudah terbukti penuh sampai langkah "Sebelum deploy" hijau.
+Semua halaman, alur akun, CRUD, pengaturan, tema, Storage, **Eclipse Knowledge**, dan **Inventory pribadi** yang dirancang sudah ada. Pada sesi ini dependensi sudah terpasang, sehingga `typecheck`, tes unit, pemeriksaan token, dan `next build` benar-benar dijalankan dan hijau. Migrasi 0018 sudah diterapkan ke proyek Supabase terhubung (`udlxcngowgbydlxhofdl`) lewat `npx supabase db push`, dan ketujuh berkas pgTAP dijalankan pada PostgreSQL 17.11 proyek itu dengan pgTAP 1.3.3 asli: **293/293 lulus** (001 18, 002 36, 003 40, 004 105, 005 15, 006 34, 007 45) setelah data instance dinetralkan di dalam transaksi yang di-`rollback`. **Yang belum terjadi:** RLS/RPC Knowledge dan pencarian inventory diuji lewat PostgREST dengan JWT pengguna sungguhan, `npx supabase test db` sendiri (butuh Docker), alur Knowledge yang butuh login diuji di browser, alur checklist akses/persetujuan jabatan diuji di browser, dan alur Inventory dengan login diuji di browser. Jangan menganggap alur itu sudah terbukti penuh sampai langkah "Sebelum deploy" hijau.
 
 ## Rilis 0.2.0
 
@@ -19,17 +19,26 @@ Semua halaman, alur akun, CRUD, pengaturan, tema, Storage, dan **Eclipse Knowled
 
 Manajer paket: **npm** (`package-lock.json`). Node 22 (`.nvmrc`); runtime sesi ini: Next 16.4.2, TypeScript 5.9.3, Vitest 3.2.7.
 
-Rute (40 halaman + 1 route handler + manifest):
+Rute (43 halaman + 3 route handler: `/api/health`, `/favicon.ico`, `/manifest.webmanifest`):
 
 | Kelompok | Rute |
 |---|---|
 | Publik/auth `(auth)` | `/login`, `/forgot-password`, `/set-password`, `/auth/confirm` |
 | Aplikasi `(app)` | `/` (Beranda), `/class`, `/schedule` (+ `new`, `[id]/edit`), `/events` (+ `new`, `[id]`, `[id]/edit`), `/tasks` (+ `new`, `[id]`, `[id]/edit`), `/members`, `/members/[username]` |
 | Knowledge `(app)/knowledge` | `/knowledge` (penjelajah publik), `/knowledge/[slug]`, `/knowledge/new`, `/knowledge/[slug]/edit`, `/knowledge/[slug]/request-edit`, `/knowledge/manage`, `/knowledge/manage/requests` |
-| Pengaturan `(app)/settings` | `profile`, `portfolio`, `portfolio/new`, `portfolio/[id]/edit`, `account`, `class`, `visibility`, `theme`, `members`, `members/[id]`, `social/new`, `social/[id]/edit`; `/settings` hanya mengalihkan ke `/settings/profile` |
+| Inventory `(app)/inventory` | `/inventory` (editor pribadi, login), `/inventory/access` (publik, cukup inv_key) |
+| Pengaturan `(app)/settings` | `profile`, `portfolio`, `portfolio/new`, `portfolio/[id]/edit`, `account`, `class`, `visibility`, `theme`, `access`, `members`, `members/[id]`, `social/new`, `social/[id]/edit`; `/settings` hanya mengalihkan ke `/settings/profile` |
 | Lain-lain | `/api/health` (cron harian, Bearer `CRON_SECRET`), `/dev/ui` (galeri state; `notFound()` saat `NODE_ENV=production`) |
 
-Database: migrasi **0001–0014** (`supabase/migrations`), seluruhnya sudah diterapkan di proyek Supabase `udlxcngowgbydlxhofdl`. Tes DB yang ada: `supabase/tests/001_visibility`, `002_actions`, `003_storage`, dan `004_knowledge` — total 199 pemeriksaan (18 + 36 + 40 + 105).
+Database: migrasi **0001–0018** (`supabase/migrations`), seluruhnya sudah diterapkan di proyek Supabase `udlxcngowgbydlxhofdl`. Tes DB yang ada: `supabase/tests/001_visibility`, `002_actions`, `003_storage`, `004_knowledge`, `005_roles`, `006_role_access`, dan `007_inventory` — total 293 pemeriksaan (18 + 36 + 40 + 105 + 15 + 34 + 45).
+
+## Role kepengurusan (migrasi 0015–0016)
+
+- Role: `ketua` (Ketua), `wakil` (Wakil Ketua), `sekretaris` (Sekretaris), `bendahara` (Bendahara), `member` (Member). Batas akses jabatan diatur Ketua lewat checklist `/settings/access`; centangan disimpan langsung oleh RPC `set_role_access`. Baris Ketua tetap dan tidak dapat diubah.
+- Batas pemegang role ditegakkan trigger `app.memberships_role_guard` (error `EC041`): Ketua 1, Wakil Ketua 3, Sekretaris 5, Bendahara 2. Semua status keanggotaan dihitung, termasuk undangan yang belum aktif.
+- Mempromosikan anggota ke Ketua menurunkan Ketua lama menjadi Wakil Ketua dalam transaksi yang sama. Bila slot Wakil Ketua penuh, promosi ditolak dan Ketua lama tidak berubah.
+- Hanya Ketua yang boleh memegang `members.manage` (kelola anggota penuh). Jabatan lain dapat diberi `members.request`: hanya mengajukan promosi/demosi jabatan `member` ↔ `wakil`/`sekretaris`/`bendahara`, dan setiap pengajuan baru berlaku setelah Ketua menyetujuinya di `/settings/access`. Pengajuan tidak dapat menyentuh Ketua atau diri sendiri, dan penerapannya tetap melewati batas role (EC041).
+- Data lama: `rleader` dipertahankan sebagai Ketua; `abel` dan `zain` menjadi Wakil Ketua.
 
 ## Eclipse Knowledge
 
@@ -45,6 +54,17 @@ Database: migrasi **0001–0014** (`supabase/migrations`), seluruhnya sudah dite
 - **Draf lokal.** Editor menyimpan draf ke `localStorage` setelah jeda 1,5 detik, memulihkannya di perangkat yang sama, menyediakan tombol buang draf, dan memperingatkan sebelum meninggalkan halaman. Draf lokal bukan cadangan awan; UI menyatakannya.
 - **Tanpa index mesin pencari.** Metadata global aplikasi `robots: noindex` (D-12) tidak diubah. Akibatnya entri `public` bisa dibaca tanpa masuk, tetapi tidak diindeks mesin pencari; ini deviasi dari blueprint Knowledge §4 yang menyebut "eligible for indexing".
 - **Kategori** berupa teks bebas (satu per entri) dan daftar filternya diturunkan dari entri yang terlihat, bukan tabel kategori terkelola. Belum ada halaman moderasi terpisah; kontrol visibilitas Ketua ada di `/knowledge/manage/requests`.
+
+## Inventory pribadi (migrasi 0017–0018)
+
+- **Model.** `inventory_items` hanya menyimpan URL (8–2048 karakter, wajib diawali `https://`; tidak ada validasi host atau port), `owner_id`, `class_id`, dan waktu. `inventory_keys` menyimpan `token` 16 karakter (unik global, kapital), `ttl` (`24h`, `7d`, `1m`, `6m`, `never`), `expires_at`, dan `revoked_at`. Keduanya terikat pada baris `memberships` dengan `on delete cascade`.
+- **Akses.** RLS: pemilik aktif hanya melihat dan menulis itemnya sendiri; tabel key tidak punya policy tulis sama sekali. Pembuatan dan pencabutan key hanya lewat RPC `security definer` (`create_inventory_key`, `revoke_inventory_key`), jadi kuota dan format tidak bisa dilewati lewat PostgREST.
+- **Kuota.** Maksimal 12 key **aktif bersamaan** per anggota. Pemeriksaan hanya menghitung key yang belum dicabut dan belum kedaluwarsa, serta mengunci baris keanggotaan pemilik agar dua permintaan bersamaan tidak lolos batas (error `EC070`). Mencabut key atau membiarkannya kedaluwarsa mengosongkan satu slot; riwayat key lama tetap disimpan. Migrasi 0018 mengoreksi 0017 yang sempat menghitung semua baris.
+- **Key.** Pemilik memilih key custom 16 karakter (huruf, angka, `-`, `_`; disimpan kapital) atau membiarkannya kosong untuk key acak 16 karakter dari 32 simbol tanpa `0/O/1/I/L` (80 bit dari `gen_random_uuid`). Format salah `EC072`; token bentrok `23505`.
+- **Mati otomatis.** `get_inventory_by_key` hanya mengembalikan baris bila key tidak dicabut, belum kedaluwarsa, dan pemiliknya anggota aktif. Key mati, salah format, atau tidak ada semuanya menghasilkan nol baris tanpa membedakan penyebabnya. Nama pemilik hanya ikut bila `page.members` terlihat oleh pemanggil.
+- **Halaman publik.** `/inventory/access` tidak memerlukan login. Key dikirim lewat Server Action (POST) dan tidak pernah masuk URL, riwayat, atau cache halaman. `/inventory` sendiri memerlukan login anggota aktif.
+- **Batas baca.** Lookup mengembalikan maksimal 500 item terbaru milik satu pemilik. Belum ada rate limit untuk percobaan key; ruang key acak 80 bit membuat tebakan tidak praktis, tetapi key custom yang mudah ditebak bergantung pada pilihan pemilik.
+- **Navigasi.** Anggota aktif melihat **Inventory** di sidebar/menu, halaman masuk menautkan `/inventory/access` untuk perangkat lain, dan beranda publik menampilkan tombol **Akses inventory** untuk tamu.
 
 ## Portofolio: pratinjau tautan
 
@@ -80,7 +100,7 @@ Database: migrasi **0001–0014** (`supabase/migrations`), seluruhnya sudah dite
 
 **Migrasi 0013.** Tes `003_storage` menemukan cacat di 0007: policy SELECT juga berlaku pada DELETE ber-WHERE, sehingga objek lama logo/sampul/cover tidak pernah terhapus. 0013 menambahkan klausa baca untuk pemegang `class.manage`/`events.manage` hanya di folder yang boleh mereka tulis. `removeObject` mencatat log bila tidak ada objek terhapus.
 
-**Migrasi 0014 sudah diuji di Supabase asli.** Migrasi diterapkan dengan `npx supabase db push` ke proyek `udlxcngowgbydlxhofdl`, lalu 001–004 dijalankan dengan pgTAP 1.3.3 pada PostgreSQL 17.11. Hasilnya 199/199 lulus (18 + 36 + 40 + 105) dengan data instance dinetralkan di dalam transaksi ber-`rollback`. `auth.uid()` yang dipakai adalah fungsi Supabase asli yang membaca `request.jwt.claims`, dan role diganti dengan `set_config('role', …)` seperti yang dilakukan pgTAP. Lingkungan ini masih **bukan** PostgREST: tidak ada permintaan HTTP ber-JWT, jadi perilaku policy terhadap klaim token sungguhan belum terbukti.
+**Migrasi 0015–0018 sudah diuji di Supabase asli.** Migrasi diterapkan dengan `npx supabase db push` ke proyek `udlxcngowgbydlxhofdl`, lalu 001–007 dijalankan dengan pgTAP 1.3.3 pada PostgreSQL 17.11. Hasilnya 293/293 lulus (18 + 36 + 40 + 105 + 15 + 34 + 45) dengan data instance dinetralkan di dalam transaksi ber-`rollback`. `auth.uid()` yang dipakai adalah fungsi Supabase asli yang membaca `request.jwt.claims`, dan role diganti dengan `set_config('role', …)` seperti yang dilakukan pgTAP. Lingkungan ini masih **bukan** PostgREST: tidak ada permintaan HTTP ber-JWT, jadi perilaku policy terhadap klaim token sungguhan belum terbukti.
 
 **Trigger Storage memblokir tes 003.** Di Supabase asli, `storage.objects` memiliki trigger `storage.protect_objects_delete` yang menolak setiap `DELETE` dari SQL ("Direct deletion from storage tables is not allowed"). Tabelnya milik `supabase_storage_admin` dan koneksi `postgres` bukan anggotanya, jadi trigger tidak bisa dimatikan. Fungsinya hanya membuka gerbang bila GUC `storage.allow_delete_query = 'true'`; `003_storage` sekarang menyetelnya di awal transaksi. Tanpa baris itu, berkas berhenti sebelum satu pun assertion policy DELETE berjalan.
 
@@ -92,13 +112,16 @@ Database: migrasi **0001–0014** (`supabase/migrations`), seluruhnya sudah dite
 
 | Cek | Hasil | Catatan |
 |---|---|---|
-| `npm test` | **69/69 lulus** | Vitest 3.2.7 asli, termasuk tes parser Markdown (tabel, daftar bertingkat, checklist, kutipan bertingkat, gambar, escape, baris baru), penomoran daftar dan lanjutan Enter, penyisipan sintaks editor, tautan aman, diff blok, normalisasi tag, paritas katalog 28 kunci, dan pratinjau tautan (validasi https/host internal, parsing Open Graph, predicate rute CSP). |
+| `npm test` | **73/73 lulus** | Vitest 3.2.7 asli, termasuk normalisasi/format/status `inv_key`, tes parser Markdown (tabel, daftar bertingkat, checklist, kutipan bertingkat, gambar, escape, baris baru), penomoran daftar dan lanjutan Enter, penyisipan sintaks editor, tautan aman, diff blok, normalisasi tag, paritas katalog 28 kunci, dan pratinjau tautan (validasi https/host internal, parsing Open Graph, predicate rute CSP). |
 | `npm run typecheck` | **0 error** | `tsc --noEmit`, strict + `noUncheckedIndexedAccess`; TypeScript 5.9.3, dependensi asli terpasang. |
 | `npm run check:tokens` | bersih | Tidak ada warna hex/rgb/hsl atau nilai arbitrer di `src/components`, `src/features`, `src/app`. |
-| `npm run build` | **sukses** | Next 16.4.2; 40 route halaman + `/api/health` + `/manifest.webmanifest`; semua route Knowledge terdaftar. Build tidak memanggil Supabase saat prerender karena halaman dinamis. |
-| Migrasi 0014 ke Supabase | **diterapkan** | `npx supabase db push --db-url` ke `udlxcngowgbydlxhofdl` (MyEclipse): `20261023120000` masuk, `migration list` remote kini 14/14. `pgtap` 1.3.3 dipasang di schema `extensions`. |
-| Tes DB 001–004 dengan pgTAP asli | **199/199 lulus** | PostgreSQL 17.11 proyek Supabase, pgTAP 1.3.3. Dijalankan dengan `npm run test:db -- --isolate` (`scripts/test-db.mjs`, driver `pg`) karena `supabase test db` menuntut Docker. Data instance dinetralkan di dalam transaksi yang selalu `rollback`; sesudahnya jumlah baris tidak berubah (1 kelas, 1 anggota, 1 profil, 1 event, 5 tugas, 1 objek Storage, 16 aturan visibility). |
-| Tes DB terhadap data asli | **tidak bersih, bukan bug** | Tanpa isolasi: 001 13/18, 002 30/36, 004 104/105. Semuanya karena data/setelan asli: `page.members` dan `page.events` publik, 1 event + 1 logo + 5 tugas, dan 1 Ketua lama sehingga penjaga "pengelola terakhir" tidak menyala. 003 berhenti karena trigger Storage (lihat temuan di atas), bukan karena data. |
+| `npm run build` | **sukses** | Next 16.4.2; 43 route halaman + `/api/health` + `/favicon.ico` + `/manifest.webmanifest`; `/inventory`, `/inventory/access`, `/settings/access`, dan semua route Knowledge terdaftar. Build tidak memanggil Supabase saat prerender karena halaman dinamis. |
+| Halaman Inventory (HTTP) | **lulus smoke test** | `next start` build produksi: `/inventory/access` merender formulir key untuk anonim, `/inventory` anonim mengalihkan ke `/login?next=%2Finventory`, `/login` memuat tautan ke halaman akses, dan beranda anonim (`/`) menampilkan tombol **Akses inventory** yang menuju `/inventory/access`. PostgREST anon: `get_inventory_by_key` untuk key tak dikenal/salah format mengembalikan `[]` (200), sedangkan `create_inventory_key` ditolak `42501`. |
+| Migrasi 0017–0018 ke Supabase | **diterapkan** | `npx supabase db push --db-url` ke `udlxcngowgbydlxhofdl` (MyEclipse): `20261029130000_inventory.sql` dan `20261029140000_inventory_active_quota.sql` masuk. Koneksi memakai Session Pooler `aws-0-ap-southeast-1.pooler.supabase.com:5432` karena host `db.*.supabase.co` tidak punya catatan DNS dari sandbox ini. `pgtap` 1.3.3 ada di schema `extensions`. |
+| Tes DB 001–007 dengan pgTAP asli | **293/293 lulus** | PostgreSQL 17.11 proyek Supabase, pgTAP 1.3.3. Dijalankan dengan `npm run test:db -- --isolate` (`scripts/test-db.mjs`, driver `pg`) karena `supabase test db` menuntut Docker. Data instance dinetralkan di dalam transaksi yang selalu `rollback`; sesudahnya jumlah baris tidak berubah (1 kelas, 1 anggota, 1 profil, 1 event, 5 tugas, 1 objek Storage, 16 aturan visibility). |
+| Inventory di DB (007) | **45/45 lulus** | Key acak/custom 16 karakter, empat masa aktif, kuota 12 key aktif bersamaan (mencabut dan kedaluwarsa mengosongkan slot, riwayat tetap disimpan), penolakan key nonaktif dan key aktif ke-13, RLS item hanya pemilik, trigger `https://`, serta lookup publik untuk key aktif, dicabut, kedaluwarsa, salah format, dan pemilik nonaktif. |
+| Tes DB terhadap data asli | **tidak bersih, bukan bug** | Tanpa isolasi: 001 13/18, 002 36/36, 003 29/40, 004 98/105, 005 15/15; 006 hanya dijalankan dengan `--isolate`. Semuanya karena data/setelan asli: `page.members` dan `page.events` publik, 1 event + 1 logo + 5 tugas, dan 1 Ketua aktif. |
+| Akses role dan pengajuan jabatan | **lulus di DB (006)** | 34 pemeriksaan: Ketua menyalakan/mematikan akses jabatan, menolak perubahan akses Ketua dan pemberian `members.manage`, pemegang `members.request` mengajukan tanpa bisa mengubah role langsung, anggota biasa tidak melihat antrean, persetujuan/penolakan Ketua diterapkan dan dicatat, pengajuan ganda ditolak, serta persetujuan yang melewati batas role gagal dan pengajuan tetap menunggu. |
 | `npx supabase test db` | **tetap tidak bisa di sandbox** | CLI 2.121.0: dengan `--db-url` pun perintah ini menjalankan `pg_prove` di container dan gagal `docker: command not found`. Login akun dan proyek linked sudah benar; `db push`, `db query`, dan `migration list` berjalan normal. |
 | Renderer Markdown | **aman pada uji render** | `react-dom/server` dipakai untuk merender `<script>`, tabel, gambar `https`, checklist, daftar bertingkat, kutipan bertingkat, dan blok kode; keluaran meng-escape teks, tidak ada tag skrip/atribut HTML yang dieksekusi. |
 | PWA | **lulus di Chrome headless** | `/manifest.webmanifest` 200 dengan ikon 192/512/maskable; `Page.getInstallabilityErrors` kosong; service worker aktif dan mengendalikan halaman; navigasi saat offline menampilkan `/offline.html`. |
@@ -115,6 +138,9 @@ Database: migrasi **0001–0014** (`supabase/migrations`), seluruhnya sudah dite
 
 - Perilaku Knowledge lewat PostgREST dengan JWT pengguna sungguhan (header `Authorization`, role `authenticated` dari PostgREST, dan embed relasi `!inner`).
 - `npx supabase test db` end-to-end (butuh Docker/Podman) dan tes terhadap DB yang baru di-`db reset` tanpa isolasi manual.
+- Alur `/settings/access` di browser: mencentang/menghapus centang akses, serta pengajuan dan persetujuan jabatan oleh akun Ketua dan jabatan lain (butuh kredensial login).
+- Alur Inventory di browser dengan login: tambah/hapus tautan, buat key custom dan acak, cabut key, lalu buka inventory lewat formulir `/inventory/access` (butuh kredensial login).
+- `get_inventory_by_key` lewat PostgREST dengan JWT pengguna sungguhan (anon sudah diuji), serta rate limit percobaan key yang belum ada.
 - Hitungan notifikasi Knowledge di bawah RLS/PostgREST (termasuk filter relasi `!inner`) dan pembaruannya setelah permintaan diputuskan.
 - Alur Knowledge end-to-end di UI: buat draf → terbitkan → baca sebagai anonim → minta edit → setujui/tolak → eskalasi → persetujuan Ketua → cabut akses; termasuk upaya menembus RLS lewat PostgREST langsung.
 - Konflik versi dua editor bersamaan (pesan konflik di UI), dan penanda blok setelah beberapa suntingan.
@@ -133,10 +159,10 @@ Database: migrasi **0001–0014** (`supabase/migrations`), seluruhnya sudah dite
 
 1. `npm ci` lalu `npm audit`.
 2. `npm run check:tokens && npm run typecheck && npm test`.
-3. `supabase start`, `supabase db reset` (**0001–0014**), lalu `npm run test:db` (termasuk **004_knowledge**). Skrip ini memakai `POSTGRES_URL` dan tidak butuh Docker; `npx supabase test db` tetap bisa dipakai di mesin ber-Docker. Tes mengasumsikan DB kosong: pada proyek berisi data jalankan `npm run test:db -- --isolate`, yang mengosongkan data instance di dalam transaksi dan selalu `ROLLBACK`.
+3. `supabase start`, `supabase db reset` (**0001–0018**), lalu `npm run test:db` (termasuk **004_knowledge**, **005_roles**, **006_role_access**, dan **007_inventory**). Skrip ini memakai `POSTGRES_URL` dan tidak butuh Docker; `npx supabase test db` tetap bisa dipakai di mesin ber-Docker. Tes mengasumsikan DB kosong: pada proyek berisi data jalankan `npm run test:db -- --isolate`, yang mengosongkan data instance di dalam transaksi dan selalu `ROLLBACK`.
 4. Isi `.env.local` dari `.env.example`, lalu `npm run build` dan `npm run dev`.
-5. Uji alur Knowledge: entri publik tanpa login, draf/privat tidak bocor lewat URL langsung atau pencarian, hanya penulis/editor yang bisa menyimpan isi, Ketua hanya visibilitas, eskalasi disetujui 7 hari, cabut akses berlaku, dan dua tab menyimpan bersamaan memunculkan konflik.
-6. Proyek cloud: `supabase db push` (**0014 harus ikut**), matikan signup, atur Site URL/Redirect URL, isi env di Vercel (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `APP_URL`, `CRON_SECRET`).
+5. Uji alur Knowledge: entri publik tanpa login, draf/privat tidak bocor lewat URL langsung atau pencarian, hanya penulis/editor yang bisa menyimpan isi, Ketua hanya visibilitas, eskalasi disetujui 7 hari, cabut akses berlaku, dan dua tab menyimpan bersamaan memunculkan konflik. Uji juga Inventory: tambah tautan https, tolak `http://`, buat key custom/acak, buka lewat `/inventory/access` tanpa login, cabut key, dan pastikan jatah 12 tidak kembali.
+6. Proyek cloud: `supabase db push` (**0018 harus ikut**), matikan signup, atur Site URL/Redirect URL, isi env di Vercel (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `APP_URL`, `CRON_SECRET`).
 7. `npm run bootstrap:admin` sekali (menolak jalan bila Ketua aktif sudah ada), buka tautan yang tercetak, buat kata sandi.
 8. Buka tiap rute pada ponsel dan desktop; uji unggah logo, sampul, avatar, cover event; hapus salah satunya dan pastikan objek lama hilang dari bucket.
 
@@ -149,6 +175,7 @@ Database: migrasi **0001–0014** (`supabase/migrations`), seluruhnya sudah dite
 5. Typo pada komentar 0011 ("Chairs"): migrasi sudah applied, jangan diubah.
 6. Pencarian email di aksi anggota memakai `listUsers` (200 pertama): cukup untuk ±20 anggota, tidak untuk kelas besar.
 7. Knowledge (0014): rute memakai konvensi aplikasi (`/knowledge/new`, bukan `/knowledge/create`); kategori berupa teks bebas; persetujuan Ketua atas eskalasi berlaku 7 hari; highlights tingkat blok, bukan karakter; kategori/entri `unlisted` tidak masuk sitemap karena aplikasi memang `noindex` global.
+8. Inventory (0017–0018): hanya URL yang diawali `https://` (tanpa validasi host/port), key 16 karakter custom/acak, kuota 12 key aktif bersamaan (0018 mengoreksi hitungan 0017), dan halaman akses publik tanpa login. Fitur ini belum ada di blueprint awal.
 
 ## Catatan runbook
 

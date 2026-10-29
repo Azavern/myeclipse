@@ -37,6 +37,8 @@ set local storage.allow_delete_query = 'true';
 alter table public.memberships disable trigger user;
 do $$ begin
   if to_regclass('storage.objects') is not null then delete from storage.objects; end if;
+  if to_regclass('public.inventory_keys') is not null then delete from public.inventory_keys; end if;
+  if to_regclass('public.inventory_items') is not null then delete from public.inventory_items; end if;
   if to_regclass('public.knowledge_audit') is not null then delete from public.knowledge_audit; end if;
   if to_regclass('public.knowledge_editors') is not null then delete from public.knowledge_editors; end if;
   if to_regclass('public.knowledge_edit_requests') is not null then delete from public.knowledge_edit_requests; end if;

@@ -2,6 +2,7 @@ import type { ZodError } from 'zod';
 
 export type FormState = { error?: string; fieldErrors?: Record<string, string[]>; values?: Record<string, string> } | null;
 export const FORBIDDEN = 'Kamu tidak punya izin untuk tindakan ini.';
+export const ROLE_LIMIT = 'Batas jumlah anggota untuk role ini sudah penuh (Ketua 1, Wakil Ketua 3, Sekretaris 5, Bendahara 2).';
 
 export function formValues(fd: FormData) { // echo input non-rahasia agar isi form tidak hilang saat error
   const v: Record<string, string> = {};
@@ -28,6 +29,9 @@ export function dbMessage(e: { code?: string }): string { // blueprint §9.7; de
   if (e.code === 'EC030' || e.code === 'EC031' || e.code === 'EC032') return 'Kolom ini tidak dapat diubah.';
   if (e.code?.startsWith('EC01')) return 'Pengaturan visibilitas tidak valid.';
   if (e.code === 'EC040') return 'Batas jumlah item tercapai.';
+  if (e.code === 'EC070') return '12 slot inv_key aktif sedang penuh. Cabut key lama untuk mengosongkan slot.';
+  if (e.code === 'EC072') return 'inv_key harus tepat 16 karakter: huruf, angka, - atau _.';
+  if (e.code === 'EC041') return ROLE_LIMIT;
   if (e.code === 'EC001') return 'Kelas harus punya minimal satu pengelola aktif.';
   return 'Terjadi kesalahan. Coba lagi.';
 }

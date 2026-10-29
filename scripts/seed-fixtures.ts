@@ -58,34 +58,29 @@ function passwordOf(member: SeedMember): string {
 }
 
 /**
- * 23 anggota. Isi `username`, `email`, dan `fullName`; `role` bawaan `'member'`.
+ * 18 (harusnya 23) anggota. Isi `username`, `email`, dan `fullName`; `role` bawaan `'member'`.
  * `password` boleh dihilangkan karena memakai `SEED_PASSWORD`; isi hanya bila
  * satu akun perlu kata sandi berbeda. Peran Ketua memakai `role: 'ketua'`.
  */
 export const SEED_MEMBERS: SeedMember[] = [
-  { username: 'said', email: 'said@myeclipse.my.id', fullName: 'Adias Lapanda', role: 'member', password: SEED_PASSWORD },
-  { username: 'aswa', email: 'aswa@myeclipse.my.id', fullName: 'Aswana Mita Lapanda', role: 'member', password: SEED_PASSWORD },
-  { username: 'didil', email: 'didil@myeclipse.my.id', fullName: 'Faradila Esentu Libiniari', role: 'member', password: SEED_PASSWORD },
-  { username: 'bila', email: 'bila@myeclipse.my.id', fullName: 'Bila Aja', role: 'member', password: SEED_PASSWORD },
-  { username: 'novi', email: 'novi@myeclipse.my.id', fullName: 'Novi Novia', role: 'member', password: SEED_PASSWORD },
-  { username: 'rijal', email: 'rijal@myeclipse.my.id', fullName: 'Rijal Jalaludin', role: 'member', password: SEED_PASSWORD },
-  { username: 'dewi', email: 'dewi@myeclipse.my.id', fullName: 'Dewi Matahari', role: 'member', password: SEED_PASSWORD },
-  { username: 'adam', email: 'adam@myeclipse.my.id', fullName: 'Adam Presuwa', role: 'member', password: SEED_PASSWORD },
-  { username: 'dia', email: 'dia@myeclipse.my.id', fullName: 'Dia lagi dia lagi', role: 'member', password: SEED_PASSWORD },
-  { username: 'musa', email: 'musa@myeclipse.my.id', fullName: 'Musalamati Albaniya', role: 'member', password: SEED_PASSWORD },
-  { username: 'iben', email: 'iben@myeclipse.my.id', fullName: 'Ibenar siskah', role: 'member', password: SEED_PASSWORD },
-  { username: 'ayu', email: 'ayu@myeclipse.my.id', fullName: 'Ayu Lingling', role: 'member', password: SEED_PASSWORD },
-  { username: 'mesti', email: 'mesti@myeclipse.my.id', fullName: 'Mestinya begitu', role: 'member', password: SEED_PASSWORD },
-  { username: 'yessir', email: 'yessir@myeclipse.my.id', fullName: 'Yesir Pradungga', role: 'member', password: SEED_PASSWORD },
-  { username: 'dul', email: 'dul@myeclipse.my.id', fullName: 'Abdila Laharna', role: 'member', password: SEED_PASSWORD },
-  { username: 'madha', email: 'madha@myeclipse.my.id', fullName: 'Muh Madhari', role: 'member', password: SEED_PASSWORD },
-  { username: 'darma', email: 'darma@myeclipse.my.id', fullName: 'Darma Pratama', role: 'member', password: SEED_PASSWORD },
-  { username: 'radit', email: 'radit@myeclipse.my.id', fullName: 'Radit Mokoagow', role: 'member', password: SEED_PASSWORD },
-  { username: 'ujang', email: 'ujang@myeclipse.my.id', fullName: 'Ujangi', role: 'member', password: SEED_PASSWORD },
-  { username: 'yuno', email: 'yuno@myeclipse.my.id', fullName: 'Yanto', role: 'member', password: SEED_PASSWORD },
-  { username: 'efdal', email: 'efdal@myeclipse.my.id', fullName: 'Efdal Laden', role: 'member', password: SEED_PASSWORD },
-  { username: 'andi', email: 'andi@myeclipse.my.id', fullName: 'Andi Adinatan', role: 'member', password: SEED_PASSWORD },
-  { username: 'frima', email: 'frima@myeclipse.my.id', fullName: 'Frima Ramsey', role: 'member', password: SEED_PASSWORD },
+  { username: 'said', email: 'said@myeclipse.my.id', fullName: 'Said', role: 'member', password: SEED_PASSWORD },
+  { username: 'jua', email: 'jua@myeclipse.my.id', fullName: 'Jawa?', role: 'member', password: SEED_PASSWORD },
+  { username: 'nurul', email: 'nurul@myeclipse.my.id', fullName: 'Nurul', role: 'member', password: SEED_PASSWORD },
+  { username: 'nabila', email: 'nabila@myeclipse.my.id', fullName: 'Nabila', role: 'member', password: SEED_PASSWORD },
+  { username: 'tiara', email: 'tiara@myeclipse.my.id', fullName: 'Titi', role: 'member', password: SEED_PASSWORD },
+  { username: 'cini', email: 'cini@myeclipse.my.id', fullName: 'Cini', role: 'member', password: SEED_PASSWORD },
+  { username: 'gibran', email: 'gibran@myeclipse.my.id', fullName: 'Gibran', role: 'member', password: SEED_PASSWORD },
+  { username: 'dapa', email: 'dapa@myeclipse.my.id', fullName: 'Dapa', role: 'member', password: SEED_PASSWORD },
+  { username: 'abel', email: 'abel@myeclipse.my.id', fullName: 'Abela', role: 'ketua', password: SEED_PASSWORD },
+  { username: 'ihsan', email: 'iben@myeclipse.my.id', fullName: 'Iben', role: 'member', password: SEED_PASSWORD },
+  { username: 'eka', email: 'eka@myeclipse.my.id', fullName: 'Eka', role: 'member', password: SEED_PASSWORD },
+  { username: 'rara', email: 'rara@myeclipse.my.id', fullName: 'Rara', role: 'member', password: SEED_PASSWORD },
+  { username: 'abdul', email: 'abdul@myeclipse.my.id', fullName: 'Abdul', role: 'member', password: SEED_PASSWORD },
+  { username: 'zain', email: 'zain@myeclipse.my.id', fullName: 'Zawa', role: 'member', password: SEED_PASSWORD },
+  { username: 'robby', email: 'robby@myeclipse.my.id', fullName: 'Rob', role: 'member', password: SEED_PASSWORD },
+  { username: 'tio', email: 'tio@myeclipse.my.id', fullName: 'Tio', role: 'member', password: SEED_PASSWORD },
+  { username: 'yusuf', email: 'yusuf@myeclipse.my.id', fullName: 'ucup', role: 'member', password: SEED_PASSWORD },
+  { username: 'ilman', email: 'ilman@myeclipse.my.id', fullName: 'Ilman', role: 'member', password: SEED_PASSWORD },
 ];
 
 // ---------------------------------------------------------------- validasi

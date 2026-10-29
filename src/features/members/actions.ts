@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import { dbMessage, failState, invalid, type FormState } from '@/lib/form-state';
+import { dbMessage, failState, invalid, ROLE_LIMIT, type FormState } from '@/lib/form-state';
 import { idOf, reqText } from '@/lib/zod-fields';
 import { requireActionContext } from '@/lib/action-context';
 import { env } from '@/lib/env';
@@ -48,6 +48,8 @@ export async function createMember(_p: LinkState, fd: FormData): Promise<LinkSta
     await admin.auth.admin.deleteUser(id); // kompensasi: tidak boleh ada user Auth yatim
     console.error('createMember: provision_member gagal', prov.error.code);
     if (prov.error.code === '23505') return fail('conflict', 'Username sudah dipakai.');
+    if (prov.error.code === 'EC041') return fail('conflict', ROLE_LIMIT);
+    if (prov.error.code === 'EC001') return fail('conflict', 'Anggota dengan role Ketua harus aktif dulu. Buat sebagai Member, lalu ubah role-nya setelah ia aktif.');
     if (prov.error.code === '42501') return fail('forbidden', FORBIDDEN);
     return fail('unknown', 'Anggota belum bisa dibuat. Coba lagi.');
   }

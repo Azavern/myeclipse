@@ -110,7 +110,7 @@ export function CreateMemberForm({ roles }: { roles: { id: string; name: string 
     { name: 'full_name', label: 'Nama lengkap', type: 'text', required: true, max: 80, autoComplete: 'off' },
     { name: 'email', label: 'Email', type: 'email', required: true, max: 254, autoComplete: 'off', hint: 'Dipakai untuk masuk. Anggota menentukan kata sandinya sendiri lewat tautan akses.' },
     { name: 'role_id', label: 'Role', type: 'select', required: true, options: roles.map((r): [string, string] => [r.id, r.name]),
-      value: (roles.find((r) => /^anggota$/i.test(r.name)) ?? roles[0])?.id ?? '', full: true },
+      value: (roles.find((r) => /^(member|anggota)$/i.test(r.name)) ?? roles[0])?.id ?? '', full: true },
   ];
   return (
     <>

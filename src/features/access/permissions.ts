@@ -1,0 +1,20 @@
+import type { IconName } from '@/components/ui/icon';
+
+// Akses yang dapat diatur Ketua untuk jabatan di bawahnya (migrasi 0016).
+// `members.request` sengaja terpisah dari `members.manage`: yang pertama hanya
+// mengajukan promosi/demosi jabatan dan menunggu persetujuan Ketua.
+export type AccessKey = 'class.manage' | 'schedule.manage' | 'events.manage' | 'tasks.manage' | 'members.request';
+
+export const ACCESS_ITEMS: { key: AccessKey; label: string; hint: string; icon: IconName }[] = [
+  { key: 'class.manage', label: 'Kelola kelas', hint: 'Profil kelas, tema, dan visibilitas halaman.', icon: 'book' },
+  { key: 'schedule.manage', label: 'Kelola jadwal', hint: 'Tambah, ubah, dan hapus jadwal kuliah atau kegiatan.', icon: 'calendar' },
+  { key: 'events.manage', label: 'Kelola event', hint: 'Tambah, ubah, dan hapus event kelas.', icon: 'calendar-days' },
+  { key: 'tasks.manage', label: 'Kelola tugas', hint: 'Tambah, ubah, dan hapus tugas.', icon: 'tasks' },
+  {
+    key: 'members.request', label: 'Kelola anggota', icon: 'users',
+    hint: 'Hanya mengajukan promosi atau demosi jabatan anggota. Setiap pengajuan baru berlaku setelah disetujui Ketua.',
+  },
+];
+
+// Akses penuh kelola anggota; hanya Ketua yang memegangnya dan tidak dapat diberikan lewat checklist.
+export const FULL_MEMBER_ACCESS = { key: 'members.manage', label: 'Kelola anggota penuh' } as const;

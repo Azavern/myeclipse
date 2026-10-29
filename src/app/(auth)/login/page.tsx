@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { safeRedirect } from '@/lib/safe-redirect';
 import { LoginForm } from './login-form';
 
@@ -13,6 +14,10 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <p className="muted">Masuk dengan akun yang diberikan Ketua kelas.</p>
       </header>
       <LoginForm next={safeRedirect(next)} />
+      <p className="muted">
+        Punya inv_key inventory?{' '}
+        <Link href="/inventory/access">Buka inventory tanpa masuk</Link>.
+      </p>
     </>
   );
 }

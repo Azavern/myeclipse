@@ -61,6 +61,7 @@ export function Hero({ name, tagline, description, highlight, highlightUrl, cove
           <div className="hero__actions">
             <Link href="/login" className="btn btn--onhero-solid btn--lg"><Icon name="log-in" size={18} />Masuk ke kelas</Link>
             {secondary && <Link href={secondary.href} className="btn btn--onhero btn--lg"><Icon name={secondary.icon} size={18} />{secondary.label}</Link>}
+            <Link href="/inventory/access" className="btn btn--onhero btn--lg"><Icon name="key" size={18} />Akses inventory</Link>
           </div>)}
       </div>
       {guest && stats && stats.length > 0 && (

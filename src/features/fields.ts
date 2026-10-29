@@ -128,7 +128,8 @@ export const memberIdentityFields = (r: Row | null, _tz?: string): Field[] => [
   { name: 'username', label: 'Username', type: 'text', required: true, min: 3, max: 30, hint: '3–30 karakter: huruf kecil, angka, garis bawah. Menjadi alamat profil.', value: s(r, 'username') },
 ];
 export const memberRoleFields = (r: Row | null, roles: [string, string][]): Field[] => [
-  { name: 'role_id', label: 'Role', type: 'select', value: s(r, 'role_id'), options: roles, full: true },
+  { name: 'role_id', label: 'Role', type: 'select', value: s(r, 'role_id'), options: roles, full: true,
+    hint: 'Ketua hanya satu: memilih Ketua memindahkan Ketua sebelumnya ke Wakil Ketua. Batas: Wakil Ketua 3, Sekretaris 5, Bendahara 2.' },
 ];
 export const memberStatusFields = (r: Row | null): Field[] => [
   { name: 'status', label: 'Status akun', type: 'select', value: s(r, 'status') === 'inactive' ? 'inactive' : 'active', full: true,

@@ -14,6 +14,7 @@ export const FLASH = {
   approved: 'Permintaan edit disetujui.',
   rejected: 'Permintaan edit ditolak.',
   revoked: 'Akses edit dicabut.',
+  keyRevoked: 'inv_key dicabut. Tautan itu tidak lagi bisa membuka inventory.',
 } as const;
 
 export type FlashKey = keyof typeof FLASH;

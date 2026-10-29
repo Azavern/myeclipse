@@ -8,9 +8,10 @@ Nama kelas tidak ditulis di kode. Semua tampilan membaca `classes.name` (data aw
 
 - **Autentikasi tanpa pendaftaran mandiri.** Akun dibuat Ketua, lalu anggota masuk lewat tautan akses sekali pakai.
 - **Dynamic Visibility.** Ketua dan anggota mengatur siapa yang boleh melihat halaman, section, field, dan item (portofolio, social media). Audience: `public`, `authenticated`, `class_member`, `class_admin`, `self`. Data personal default-nya `class_member`; hanya identitas kelas yang `public`.
-- **Role dan permission.** Ketua dan Member. Hak admin berupa permission pada role, bukan pengecekan nama role.
+- **Role dan permission.** Ketua, Wakil Ketua, Sekretaris, Bendahara, dan Member. Ketua hanya satu, Wakil Ketua maks. 3, Sekretaris maks. 5, Bendahara maks. 2; mempromosikan Ketua baru otomatis menurunkan Ketua lama menjadi Wakil Ketua. Hak admin berupa permission pada role, bukan pengecekan nama role. Halaman **Akses role** khusus Ketua berisi checklist akses per jabatan yang langsung tersimpan. Kelola anggota penuh hanya milik Ketua; jabatan lain dapat diberi akses mengajukan promosi/demosi jabatan, dan setiap pengajuan baru berlaku setelah Ketua menyetujuinya.
 - **Modul kelas.** Identitas dan tema kelas, direktori anggota, profil, portofolio (halaman pengelolaan terpisah dari profil), jadwal kuliah mingguan per semester, event, tugas (dengan mata kuliah), dan beranda.
 - **Eclipse Knowledge.** Perpustakaan pengetahuan bersama: entri Markdown dengan pratinjau, pencarian/filter/sort, draf lokal, penanda bagian yang diedit, serta alur permintaan akses edit (penulis, editor, dan eskalasi ke Ketua). Entri publik dapat dibaca tanpa masuk.
+- **Inventory pribadi.** Daftar tautan https milik tiap anggota, tidak dijelajahi bersama. Pemilik membagikan seluruh isinya lewat `inv_key` 16 karakter (custom atau acak) dengan masa aktif 24 jam, 7 hari, 1 bulan, 6 bulan, atau tanpa kedaluwarsa. Maksimal 12 key aktif bersamaan; mencabut atau membiarkan key kedaluwarsa mengosongkan slot. Halaman `/inventory/access` membuka inventory dengan key tanpa perlu login.
 - **PWA.** Manifest, service worker, dan halaman offline membuat aplikasi dapat dipasang ke beranda. Hanya aset statis yang di-cache; halaman berisi data anggota tidak disimpan di cache.
 
 ## Stack
@@ -63,7 +64,7 @@ Bila `blueprint.md` bertentangan dengan `AGENTS.md` atau `DESIGN.md`, dua yang t
    supabase db push
    ```
 
-   Migration berada di `supabase/migrations/` (0001–0014) dan diterapkan berurutan. Jangan menjalankan ulang atau mengubah migration yang sudah diterapkan; perubahan skema ditulis sebagai migration baru.
+   Migration berada di `supabase/migrations/` (0001–0018) dan diterapkan berurutan. Jangan menjalankan ulang atau mengubah migration yang sudah diterapkan; perubahan skema ditulis sebagai migration baru.
 
 4. **Atur Auth** di dashboard Supabase (padanan `supabase/config.toml`):
 

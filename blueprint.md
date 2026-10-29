@@ -340,7 +340,7 @@ create table public.roles (
   unique (class_id, key),
   unique (class_id, id),
   check (permissions <@ array['class.manage','members.manage','schedule.manage',
-                              'events.manage','tasks.manage']::text[])
+                              'events.manage','tasks.manage','members.request']::text[])
 );
 
 create table public.memberships (
@@ -683,11 +683,14 @@ Rantai (PRD §15): `User → Membership → Role → Permissions`. Otorisasi tid
 |---|---|:-:|:-:|
 | `class.manage` | Profil kelas, theme, link kelas, visibility kelas, audience `class_admin` | ✓ | — |
 | `members.manage` | Buat/ubah (nama, username)/nonaktifkan/hapus anggota, ubah role, terbitkan tautan akses | ✓ | — |
+| `members.request` | Mengajukan promosi/demosi jabatan anggota; baru berlaku setelah disetujui pemegang `members.manage` | — | — |
 | `schedule.manage` | CRUD jadwal (termasuk kegiatan) | ✓ | — |
 | `events.manage` | CRUD event | ✓ | — |
 | `tasks.manage` | CRUD tugas | ✓ | — |
 
 Hak milik sendiri (profil, portofolio, social, visibility milik sendiri) bukan permission; ditegakkan lewat kepemilikan (`user_id = auth.uid()` dan keanggotaan aktif).
+
+Jabatan `wakil`, `sekretaris`, dan `bendahara` tidak memegang permission tetap. Ketua menyalakan atau mematikan akses mereka lewat checklist `/settings/access` (RPC `set_role_access`). `members.manage` tidak dapat diberikan ke jabatan lain; untuk mereka hanya tersedia `members.request`, yang hanya boleh mengubah jabatan dan selalu menunggu persetujuan Ketua.
 
 Pemetaan PRD §15 → penegakan:
 
@@ -699,7 +702,7 @@ Pemetaan PRD §15 → penegakan:
 | Manage class profile / theme | RLS `classes` (`class.manage`) | `updateClassIdentity`, `updateTheme` | `/settings/class`, `/settings/theme` |
 | Manage schedule / event / task | RLS per tabel | `create*`, `update*`, `delete*` | Tombol hanya bila punya permission |
 
-**Role tambahan di masa depan** (Wakil, Sekretaris, Bendahara): cukup `insert into roles` dengan subset permission. Tidak ada perubahan skema atau policy. Dropdown role pada UI membaca tabel `roles`.
+**Role kepengurusan** (migrasi 0015, akses pada 0016): `ketua` (1 orang), `wakil` / Wakil Ketua (maks. 3), `sekretaris` (maks. 5), dan `bendahara` (maks. 2). Halaman `/settings/access` khusus Ketua menampilkan checklist akses per jabatan: `class.manage`, `schedule.manage`, `events.manage`, `tasks.manage`, dan `members.request`. Centangan langsung disimpan lewat RPC `set_role_access`; baris Ketua tetap dan tidak dapat diubah agar kelas tidak kehilangan pengelola. `members.request` hanya memberi hak mengajukan promosi/demosi jabatan `member` ↔ `wakil`/`sekretaris`/`bendahara` (bukan Ketua, bukan diri sendiri); pengajuan masuk ke `role_change_requests` dan baru diterapkan setelah Ketua menyetujuinya. Menambah role baru tetap cukup `insert into roles`; dropdown role pada UI membaca tabel `roles`.
 
 ### 6.4 Invarian (ditegakkan trigger, §8.2)
 
@@ -707,7 +710,9 @@ Pemetaan PRD §15 → penegakan:
 2. Anggota tidak bisa mengubah `role_id` atau `status` miliknya sendiri (RLS update `memberships` hanya untuk `members.manage`).
 3. Transisi status oleh pengguna: hanya `active→inactive` dan `inactive→active` (bila `joined_at` terisi). `invited→active` hanya lewat RPC `activate_my_membership`.
 4. Ketua tidak dapat menghapus dirinya sendiri (aturan aplikasi + trigger last-admin).
-5. Tidak ada policy `UPDATE` langsung untuk non-pemilik pada `member_profiles`. Ketua mengubah nama/username anggota lewat RPC `update_member_identity` (cek `members.manage` di dalam fungsi), sehingga Ketua tidak pernah mendapat jalur baca/tulis ke kolom milik anggota (nickname, bio, avatar). `username` hanya dapat diubah oleh pemegang `members.manage`; guard trigger (EC030–EC032) menjadi lapisan kedua.
+5. Batas pemegang role dan ketua tunggal (migrasi 0015, error `EC041`): trigger `app.memberships_role_guard` menurunkan ketua lama ke `wakil` saat ada anggota lain dipromosikan menjadi ketua, lalu menolak transaksi bila jumlah pemegang role melebihi batas (ketua 1, wakil 3, sekretaris 5, bendahara 2). Semua status keanggotaan dihitung, termasuk undangan yang belum aktif; bila slot wakil penuh, promosi ketua ditolak dan ketua lama tidak berubah.
+6. Tidak ada policy `UPDATE` langsung untuk non-pemilik pada `member_profiles`. Ketua mengubah nama/username anggota lewat RPC `update_member_identity` (cek `members.manage` di dalam fungsi), sehingga Ketua tidak pernah mendapat jalur baca/tulis ke kolom milik anggota (nickname, bio, avatar). `username` hanya dapat diubah oleh pemegang `members.manage`; guard trigger (EC030–EC032) menjadi lapisan kedua.
+7. Akses jabatan dan pengajuan (migrasi 0016): `set_role_access` menolak role `ketua`, role `member`, dan permission `members.manage`, sehingga akses penuh kelola anggota hanya milik Ketua. Pemegang `members.request` hanya bisa membuat `role_change_requests` untuk jabatan selain Ketua dan bukan dirinya sendiri; satu pengajuan menunggu per anggota (unique index parsial). `decide_role_change_request` menerapkan jabatan lewat `UPDATE memberships` biasa sehingga trigger batas role (EC041) tetap berlaku; bila batas penuh, seluruh keputusan batal dan pengajuan tetap menunggu.
 
 ---
 
@@ -1759,6 +1764,9 @@ Aturan:
 | members | `setMemberStatus` | `members.manage` | `memberships.status` + ban/unban Auth |
 | members | `issueAccessLink` | `members.manage` | `generateLink(recovery)`; menampilkan URL sekali |
 | members | `deleteMember` | `members.manage` | §6.2 |
+| access | `toggleRoleAccess` | `members.manage` | RPC `set_role_access` (checklist `/settings/access`) |
+| access | `requestRoleChange` | `members.request` | RPC `request_role_change` → `role_change_requests` |
+| access | `decideRoleChange` | `members.manage` | RPC `decide_role_change_request` |
 | profile | `updateProfile` | pemilik | `member_profiles` (`full_name`, `nickname`, `bio`) |
 | profile | `uploadAvatar`, `removeAvatar` | pemilik | Storage + `avatar_path` |
 | profile | `saveMyVisibility` | pemilik | RPC `save_my_visibility` |
@@ -1792,6 +1800,12 @@ Username awal: `slugifyUsername(full_name)` (huruf kecil, hilangkan diakritik, s
 | `EC021` | `conflict` | "Perubahan status tidak diizinkan." |
 | `EC030`–`EC032` | `forbidden` | "Kolom ini tidak dapat kamu ubah." |
 | `EC040` | `validation` | "Batas jumlah item tercapai." |
+| `EC041` | `conflict` | "Batas jumlah anggota untuk role ini sudah penuh." |
+| `EC057` | `conflict` | "Pengajuan ini sudah diputuskan." |
+| `EC060` | `validation` | "Jabatan sendiri tidak dapat diajukan." |
+| `EC061` | `forbidden` | "Jabatan Ketua tidak dapat diubah lewat pengajuan." |
+| `EC062` | `conflict` | "Anggota sudah memakai jabatan itu." |
+| `EC063`/`EC064` | `forbidden` | "Akses role ini tidak dapat diubah." |
 | lainnya | `unknown` | "Terjadi kesalahan. Coba lagi." (detail hanya di log) |
 
 ---
@@ -1817,13 +1831,16 @@ Next.js App Router. `params`/`searchParams` bersifat asinkron pada versi Next te
 | `/tasks/new`, `/tasks/[id]/edit` | `tasks.manage` | `tasks` | |
 | `/members` | `page.members` | `member_profile_v` | Grid; cari tidak dibuat |
 | `/members/[username]` | `page.members` | `member_profile_v`, `portfolio_items`, `social_links` | `notFound()` seragam bila baris tak terlihat |
+| `/inventory` | login + aktif | `inventory_items`, `inventory_keys` | Editor inventory pribadi: tambah/hapus URL https, buat/cabut `inv_key` 16 karakter (kuota 12 key aktif bersamaan). Tidak ada halaman jelajah untuk anggota lain |
+| `/inventory/access` | publik | RPC `get_inventory_by_key` | Tanpa login: masukkan `inv_key` untuk membuka seluruh inventory pemilik. Key dikirim lewat POST dan tidak masuk URL |
 | `/settings` | login | — | Redirect ke `/settings/profile` |
 | `/settings/profile` | login + aktif | tabel dasar milik sendiri | Profil, avatar, social, portofolio. `?onboarding=1` menampilkan checklist opsional |
 | `/settings/account` | login + aktif | `visibility_rules` milik sendiri | Ganti password dan email; visibilitas profil |
 | `/settings/class` | `class.manage` | `classes` (tabel dasar) | Identitas, gambar, link kelas, timezone |
 | `/settings/theme` | `class.manage` | `classes.theme` | Editor theme (§17.5) |
 | `/settings/visibility` | `class.manage` | `get_visibility_map`, katalog | §7.8 |
-| `/settings/members` | `members.manage` | `member_profile_v` + email via Admin API | Tabel manajemen (§10.2) |
+| `/settings/access` | `members.manage` | `roles`, `role_change_requests`, `member_profile_v` | Checklist akses jabatan dan antrean persetujuan (§6.3) |
+| `/settings/members` | `members.manage`, atau `members.request` | `member_profile_v` (+ email via Admin API untuk Ketua) | Ketua: tabel manajemen (§10.2). Pemegang `members.request`: daftar anggota aktif dan formulir pengajuan jabatan |
 | `/api/health` | `Authorization: Bearer CRON_SECRET` | query ringan | Menjaga proyek Supabase free tier tidak di-pause (§24) |
 | `/dev/ui` | hanya non-produksi (`notFound()` di produksi) | — | Galeri primitive dan seluruh state-nya (§11.3) |
 
@@ -1837,6 +1854,7 @@ Next.js App Router. `params`/`searchParams` bersifat asinkron pada versi Next te
 | Event | `page.events` | sesuai visibility |
 | Tugas | `page.tasks` | sesuai visibility |
 | Anggota | `page.members` | sesuai visibility |
+| Inventory | — (login + aktif) | anggota aktif |
 | Pengaturan | — | login (grup admin hanya bila punya permission) |
 | Masuk | — | anonim |
 

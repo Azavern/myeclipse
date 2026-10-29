@@ -63,6 +63,10 @@ export async function AppFrame({ children }: { children: ReactNode }) {
       ...(pendingKnowledge > 0 ? { badge: pendingKnowledge } : {}),
     });
   }
+  // Inventory pribadi: hanya untuk anggota aktif dan bukan halaman ber-visibility.
+  if (viewer.user && viewer.status === 'active') {
+    main.push({ href: '/inventory', label: 'Inventory', icon: 'link', except: ['/inventory/access'] });
+  }
   const account: NavItem[] = viewer.user ? [
     { href: '/settings/profile', label: 'Profil saya', icon: 'user', match: ['/settings/profile', '/settings/social', '/settings/account'] },
     { href: '/settings/portfolio', label: 'Portofolio saya', icon: 'briefcase' },
@@ -70,8 +74,10 @@ export async function AppFrame({ children }: { children: ReactNode }) {
   const canManage = viewer.can('class.manage');
   const manage: NavItem[] = canManage || viewer.can('members.manage')
     ? [{ href: canManage ? '/settings/class' : '/settings/members', label: 'Pengelolaan kelas', icon: 'settings',
-      match: ['/settings/class', '/settings/theme', '/settings/visibility', '/settings/members'] }]
-    : [];
+      match: ['/settings/class', '/settings/theme', '/settings/visibility', '/settings/access', '/settings/members'] }]
+    : viewer.can('members.request')
+      ? [{ href: '/settings/members', label: 'Anggota', icon: 'users' }]
+      : [];
 
   // Layar sempit: anggota = 4 tab + "Lainnya". Tamu = semua halaman (maks. 4) + "Masuk"; bila lebih dari 4, 3 tab + "Lainnya".
   const loggedIn = !!viewer.user;
