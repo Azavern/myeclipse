@@ -87,7 +87,7 @@ Web app yang menjadi **rumah digital sebuah kelas mahasiswa**: identitas kelas, 
 | A-02 | Satu kelas per deployment, **ditegakkan DB** (unique index konstan, §5.3). Semua tabel tetap membawa `class_id`. |
 | A-03 | UI berbahasa Indonesia, tanpa library i18n. |
 | A-04 | Timezone kelas default `Asia/Jakarta`; opsi `Asia/Jakarta`, `Asia/Makassar`, `Asia/Jayapura`. Ketua mengatur saat setup. |
-| A-05 | Akun dibuat Ketua. Tidak ada self-signup. Tidak ada email delivery (free tier Supabase hanya mengirim email ke alamat tim tanpa SMTP kustom). Ketua menerima **tautan akses sekali pakai** dan membagikannya sendiri (WhatsApp dsb.). |
+| A-05 | Akun dibuat Ketua; tidak ada self-signup. Email hanya dikirim untuk kode OTP perubahan email, lewat SMTP aplikasi (migrasi 0020, `src/lib/mail`). Tautan akses tetap diterima Ketua dan dibagikan sendiri (WhatsApp dsb.). Masuk dengan Google memakai Supabase Auth, tetapi hanya untuk email terverifikasi dan anggota aktif; tidak ada akun/role baru. |
 | A-06 | "Lupa password" = Ketua menerbitkan tautan akses baru. |
 | A-07 | Definisi role tidak punya UI. Role dipilih dari tabel `roles`. |
 | A-08 | "Kegiatan" (PRD §5) = `schedules.type='activity'`. "Deadline" di Schedule = turunan `tasks.deadline`. |
@@ -124,7 +124,7 @@ Web app yang menjadi **rumah digital sebuah kelas mahasiswa**: identitas kelas, 
 | Tes | Vitest (unit), **pgTAP via `supabase test db`** (RLS), Playwright (e2e) | RLS adalah inti correctness | Hanya tes UI |
 | Hosting | Vercel Hobby (region `sin1`), Supabase Free (Singapore) | Ditetapkan PRD; dekat pengguna | — |
 
-Yang **tidak** dipakai: CMS/page-builder, Realtime, Edge Functions, provider email, Redis, analytics pihak ketiga, social login, library i18n.
+Yang **tidak** dipakai: CMS/page-builder, Realtime, Edge Functions, provider email transaksional pihak ketiga, Google SDK di browser, Redis, analytics pihak ketiga, library i18n. SMTP aplikasi dipakai langsung lewat `nodemailer` hanya untuk OTP perubahan email.
 
 ---
 
@@ -610,7 +610,8 @@ erDiagram
 
 ### 6.1 Model autentikasi
 
-- Supabase Auth, **email + password**. `enable_signup = false`. Semua akun dibuat Ketua lewat Admin API.
+- Supabase Auth, **email + password**, dengan opsi **Google OAuth**. `enable_signup = false`; semua akun tetap dibuat Ketua lewat Admin API. Google hanya mengautentikasi identitas: callback menolak (dan mengakhiri sesi) bila email belum terverifikasi atau keanggotaan belum aktif, sehingga tidak ada profil, role, atau membership yang lahir dari login Google.
+- Perubahan email memakai OTP aplikasi (6 angka, HMAC di tabel `email_change_requests`, berlaku 5 menit, sekali pakai, jeda kirim ulang 30 detik, maksimal 5 percobaan). `auth.users.email_confirmed_at` adalah satu-satunya status verifikasi yang ditampilkan.
 - Config (`supabase/config.toml` dan dashboard produksi): `enable_signup=false`, `jwt_expiry=3600`, `minimum_password_length=10`, `otp_expiry=86400` (tautan akses berlaku 24 jam), site URL dan redirect allowlist = `APP_URL`.
 - Cookie sesi lewat `@supabase/ssr` dengan opsi `httpOnly: true`, `secure: true` (produksi), `sameSite: 'lax'`, `path: '/'`. `httpOnly` aman karena tidak ada client browser (§3.2-3).
 - Keputusan otorisasi di server memakai `supabase.auth.getUser()` (validasi ke Auth server), **bukan** `getSession()`.
@@ -669,7 +670,7 @@ Keputusan desain di alur ini (semuanya WAJIB):
 
 **Ganti password (login biasa)** di `/settings/account`: wajib password lama (re-auth dengan `signInWithPassword`) sebelum `updateUser`.
 
-**Ganti email (login biasa)** di `/settings/account`: wajib password saat ini (re-auth dengan `signInWithPassword`), lalu `admin.updateUserById(id, { email, email_confirm: true })` dengan id dari sesi. `updateUser({ email })` tidak dipakai karena perubahan itu menunggu konfirmasi lewat email, sedangkan proyek ini tidak punya pengiriman email (A-05).
+**Ganti email (login biasa)** di `/settings/account`: alamat baru disimpan sebagai permintaan OTP, bukan langsung mengganti email. `requestEmailCode` memvalidasi alamat dan ketersediaannya, menulis hash HMAC kode ke `email_change_requests` (satu baris per akun, jeda 30 detik ditegakkan lewat `sent_at`), lalu mengirim kode 6 angka ke alamat baru via SMTP. `verifyEmailCode` menolak kode kedaluwarsa/salah/berulang, menghapus baris **sebelum** memanggil `admin.updateUserById(id, { email, email_confirm: true })` dengan id dari sesi, lalu mengeluarkan sesi perangkat lain. Kegagalan verifikasi tidak mengubah email akun. Google-only user tidak perlu kata sandi karena kepemilikan alamat baru dibuktikan oleh OTP.
 
 **Menonaktifkan anggota:** update `memberships.status='inactive'` lewat client JWT Ketua (RLS), lalu `admin.updateUserById(id, { ban_duration: '876000h' })`. DB memutus akses seketika (`app.is_active_member` dan `app.is_signed_in` bernilai false) walau JWT lama masih berlaku sampai kedaluwarsa. Mengaktifkan kembali = status `active` + `ban_duration: 'none'`.
 
@@ -1653,10 +1654,10 @@ Nilai di atas harus identik dengan `DEFAULT_THEME` di `src/lib/theme/defaults.ts
 | Baca data halaman | Server Component → `queries.ts` (client JWT user) | `features/<modul>/queries.ts` |
 | Ubah data | Server Action → client JWT user (RLS) | `features/<modul>/actions.ts` |
 | Agregat/atomik/admin | RPC Postgres (§8.4) | dipanggil dari queries/actions |
-| Auth Admin API, cleanup Storage | Admin client (service role) | hanya di `actions.ts` terpilih |
-| Endpoint HTTP | **Hanya** `GET /api/health` | `app/api/health/route.ts` |
+| Auth Admin API, cleanup Storage | Admin client (service role) | hanya di `actions.ts` terpilih dan `lib/qr/server.ts` |
+| Endpoint HTTP | `GET /api/health`; `POST /api/qr`; `GET/POST /api/qr/cleanup` | `app/api/` |
 
-Tidak ada REST API internal, tidak ada GraphQL, tidak ada client Supabase di browser.
+Tidak ada REST API internal lain, tidak ada GraphQL, tidak ada client Supabase di browser. `/api/qr` hanya menerima PNG hasil renderer QR (validasi magic bytes, dimensi persegi `(modul + 8) × 12` untuk versi 1–40 atau 348–2220 px, maksimal 4 MB) dan menulis ke bucket publik `qr-shares`; `/api/qr/cleanup` hanya menghapus objek yang lebih tua dari 6 jam.
 
 ### 9.2 Client Supabase
 
@@ -1753,6 +1754,8 @@ Aturan:
 | auth | `confirmAccessLink` | token | `verifyOtp(recovery)` → cookie flag `pwd_setup` |
 | auth | `setPassword` | flag | `updateUser` → jika `invited`: RPC `activate_my_membership` |
 | auth | `changePassword` | login | re-auth password lama → `updateUser` |
+| auth | `requestEmailCode` | login aktif | validasi email + ketersediaan → hash OTP ke `email_change_requests` → SMTP |
+| auth | `verifyEmailCode` | login aktif | cek hash/expiry/attempts → hapus kode → `admin.updateUserById(email, email_confirm=true)` |
 | class | `updateClassIdentity` | `class.manage` | update `classes` (nama, code, tagline, description, highlight, timezone) |
 | class | `uploadClassImage(kind)`, `removeClassImage(kind)` | `class.manage` | Storage + `logo_path`/`cover_path` |
 | class | `upsertClassLink`, `deleteClassLink` | `class.manage` | `class_links` |
@@ -1818,6 +1821,8 @@ Next.js App Router. `params`/`searchParams` bersifat asinkron pada versi Next te
 |---|---|---|---|
 | `/login` | publik | `class_identity_v` | Redirect ke `/` bila sudah login. Param `next` → `safeRedirect`. Teks "Lupa kata sandi? Minta Ketua membuat tautan akses baru." |
 | `/auth/confirm` | publik | — | Membaca fragment `#token_hash&type`; tombol "Lanjutkan" memanggil `confirmAccessLink` |
+| `/auth/google` | publik | — | `signInWithOAuth({ provider: 'google', skipBrowserRedirect: true })`; redirect ke Supabase dengan PKCE; `next` disaring `safeRedirect` |
+| `/auth/callback` | publik | RPC `get_viewer_context` | `exchangeCodeForSession`; hanya `email_confirmed_at` terisi dan status `active` yang diteruskan (`/login?error=…` bila tidak) |
 | `/set-password` | cookie `pwd_setup` valid | `getViewer` | Mode ditentukan status: `invited` = aktivasi, `active` = reset |
 | `/` | `page.home` | identitas, jadwal, event, tugas, anggota terbaru, RPC overview, RPC activity | Section di-gate per key (§7.8). Urutan dan layout §16/§18 |
 | `/class` | `page.class_about` | `class_identity_v`, `class_links` | Deskripsi, kode, link kelas |
@@ -1833,6 +1838,9 @@ Next.js App Router. `params`/`searchParams` bersifat asinkron pada versi Next te
 | `/members/[username]` | `page.members` | `member_profile_v`, `portfolio_items`, `social_links` | `notFound()` seragam bila baris tak terlihat |
 | `/inventory` | login + aktif | `inventory_items`, `inventory_keys` | Editor inventory pribadi: tambah/hapus URL https, buat/cabut `inv_key` 16 karakter (kuota 12 key aktif bersamaan). Tidak ada halaman jelajah untuk anggota lain |
 | `/inventory/access` | publik | RPC `get_inventory_by_key` | Tanpa login: masukkan `inv_key` untuk membuka seluruh inventory pemilik. Key dikirim lewat POST dan tidak masuk URL |
+| `/qr` | publik | — (renderer di browser) | QR Studio: mode Normal dan Custom (titik kotak/bulat/balok horizontal/vertikal/diagonal, warna, ikon tengah). Gambar diunggah ke bucket publik sementara `qr-shares`, disapu setelah 6 jam; tautan gambar dan unduhan ditampilkan |
+| `/terms` | publik | — | Syarat Layanan sederhana: akun, konten, QR Studio, ketersediaan, dan hukum yang berlaku |
+| `/privacy` | publik | — | Kebijakan Privasi sederhana: data yang diproses, QR Studio, visibilitas, cookie, retensi, dan hak pengguna |
 | `/settings` | login | — | Redirect ke `/settings/profile` |
 | `/settings/profile` | login + aktif | tabel dasar milik sendiri | Profil, avatar, social, portofolio. `?onboarding=1` menampilkan checklist opsional |
 | `/settings/account` | login + aktif | `visibility_rules` milik sendiri | Ganti password dan email; visibilitas profil |
@@ -1841,7 +1849,9 @@ Next.js App Router. `params`/`searchParams` bersifat asinkron pada versi Next te
 | `/settings/visibility` | `class.manage` | `get_visibility_map`, katalog | §7.8 |
 | `/settings/access` | `members.manage` | `roles`, `role_change_requests`, `member_profile_v` | Checklist akses jabatan dan antrean persetujuan (§6.3) |
 | `/settings/members` | `members.manage`, atau `members.request` | `member_profile_v` (+ email via Admin API untuk Ketua) | Ketua: tabel manajemen (§10.2). Pemegang `members.request`: daftar anggota aktif dan formulir pengajuan jabatan |
-| `/api/health` | `Authorization: Bearer CRON_SECRET` | query ringan | Menjaga proyek Supabase free tier tidak di-pause (§24) |
+| `/api/health` | `Authorization: Bearer CRON_SECRET` | query ringan | Menjaga proyek Supabase free tier tidak di-pause (§24); sekaligus menyapu gambar QR kedaluwarsa |
+| `/api/qr` | publik | bucket `qr-shares` | `POST` multipart: PNG persegi 348–2220 px dengan modul 12 px (versi 1–40), maksimal 4 MB; rate limit best-effort 8 per 10 menit per IP |
+| `/api/qr/cleanup` | publik / `Bearer CRON_SECRET` | bucket `qr-shares` | Hanya menghapus objek lebih tua dari 6 jam; pemanggilan publik dibatasi 6 per 10 menit per IP |
 | `/dev/ui` | hanya non-produksi (`notFound()` di produksi) | — | Galeri primitive dan seluruh state-nya (§11.3) |
 
 ### 10.1 Navigasi
@@ -1965,8 +1975,9 @@ Satu elemen "dominan" per layar (`DESIGN.md` §9): Home = hero identitas; Member
 |---|---|---|---|
 | `class-media` | Logo, cover kelas, cover event | **Private** | 2 MiB; JPEG/PNG/WebP |
 | `member-media` | Avatar, media portofolio | **Private** | 2 MiB; JPEG/PNG/WebP |
+| `qr-shares` | Gambar QR Studio sementara | **Public** (baca URL objek) | 4 MiB; PNG; disapu setelah 6 jam |
 
-Alasan dua bucket: aturan tulis berbeda (admin vs pemilik). Alasan private: visibilitas dinamis; bucket public akan membuat URL tetap berlaku setelah visibility dipersempit.
+Alasan `class-media`/`member-media` private: visibilitas dinamis; bucket public akan membuat URL tetap berlaku setelah visibility dipersempit. `qr-shares` adalah pengecualian yang disengaja: gambar QR harus bisa dibuka tanpa login, namanya UUID acak, tidak ada policy daftar/tulis/hapus untuk anon, penulisan hanya lewat service role di server, dan umur objek dibatasi 6 jam (migrasi 0019, `src/lib/qr/server.ts`, `/api/qr/cleanup`).
 
 ### 13.2 Tata path
 
@@ -1976,6 +1987,7 @@ class-media:   {class_id}/logo/{uuid}.{ext}
                {class_id}/events/{uuid}.{ext}
 member-media:  {class_id}/{user_id}/avatar/{uuid}.{ext}
                {class_id}/{user_id}/portfolio/{uuid}.{ext}
+qr-shares:     {uuid}.png
 ```
 
 Nama file tidak pernah memakai nama dari pengguna. `{ext}` diturunkan dari tipe hasil deteksi magic bytes.

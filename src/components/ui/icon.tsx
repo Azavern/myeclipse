@@ -27,6 +27,8 @@ const PATHS = {
   'external-link': ['M14 4h6v6', 'M20 4l-9 9', 'M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4'],
   image: ['M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z', c(8.5, 9, 1.5), 'M21 16l-5-5-8 8'],
   upload: ['M12 16V4', 'M7 9l5-5 5 5', 'M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2'],
+  download: ['M12 4v12', 'M7 11l5 5 5-5', 'M4 20h16'],
+  qr: ['M4 4h6v6H4z', 'M14 4h6v6h-6z', 'M4 14h6v6H4z', 'M14 14h2v2h-2z', 'M18 14h2v2h-2z', 'M14 18h2v2h-2z', 'M18 18h2v2h-2z'],
   'chevron-right': ['M9 6l6 6-6 6'],
   'chevron-left': ['M15 6l-6 6 6 6'],
   'chevron-down': ['M6 9l6 6 6-6'],

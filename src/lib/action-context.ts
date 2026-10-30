@@ -7,5 +7,5 @@ import { getViewer } from '@/lib/visibility/server';
 export async function requireActionContext() {
   const [supabase, viewer, cls] = await Promise.all([createClient(), getViewer(), getClass()]);
   if (!viewer.user || viewer.status !== 'active' || !cls) return null;
-  return { supabase, user: viewer.user, can: viewer.can, classId: cls.id, timezone: cls.timezone };
+  return { supabase, user: viewer.user, can: viewer.can, classId: cls.id, className: cls.name, timezone: cls.timezone };
 }

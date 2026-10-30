@@ -96,10 +96,6 @@ export const accountFields = (): Field[] => [
   { name: 'password', label: 'Kata sandi baru', type: 'password', required: true, min: 10, max: 72, hint: 'Minimal 10 karakter.', autoComplete: 'new-password' },
   { name: 'confirm', label: 'Ulangi kata sandi baru', type: 'password', required: true, max: 72, autoComplete: 'new-password' },
 ];
-export const accountEmailFields = (): Field[] => [
-  { name: 'email', label: 'Email baru', type: 'email', required: true, max: 254, full: true, placeholder: 'nama@email.com', autoComplete: 'email', hint: 'Langsung berlaku; tidak ada email konfirmasi.' },
-  { name: 'current', label: 'Kata sandi saat ini', type: 'password', required: true, max: 72, full: true, autoComplete: 'current-password', hint: 'Untuk memastikan yang mengganti memang kamu.' },
-];
 export const classFields = (r: Row | null, _tz?: string): Field[] => [
   { name: 'name', label: 'Nama kelas', type: 'text', required: true, max: 60, value: s(r, 'name'), group: 'Identitas' },
   { name: 'code', label: 'Kode kelas', type: 'text', max: 20, hint: '2–20 karakter: huruf, angka, tanda hubung.', value: s(r, 'code') },

@@ -2,6 +2,11 @@ const ZONE: Record<string, string> = { 'Asia/Jakarta': 'WIB', 'Asia/Makassar': '
 export const zoneLabel = (tz: string) => ZONE[tz] ?? tz;
 export const DAYS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 export const hm = (t: string) => t.slice(0, 5);
+// mm:ss untuk hitungan mundur (mis. masa berlaku kode OTP).
+export function formatCountdown(totalSeconds: number): string {
+  const safe = Math.max(0, Math.floor(totalSeconds));
+  return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, '0')}`;
+}
 
 // Selalu memakai timezone kelas, bukan zona browser (blueprint §19).
 export function formatWhen(iso: string, tz: string) {

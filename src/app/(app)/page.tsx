@@ -58,14 +58,17 @@ export default async function Home() {
         : null
     : null;
   const guestLinks: ExploreItem[] = guest
-    ? ([['page.schedule', '/schedule', 'Jadwal', 'calendar', 'Kuliah dan agenda rutin kelas'],
-      ['page.tasks', '/tasks', 'Tugas', 'tasks', 'Tugas aktif dan tenggat terdekat'],
-      ['page.events', '/events', 'Event', 'calendar-days', 'Acara dan kegiatan mendatang'],
-      ['page.members', '/members', 'Anggota', 'users', 'Kenalan dengan anggota kelas'],
-      ['page.class_about', '/class', 'Kelas', 'book', 'Tentang kelas ini'],
-      ['page.knowledge', '/knowledge', 'Pengetahuan', 'book-open', 'Catatan dan panduan bersama']] as const)
-      .filter(([key]) => ok(key))
-      .map(([, href, label, icon, desc]) => ({ href, label, icon, desc }))
+    ? [
+      { href: '/qr', label: 'QR Studio', icon: 'qr', desc: 'Buat QR normal atau custom dengan ikon' },
+      ...([['page.schedule', '/schedule', 'Jadwal', 'calendar', 'Kuliah dan agenda rutin kelas'],
+        ['page.tasks', '/tasks', 'Tugas', 'tasks', 'Tugas aktif dan tenggat terdekat'],
+        ['page.events', '/events', 'Event', 'calendar-days', 'Acara dan kegiatan mendatang'],
+        ['page.members', '/members', 'Anggota', 'users', 'Kenalan dengan anggota kelas'],
+        ['page.class_about', '/class', 'Kelas', 'book', 'Tentang kelas ini'],
+        ['page.knowledge', '/knowledge', 'Pengetahuan', 'book-open', 'Catatan dan panduan bersama']] as const)
+        .filter(([key]) => ok(key))
+        .map(([, href, label, icon, desc]) => ({ href, label, icon, desc })),
+    ]
     : [];
 
   // Tiap blok dirender hanya bila datanya ada; urutan dari preset tema (features/home/layouts.ts).

@@ -53,6 +53,8 @@ export async function AppFrame({ children }: { children: ReactNode }) {
   const main: NavItem[] = PAGES.filter(([, , , key]) => map.get(key) === true)
     .map(([href, label, icon]) => ({ href, label, icon,
       ...(href === '/knowledge' ? { except: ['/knowledge/manage', '/knowledge/new'] } : {}) }));
+  // QR Studio selalu tampil: halaman publik, tidak terikat visibility maupun status login.
+  main.push({ href: '/qr', label: 'QR Studio', icon: 'qr' });
   // Pintu masuk editor, terpisah dari halaman publik /knowledge. Badge permintaan
   // edit menempel di sini, bukan di tautan penjelajah publik.
   if (viewer.user && viewer.status === 'active' && map.get('page.knowledge') === true) {

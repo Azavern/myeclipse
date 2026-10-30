@@ -6,12 +6,15 @@ Nama kelas tidak ditulis di kode. Semua tampilan membaca `classes.name` (data aw
 
 ## Fitur
 
-- **Autentikasi tanpa pendaftaran mandiri.** Akun dibuat Ketua, lalu anggota masuk lewat tautan akses sekali pakai.
+- **Autentikasi tanpa pendaftaran mandiri.** Akun dibuat Ketua, lalu anggota masuk lewat tautan akses sekali pakai. Tersedia juga **Masuk dengan Google** untuk email akun yang sudah terverifikasi, tanpa membuat akun atau keanggotaan baru.
+- **Verifikasi email lewat OTP.** Di **Pengaturan → Keamanan akun**, anggota dapat mengganti email kapan saja. Kode 6 angka dikirim ke alamat baru lewat SMTP aplikasi, berlaku 5 menit, sekali pakai, dan email Supabase baru berubah setelah kode diverifikasi.
 - **Dynamic Visibility.** Ketua dan anggota mengatur siapa yang boleh melihat halaman, section, field, dan item (portofolio, social media). Audience: `public`, `authenticated`, `class_member`, `class_admin`, `self`. Data personal default-nya `class_member`; hanya identitas kelas yang `public`.
 - **Role dan permission.** Ketua, Wakil Ketua, Sekretaris, Bendahara, dan Member. Ketua hanya satu, Wakil Ketua maks. 3, Sekretaris maks. 5, Bendahara maks. 2; mempromosikan Ketua baru otomatis menurunkan Ketua lama menjadi Wakil Ketua. Hak admin berupa permission pada role, bukan pengecekan nama role. Halaman **Akses role** khusus Ketua berisi checklist akses per jabatan yang langsung tersimpan. Kelola anggota penuh hanya milik Ketua; jabatan lain dapat diberi akses mengajukan promosi/demosi jabatan, dan setiap pengajuan baru berlaku setelah Ketua menyetujuinya.
 - **Modul kelas.** Identitas dan tema kelas, direktori anggota, profil, portofolio (halaman pengelolaan terpisah dari profil), jadwal kuliah mingguan per semester, event, tugas (dengan mata kuliah), dan beranda.
 - **Eclipse Knowledge.** Perpustakaan pengetahuan bersama: entri Markdown dengan pratinjau, pencarian/filter/sort, draf lokal, penanda bagian yang diedit, serta alur permintaan akses edit (penulis, editor, dan eskalasi ke Ketua). Entri publik dapat dibaca tanpa masuk.
 - **Inventory pribadi.** Daftar tautan https milik tiap anggota, tidak dijelajahi bersama. Pemilik membagikan seluruh isinya lewat `inv_key` 16 karakter (custom atau acak) dengan masa aktif 24 jam, 7 hari, 1 bulan, 6 bulan, atau tanpa kedaluwarsa. Maksimal 12 key aktif bersamaan; mencabut atau membiarkan key kedaluwarsa mengosongkan slot. Halaman `/inventory/access` membuka inventory dengan key tanpa perlu login.
+- **QR Studio.** Halaman publik `/qr` untuk membuat QR tanpa login. Tautannya selalu ada di navigasi utama, untuk tamu maupun anggota. Dua mode: **Normal** (modul kotak standar) dan **Custom** (titik kotak/bulat/balok, warna, serta ikon tengah dengan bentuk border, crop/shrink, gap, ketebalan, dan outline). Balok dapat memakai orientasi horizontal, vertikal, diagonal turun, atau diagonal naik. Gambar PNG disimpan maksimal 6 jam di bucket publik `qr-shares`, dengan URL gambar dan tombol unduh.
+- **Syarat & Privasi.** Halaman publik `/terms` dan `/privacy` menjelaskan ketentuan penggunaan dan pemrosesan data; ditautkan dari halaman masuk dan pengaturan keamanan akun.
 - **PWA.** Manifest, service worker, dan halaman offline membuat aplikasi dapat dipasang ke beranda. Hanya aset statis yang di-cache; halaman berisi data anggota tidak disimpan di cache.
 
 ## Stack
@@ -64,7 +67,7 @@ Bila `blueprint.md` bertentangan dengan `AGENTS.md` atau `DESIGN.md`, dua yang t
    supabase db push
    ```
 
-   Migration berada di `supabase/migrations/` (0001–0018) dan diterapkan berurutan. Jangan menjalankan ulang atau mengubah migration yang sudah diterapkan; perubahan skema ditulis sebagai migration baru.
+   Migration berada di `supabase/migrations/` (0001–0020) dan diterapkan berurutan. Jangan menjalankan ulang atau mengubah migration yang sudah diterapkan; perubahan skema ditulis sebagai migration baru.
 
 4. **Atur Auth** di dashboard Supabase (padanan `supabase/config.toml`):
 
@@ -72,6 +75,8 @@ Bila `blueprint.md` bertentangan dengan `AGENTS.md` atau `DESIGN.md`, dua yang t
    - Panjang kata sandi minimum 10
    - Masa berlaku OTP/tautan 86400 detik (24 jam)
    - Site URL dan redirect allowlist diisi `APP_URL`
+   - **Provider Google** diaktifkan (Client ID/Secret dari Google Cloud Console). Di Google Cloud Console, *authorized redirect URI* = `https://<project-ref>.supabase.co/auth/v1/callback`; di Supabase, *Redirect URLs* memuat `${APP_URL}/auth/callback`. Tidak perlu menambah variabel Google di aplikasi; client secret hanya ada di Supabase. Pengguna Google baru tidak otomatis menjadi anggota.
+   - Konfirmasi email Supabase **tidak** dipakai untuk alur ganti email: kode OTP dikirim aplikasi lewat SMTP sendiri (lihat `SMTP_EMAIL`/`SMTP_PASSWORD`).
 
 5. **Buat Ketua pertama:**
 
@@ -97,9 +102,10 @@ Tidak ada variabel `NEXT_PUBLIC_*`: semuanya dibaca di server dan divalidasi saa
 |---|---|
 | `SUPABASE_URL` | URL proyek Supabase |
 | `SUPABASE_PUBLISHABLE_KEY` | Kunci publishable (anon). Dipakai server, tidak dikirim ke browser |
-| `SUPABASE_SECRET_KEY` | Kunci service role. **Rahasia.** Hanya untuk Auth Admin API dan skrip |
-| `APP_URL` | Dasar URL tautan akses, tanpa slash di akhir (lokal: `http://localhost:3000`) |
-| `CRON_SECRET` | String acak ≥32 karakter untuk otorisasi `/api/health` |
+| `SUPABASE_SECRET_KEY` | Kunci service role. **Rahasia.** Hanya untuk Auth Admin API, unggah/pembersihan gambar QR, dan skrip |
+| `APP_URL` | Dasar URL tautan akses dan redirect OAuth, tanpa slash di akhir (lokal: `http://localhost:3000`). Harus sama dengan origin yang dibuka di browser |
+| `CRON_SECRET` | String acak ≥32 karakter untuk otorisasi `/api/health` dan pemanggilan pembersih QR terjadwal |
+| `SMTP_EMAIL`, `SMTP_PASSWORD` | Akun Gmail pengirim OTP perubahan email (App Password). Opsional; tanpa keduanya tombol Verifikasi email gagal mengirim kode |
 | `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_NAME` | Data Ketua pertama. Hanya untuk skrip lokal, jangan diset di Vercel |
 
 Jika `SUPABASE_SECRET_KEY` pernah terekspos (commit, log, screenshot), anggap bocor dan rotasi segera.
@@ -144,8 +150,10 @@ Aturan batas import: `lib/supabase/admin.ts` hanya boleh diimpor dari `features/
 2. Ketua membagikan tautan itu, misalnya lewat WhatsApp.
 3. Anggota membuka tautan, menekan **Lanjutkan**, lalu membuat kata sandi. Status berubah dari `invited` menjadi `active`.
 4. Lupa kata sandi: anggota mengirim permintaan dari halaman masuk, lalu Ketua menerbitkan tautan akses baru.
+5. Ganti email: anggota membuka **Pengaturan → Keamanan akun**, mengisi email baru, lalu menekan **Verifikasi**. Kode 6 angka dikirim ke alamat baru (berlaku 5 menit, sekali pakai, kirim ulang minimal 30 detik). Email akun baru berubah setelah kode benar.
+6. Masuk dengan Google tersedia di halaman masuk, tetapi hanya untuk email yang sudah terverifikasi dan akun yang sudah menjadi anggota aktif.
 
-Tidak ada pengiriman email; tautan dibagikan Ketua secara manual.
+Email hanya dikirim untuk kode OTP perubahan email; tautan akses tetap dibagikan Ketua secara manual.
 
 ## Pemecahan masalah
 
@@ -157,13 +165,17 @@ Tidak ada pengiriman email; tautan dibagikan Ketua secara manual.
 
 **Skrip berhenti karena env kosong.** Pastikan `.env.local` berisi semua variabel yang diminta pada pesan error.
 
+**Kode OTP tidak sampai.** Pastikan `SMTP_EMAIL` dan `SMTP_PASSWORD` (App Password Gmail) benar dan tidak dibatasi jaringan. Server memverifikasi kredensial saat mengirim; kegagalan dicatat di log server tanpa isi kode.
+
+**"Email akun Google ini belum terverifikasi" / "belum terdaftar sebagai anggota".** Google hanya mengautentikasi identitas. Verifikasi email lewat OTP di Keamanan akun, dan keanggotaan tetap harus dibuat Ketua. Akun Google yang emailnya sama dengan akun anggota akan memakai akun itu bila automatic linking Supabase aktif; jika tidak, masuk dengan kata sandi.
+
 ## Deployment
 
 1. Terapkan migration ke proyek Supabase produksi (`supabase db push`).
 2. Atur Auth di dashboard sesuai langkah 4 di atas.
 3. Isi environment variable di Vercel (Production). Jangan isi `BOOTSTRAP_ADMIN_*`.
 4. Deploy, lalu jalankan `npm run bootstrap:admin` secara lokal dengan env produksi.
-5. Cron harian memanggil `/api/health` dengan `Authorization: Bearer <CRON_SECRET>` agar proyek Supabase free tier tidak dijeda.
+5. Cron harian memanggil `/api/health` dengan `Authorization: Bearer <CRON_SECRET>` agar proyek Supabase free tier tidak dijeda; cron itu juga menyapu gambar QR yang lewat 6 jam. Halaman `/qr` dan unggahan baru ikut menyapu file kedaluwarsa saat ada aktivitas. Untuk retensi yang lebih ketat, jadwalkan `POST /api/qr/cleanup` setiap jam dengan header `Authorization: Bearer <CRON_SECRET>` (Vercel Pro atau cron eksternal); jadwal per jam tidak tersedia di paket Hobby Vercel.
 
 Batasan free tier: tidak ada point-in-time recovery, jadi lakukan ekspor berkala dengan `supabase db dump` dan simpan di luar repo.
 
@@ -171,4 +183,5 @@ Batasan free tier: tidak ada point-in-time recovery, jadi lakukan ekspor berkala
 
 - Jangan commit `.env.local`, kunci Supabase, atau tautan akses.
 - Semua keputusan akses ditegakkan di database (RLS, view bermasker, RPC, policy Storage); UI hanya lapisan tambahan.
+- Bucket `qr-shares` sengaja publik agar gambar QR bisa dibuka tanpa login. Objek ditulis hanya oleh server dengan service role, memakai nama UUID acak; tidak ada policy daftar/tulis/hapus untuk anon, dan file disapu setelah 6 jam.
 - Tautan akses adalah kredensial. Ketua yang menerbitkannya dapat mengambil alih akun anggota sebelum dipakai; risiko ini diterima untuk kelas kecil (lihat `blueprint.md` §23).
