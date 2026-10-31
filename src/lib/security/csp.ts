@@ -9,12 +9,22 @@ export function allowsHttpsImages(pathname: string): boolean {
     || pathname.startsWith('/members/') || pathname === '/settings/portfolio';
 }
 
+// Halaman masuk memuat skrip Google Identity Services (tombol "Masuk dengan Google") beserta iframe/pop-up-nya.
+// Rute lain tidak boleh memuat skrip pihak ketiga ini.
+export function allowsGoogleSignIn(pathname: string): boolean {
+  return pathname === '/login';
+}
+
+const GOOGLE_GSI = 'https://accounts.google.com';
+
 export type CspInput = {
   nonce: string;
   supabaseUrl?: string; // asal Supabase untuk img-src (URL bertanda tangan Storage)
   dev?: boolean;
   /** Hanya untuk halaman Knowledge: pemuat gambar dari host https mana pun di entri Markdown. */
   allowHttpsImages?: boolean;
+  /** Hanya untuk /login: skrip dan iframe Google Identity Services. */
+  googleSignIn?: boolean;
 };
 
 // Asal (origin) dari URL; null bila tidak valid atau bukan http(s), sehingga CSP tetap ketat (fail closed).
@@ -28,21 +38,23 @@ export function originOf(url: string | undefined): string | null {
   }
 }
 
-export function buildCsp({ nonce, supabaseUrl, dev = false, allowHttpsImages = false }: CspInput): string {
+export function buildCsp({ nonce, supabaseUrl, dev = false, allowHttpsImages = false, googleSignIn = false }: CspInput): string {
   const media = originOf(supabaseUrl);
   const directives: [string, string[]][] = [
     ['default-src', ["'self'"]],
     // React di mode dev memakai eval untuk menyusun call stack; produksi tidak membutuhkannya.
-    ['script-src', ["'self'", `'nonce-${nonce}'`, "'strict-dynamic'", ...(dev ? ["'unsafe-eval'"] : [])]],
+    ['script-src', ["'self'", `'nonce-${nonce}'`, "'strict-dynamic'", ...(googleSignIn ? [GOOGLE_GSI] : []), ...(dev ? ["'unsafe-eval'"] : [])]],
     ['style-src', ["'self'", `'nonce-${nonce}'`]],
     ['img-src', ["'self'", 'data:', 'blob:', ...(media ? [media] : []), ...(allowHttpsImages ? ['https:'] : [])]],
     ['font-src', ["'self'"]],
-    ['connect-src', ["'self'", ...(dev ? ['ws:', 'wss:'] : [])]], // ws: hanya untuk HMR di dev
+    ['connect-src', ["'self'", ...(googleSignIn ? [GOOGLE_GSI] : []), ...(dev ? ['ws:', 'wss:'] : [])]], // ws: hanya untuk HMR di dev
     ['object-src', ["'none'"]],
     ['base-uri', ["'self'"]],
     ['form-action', ["'self'"]],
     ['frame-ancestors', ["'none'"]],
   ];
+  // One Tap/akun Google dirender dalam iframe accounts.google.com; hanya rute masuk yang membukanya.
+  if (googleSignIn) directives.push(['frame-src', [GOOGLE_GSI]]);
   return directives.map(([name, values]) => `${name} ${values.join(' ')}`).join('; ');
 }
 

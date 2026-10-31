@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
-import { allowsHttpsImages, buildCsp, makeNonce } from '@/lib/security/csp';
+import { allowsGoogleSignIn, allowsHttpsImages, buildCsp, makeNonce } from '@/lib/security/csp';
 import type { CookieToSet } from '@/lib/supabase/cookie-types';
 
 // Dua tugas saja: (1) memasang CSP bernonce, (2) me-refresh cookie sesi. Tanpa logika otorisasi (blueprint §3.4).
@@ -15,6 +15,7 @@ export async function proxy(request: NextRequest) {
     supabaseUrl: process.env.SUPABASE_URL,
     dev: process.env.NODE_ENV !== 'production',
     allowHttpsImages,
+    googleSignIn: allowsGoogleSignIn(request.nextUrl.pathname),
   });
 
   // Dibangun ulang setiap kali dipanggil supaya header `cookie` hasil refresh ikut terkirim ke render berikutnya.

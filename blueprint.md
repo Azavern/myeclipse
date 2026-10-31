@@ -87,7 +87,7 @@ Web app yang menjadi **rumah digital sebuah kelas mahasiswa**: identitas kelas, 
 | A-02 | Satu kelas per deployment, **ditegakkan DB** (unique index konstan, §5.3). Semua tabel tetap membawa `class_id`. |
 | A-03 | UI berbahasa Indonesia, tanpa library i18n. |
 | A-04 | Timezone kelas default `Asia/Jakarta`; opsi `Asia/Jakarta`, `Asia/Makassar`, `Asia/Jayapura`. Ketua mengatur saat setup. |
-| A-05 | Akun dibuat Ketua; tidak ada self-signup. Email hanya dikirim untuk kode OTP perubahan email, lewat SMTP aplikasi (migrasi 0020, `src/lib/mail`). Tautan akses tetap diterima Ketua dan dibagikan sendiri (WhatsApp dsb.). Masuk dengan Google memakai Supabase Auth, tetapi hanya untuk email terverifikasi dan anggota aktif; tidak ada akun/role baru. |
+| A-05 | Akun dibuat Ketua; tidak ada self-signup. Email hanya dikirim untuk kode OTP perubahan email, lewat SMTP aplikasi (migrasi 0020, `src/lib/mail`). Tautan akses tetap diterima Ketua dan dibagikan sendiri (WhatsApp dsb.). Masuk dengan Google memakai Google Identity Services (ID token ditukar lewat `signInWithIdToken` Supabase), tetapi hanya untuk email terverifikasi dan anggota aktif; tidak ada akun/role baru. |
 | A-06 | "Lupa password" = Ketua menerbitkan tautan akses baru. |
 | A-07 | Definisi role tidak punya UI. Role dipilih dari tabel `roles`. |
 | A-08 | "Kegiatan" (PRD §5) = `schedules.type='activity'`. "Deadline" di Schedule = turunan `tasks.deadline`. |
@@ -124,7 +124,7 @@ Web app yang menjadi **rumah digital sebuah kelas mahasiswa**: identitas kelas, 
 | Tes | Vitest (unit), **pgTAP via `supabase test db`** (RLS), Playwright (e2e) | RLS adalah inti correctness | Hanya tes UI |
 | Hosting | Vercel Hobby (region `sin1`), Supabase Free (Singapore) | Ditetapkan PRD; dekat pengguna | — |
 
-Yang **tidak** dipakai: CMS/page-builder, Realtime, Edge Functions, provider email transaksional pihak ketiga, Google SDK di browser, Redis, analytics pihak ketiga, library i18n. SMTP aplikasi dipakai langsung lewat `nodemailer` hanya untuk OTP perubahan email.
+Yang **tidak** dipakai: CMS/page-builder, Realtime, Edge Functions, provider email transaksional pihak ketiga, Redis, analytics pihak ketiga, library i18n. SMTP aplikasi dipakai langsung lewat `nodemailer` hanya untuk OTP perubahan email.
 
 ---
 
@@ -610,7 +610,7 @@ erDiagram
 
 ### 6.1 Model autentikasi
 
-- Supabase Auth, **email + password**, dengan opsi **Google OAuth**. `enable_signup = false`; semua akun tetap dibuat Ketua lewat Admin API. Google hanya mengautentikasi identitas: callback menolak (dan mengakhiri sesi) bila email belum terverifikasi atau keanggotaan belum aktif, sehingga tidak ada profil, role, atau membership yang lahir dari login Google.
+- Supabase Auth, **email + password**, dengan opsi **Masuk dengan Google** lewat Google Identity Services. `enable_signup = false`; semua akun tetap dibuat Ketua lewat Admin API. Browser memperoleh ID token dari Google (tombol `renderButton`, nonce di-hash SHA-256), lalu Server Action menukarnya dengan `signInWithIdToken` memakai klien `@supabase/ssr` sehingga cookie sesi tetap ditulis server. Token yang nonce/issuer/`email_verified`-nya tidak cocok ditolak sebelum sesi dibuat; setelah sesi ada, email harus terverifikasi dan keanggotaan aktif, jika tidak sesi langsung diakhiri. Automatic linking Supabase menautkan identitas Google ke akun kata sandi dengan email terverifikasi yang sama, sehingga tidak ada akun duplikat.
 - Perubahan email memakai OTP aplikasi (6 angka, HMAC di tabel `email_change_requests`, berlaku 5 menit, sekali pakai, jeda kirim ulang 30 detik, maksimal 5 percobaan). `auth.users.email_confirmed_at` adalah satu-satunya status verifikasi yang ditampilkan.
 - Config (`supabase/config.toml` dan dashboard produksi): `enable_signup=false`, `jwt_expiry=3600`, `minimum_password_length=10`, `otp_expiry=86400` (tautan akses berlaku 24 jam), site URL dan redirect allowlist = `APP_URL`.
 - Cookie sesi lewat `@supabase/ssr` dengan opsi `httpOnly: true`, `secure: true` (produksi), `sameSite: 'lax'`, `path: '/'`. `httpOnly` aman karena tidak ada client browser (§3.2-3).
@@ -1821,8 +1821,7 @@ Next.js App Router. `params`/`searchParams` bersifat asinkron pada versi Next te
 |---|---|---|---|
 | `/login` | publik | `class_identity_v` | Redirect ke `/` bila sudah login. Param `next` → `safeRedirect`. Teks "Lupa kata sandi? Minta Ketua membuat tautan akses baru." |
 | `/auth/confirm` | publik | — | Membaca fragment `#token_hash&type`; tombol "Lanjutkan" memanggil `confirmAccessLink` |
-| `/auth/google` | publik | — | `signInWithOAuth({ provider: 'google', skipBrowserRedirect: true })`; redirect ke Supabase dengan PKCE; `next` disaring `safeRedirect` |
-| `/auth/callback` | publik | RPC `get_viewer_context` | `exchangeCodeForSession`; hanya `email_confirmed_at` terisi dan status `active` yang diteruskan (`/login?error=…` bila tidak) |
+| `/login` (tombol Google) | publik | — | Google Identity Services memuat `accounts.google.com/gsi/client`; Server Action `beginGoogleSignIn` menerbitkan nonce (cookie httpOnly, sekali pakai) lalu `completeGoogleSignIn` memanggil `signInWithIdToken`; hanya `email_confirmed_at` terisi dan status `active` yang dipertahankan, selain itu sesi diakhiri; `next` disaring `safeRedirect` |
 | `/set-password` | cookie `pwd_setup` valid | `getViewer` | Mode ditentukan status: `invited` = aktivasi, `active` = reset |
 | `/` | `page.home` | identitas, jadwal, event, tugas, anggota terbaru, RPC overview, RPC activity | Section di-gate per key (§7.8). Urutan dan layout §16/§18 |
 | `/class` | `page.class_about` | `class_identity_v`, `class_links` | Deskripsi, kode, link kelas |

@@ -9,7 +9,9 @@ const config: NextConfig = {
       { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
       { key: 'X-Frame-Options', value: 'DENY' },
       { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()' },
-      { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+      // allow-popups: tombol Google Identity Services membuka pop-up accounts.google.com dan
+      // membutuhkan window.opener. Situs lain yang membuka Eclipse di pop-up tetap terisolasi.
+      { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
     ] }];
   },
 };

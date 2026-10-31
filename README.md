@@ -75,7 +75,7 @@ Bila `blueprint.md` bertentangan dengan `AGENTS.md` atau `DESIGN.md`, dua yang t
    - Panjang kata sandi minimum 10
    - Masa berlaku OTP/tautan 86400 detik (24 jam)
    - Site URL dan redirect allowlist diisi `APP_URL`
-   - **Provider Google** diaktifkan (Client ID/Secret dari Google Cloud Console). Di Google Cloud Console, *authorized redirect URI* = `https://<project-ref>.supabase.co/auth/v1/callback`; di Supabase, *Redirect URLs* memuat `${APP_URL}/auth/callback`. Tidak perlu menambah variabel Google di aplikasi; client secret hanya ada di Supabase. Pengguna Google baru tidak otomatis menjadi anggota.
+   - **Provider Google** diaktifkan (Client ID/Secret dari Google Cloud Console). Login memakai Google Identity Services: browser mengambil ID token dari Google, lalu Server Action menukarnya menjadi sesi dengan `signInWithIdToken`. Di Google Cloud Console, *authorized JavaScript origin* = `APP_URL` (tambahkan `http://localhost:3000` untuk lokal); *authorized redirect URI* `https://<project-ref>.supabase.co/auth/v1/callback` tetap diperlukan saat membuat client OAuth. Client ID publik dibaca aplikasi dari `GOOGLE_CLIENT_ID`; client secret hanya ada di Supabase. Pengguna Google yang bukan anggota tidak mendapat akses.
    - Konfirmasi email Supabase **tidak** dipakai untuk alur ganti email: kode OTP dikirim aplikasi lewat SMTP sendiri (lihat `SMTP_EMAIL`/`SMTP_PASSWORD`).
 
 5. **Buat Ketua pertama:**
@@ -103,7 +103,8 @@ Tidak ada variabel `NEXT_PUBLIC_*`: semuanya dibaca di server dan divalidasi saa
 | `SUPABASE_URL` | URL proyek Supabase |
 | `SUPABASE_PUBLISHABLE_KEY` | Kunci publishable (anon). Dipakai server, tidak dikirim ke browser |
 | `SUPABASE_SECRET_KEY` | Kunci service role. **Rahasia.** Hanya untuk Auth Admin API, unggah/pembersihan gambar QR, dan skrip |
-| `APP_URL` | Dasar URL tautan akses dan redirect OAuth, tanpa slash di akhir (lokal: `http://localhost:3000`). Harus sama dengan origin yang dibuka di browser |
+| `APP_URL` | Dasar URL tautan akses dan origin login Google, tanpa slash di akhir (lokal: `http://localhost:3000`). Harus sama dengan origin yang dibuka di browser |
+| `GOOGLE_CLIENT_ID` | Client ID OAuth (Web) untuk tombol Google Identity Services. Bukan rahasia; client secret tidak dipakai aplikasi |
 | `CRON_SECRET` | String acak ≥32 karakter untuk otorisasi `/api/health` dan pemanggilan pembersih QR terjadwal |
 | `SMTP_EMAIL`, `SMTP_PASSWORD` | Akun Gmail pengirim OTP perubahan email (App Password). Opsional; tanpa keduanya tombol Verifikasi email gagal mengirim kode |
 | `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_NAME` | Data Ketua pertama. Hanya untuk skrip lokal, jangan diset di Vercel |
@@ -151,7 +152,7 @@ Aturan batas import: `lib/supabase/admin.ts` hanya boleh diimpor dari `features/
 3. Anggota membuka tautan, menekan **Lanjutkan**, lalu membuat kata sandi. Status berubah dari `invited` menjadi `active`.
 4. Lupa kata sandi: anggota mengirim permintaan dari halaman masuk, lalu Ketua menerbitkan tautan akses baru.
 5. Ganti email: anggota membuka **Pengaturan → Keamanan akun**, mengisi email baru, lalu menekan **Verifikasi**. Kode 6 angka dikirim ke alamat baru (berlaku 5 menit, sekali pakai, kirim ulang minimal 30 detik). Email akun baru berubah setelah kode benar.
-6. Masuk dengan Google tersedia di halaman masuk, tetapi hanya untuk email yang sudah terverifikasi dan akun yang sudah menjadi anggota aktif.
+6. Masuk dengan Google tersedia di halaman masuk lewat Google Identity Services, tetapi hanya untuk email yang sudah terverifikasi dan akun yang sudah menjadi anggota aktif. Akun Google dengan email yang sama dengan akun kata sandi memakai akun itu (automatic linking Supabase), jadi tidak ada akun ganda.
 
 Email hanya dikirim untuk kode OTP perubahan email; tautan akses tetap dibagikan Ketua secara manual.
 
@@ -167,7 +168,9 @@ Email hanya dikirim untuk kode OTP perubahan email; tautan akses tetap dibagikan
 
 **Kode OTP tidak sampai.** Pastikan `SMTP_EMAIL` dan `SMTP_PASSWORD` (App Password Gmail) benar dan tidak dibatasi jaringan. Server memverifikasi kredensial saat mengirim; kegagalan dicatat di log server tanpa isi kode.
 
-**"Email akun Google ini belum terverifikasi" / "belum terdaftar sebagai anggota".** Google hanya mengautentikasi identitas. Verifikasi email lewat OTP di Keamanan akun, dan keanggotaan tetap harus dibuat Ketua. Akun Google yang emailnya sama dengan akun anggota akan memakai akun itu bila automatic linking Supabase aktif; jika tidak, masuk dengan kata sandi.
+**"Belum terdaftar sebagai anggota" / "email belum terverifikasi" setelah menekan Masuk dengan Google.** Google hanya membuktikan identitas. Verifikasi email lewat OTP di Keamanan akun, dan keanggotaan tetap harus dibuat Ketua. Bila akun Google memakai alamat lain daripada akun kelas, sesi langsung diakhiri; masuk dengan kata sandi akun yang benar.
+
+**Tombol Google tidak muncul atau "tidak bisa dimuat".** Skrip `accounts.google.com/gsi/client` diblokir ekstensi/ jaringan, atau `GOOGLE_CLIENT_ID` belum diisi; login kata sandi tetap berfungsi. Bila pop-up Google diblokir peramban, izinkan pop-up untuk situs ini lalu tekan **Coba masuk dengan Google lagi**.
 
 ## Deployment
 

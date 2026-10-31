@@ -169,7 +169,10 @@ a.chip:hover { filter: brightness(.97); text-decoration: none; }
 /* Pemisah "atau" di halaman masuk */
 .auth-divider { display: flex; align-items: center; gap: var(--s-3); color: var(--text-2); font-size: var(--fs-sm); }
 .auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-.google-mark { flex: none; }
+.google-signin { display: grid; gap: var(--s-2); }
+.google-slot { display: grid; justify-items: center; min-height: var(--ctl-lg); }
+.google-slot--idle { display: none; }
+.google-status { display: flex; align-items: center; justify-content: center; gap: var(--s-2); min-height: var(--ctl-lg); margin: 0; color: var(--text-2); font-size: var(--fs-sm); }
 /* Checklist akses role ------------------------------------------------------- */
 .access-grid { display: grid; gap: var(--s-4); grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); }
 .checklist { display: grid; }
