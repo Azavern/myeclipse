@@ -9,6 +9,15 @@ const text = (value: string) => new TextEncoder().encode(value);
 const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]);
 const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00]);
 const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+// Box ftyp ISO-BMFF minimal; `leadingFree` menambahkan box free sebelum ftyp.
+function mp4(brand: string, leadingFree = 0): Uint8Array {
+  const bytes = new Uint8Array(leadingFree + 16);
+  const view = new DataView(bytes.buffer);
+  if (leadingFree > 0) view.setUint32(0, leadingFree);
+  view.setUint32(leadingFree, 16);
+  [...'ftyp', ...brand].forEach((ch, i) => { bytes[leadingFree + 4 + i] = ch.charCodeAt(0); });
+  return bytes;
+}
 
 describe('kategori dan ekstensi Google Drive', () => {
   it('memetakan ekstensi yang diizinkan ke kategori yang benar', () => {
@@ -74,6 +83,15 @@ describe('signature file', () => {
     expect(detectSignature(png)).toBe('png');
     expect(detectSignature(pdf)).toBe('pdf');
     expect(detectSignature(text('halo, ini catatan biasa'))).toBe('text');
+  });
+  it('mengenali MP4 dengan brand selain daftar umum', () => {
+    // intro.mp4 memakai brand iso4 dan sebelumnya ditolak sebagai tidak dikenali.
+    expect(detectSignature(mp4('iso4'))).toBe('mp4');
+    expect(checkFile({ name: 'intro.mp4', size: 16, bytes: mp4('iso4'), maxBytes: MiB, archivesEnabled: true }))
+      .toMatchObject({ ok: true, ext: 'mp4', category: 'videos', signature: 'mp4' });
+    expect(detectSignature(mp4('iso4', 8))).toBe('mp4');
+    expect(detectSignature(mp4('qt  '))).toBe('mov');
+    expect(detectSignature(mp4('M4A '))).toBe('m4a');
   });
   it('menolak file yang isinya tidak sesuai ekstensi', () => {
     const exe = new Uint8Array([0x4d, 0x5a, 0x90, 0x00]);

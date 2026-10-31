@@ -110,6 +110,7 @@ Tidak ada variabel `NEXT_PUBLIC_*`: semuanya dibaca di server dan divalidasi saa
 | `GDRIVE_ROOT_FOLDER_ID` | Folder utama Google Drive untuk fallback kategori dan induk default folder custom |
 | `GDRIVE_PICTURES`, `GDRIVE_VIDEOS`, `GDRIVE_AUDIOS`, `GDRIVE_DOCUMENTS`, `GDRIVE_ARCHIVES_ID` | Folder kategori opsional. Yang kosong memakai `GDRIVE_ROOT_FOLDER_ID` |
 | `GDRIVE_CUSTOM` | Induk folder custom anggota. Opsional; kosong berarti memakai root |
+| `GDRIVE_UPLOAD_ORIGINS` | Origin peramban tambahan yang boleh mengunggah langsung (dipisah koma, tanpa path), mis. domain pratinjau Vercel. `APP_URL` sudah otomatis diizinkan |
 | `CRON_SECRET` | String acak ≥32 karakter untuk otorisasi `/api/health` dan pemanggilan pembersih QR terjadwal |
 | `SMTP_EMAIL`, `SMTP_PASSWORD` | Akun Gmail pengirim OTP perubahan email (App Password). Opsional; tanpa keduanya tombol Verifikasi email gagal mengirim kode |
 | `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_NAME` | Data Ketua pertama. Hanya untuk skrip lokal, jangan diset di Vercel |

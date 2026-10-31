@@ -11,8 +11,8 @@ import {
 } from '@/lib/gdrive/files';
 import { formatWhen } from '@/lib/time';
 import {
-  addExternalFolder, beginUpload, cancelUpload, completeUpload, createCloudFolder, removeCloudFolder,
-  resumeUpload, setDefaultCloudFolder,
+  addCloudFolder, addExternalFolder, beginUpload, browseCloudFolders, cancelUpload, completeUpload,
+  createCloudFolder, removeCloudFolder, resumeUpload, setDefaultCloudFolder,
 } from './actions';
 
 export type CloudFolderView = { id: string; name: string; kind: 'custom' | 'external'; isDefault: boolean };
@@ -22,6 +22,15 @@ export type ActiveUploadView = {
 export type CloudUploaderProps = {
   configured: boolean; missing: string[]; maxMb: number; archivesEnabled: boolean; canManage: boolean;
   folders: CloudFolderView[]; defaultFolderId: string | null; tz: string; active: ActiveUploadView[];
+};
+
+type BrowseFolderView = {
+  id: string; name: string; owner: string | null; folderId: string | null; isDefault: boolean;
+};
+type BrowseView = {
+  folder: { id: string; name: string; added: boolean };
+  parent: { id: string; name: string } | null;
+  folders: BrowseFolderView[];
 };
 
 type Status = 'ready' | 'starting' | 'uploading' | 'finishing' | 'done' | 'error' | 'cancelled';
@@ -71,8 +80,13 @@ function stamp(now: Date, timeZone: string): string {
 }
 
 // Unggah langsung ke sesi Google; tidak ada byte file yang melewati server Eclipse.
+// Offset hanya maju sejauh byte yang dikonfirmasi header Range: tanpa Range, protokol
+// berarti belum ada byte yang dikonfirmasi, jadi jangan pernah melompat ke akhir potongan.
+const MAX_STALLED_CHUNKS = 3;
+
 async function putFile(file: File, sessionUri: string, start: number, onProgress: (sent: number) => void): Promise<void> {
   let offset = start;
+  let stalled = 0;
   while (offset < file.size) {
     const end = Math.min(offset + GDRIVE_CHUNK_BYTES, file.size);
     let response: Response;
@@ -85,12 +99,17 @@ async function putFile(file: File, sessionUri: string, start: number, onProgress
         signal: AbortSignal.timeout(120_000),
       });
     } catch {
-      throw new UploadClientError('Koneksi ke Google Drive terputus. Periksa jaringan lalu gunakan Lanjutkan.');
+      throw new UploadClientError('Koneksi ke Google Drive terputus.');
     }
     if (response.status === 308) {
-      const range = response.headers.get('range');
-      const accepted = range ? Number(/bytes=0-(\d+)/.exec(range)?.[1] ?? -1) + 1 : 0;
-      offset = accepted > offset && accepted <= end ? accepted : end;
+      const match = /bytes=0-(\d+)/.exec(response.headers.get('range') ?? '');
+      const accepted = match ? Number(match[1]) + 1 : 0;
+      if (accepted <= offset) {
+        if (++stalled >= MAX_STALLED_CHUNKS) throw new UploadClientError('Google Drive tidak mengonfirmasi kemajuan unggahan.');
+      } else {
+        stalled = 0;
+      }
+      offset = Math.min(accepted, file.size);
       onProgress(offset);
       continue;
     }
@@ -98,13 +117,7 @@ async function putFile(file: File, sessionUri: string, start: number, onProgress
       onProgress(file.size);
       return;
     }
-    if (response.status === 404 || response.status === 410) {
-      throw new UploadClientError('Sesi unggah kedaluwarsa. Pilih file itu lagi untuk mulai dari awal.');
-    }
-    if (response.status === 401 || response.status === 403) {
-      throw new UploadClientError('Google Drive menolak unggahan ini. Coba lagi beberapa saat lagi.');
-    }
-    throw new UploadClientError('Google Drive gagal menerima data. Coba Lanjutkan untuk meneruskan unggahan.');
+    throw new UploadClientError(`Google Drive menjawab ${response.status}.`);
   }
 }
 
@@ -134,10 +147,13 @@ export function CloudUploader(props: CloudUploaderProps) {
   const [resumeNote, setResumeNote] = useState<Message>(null);
 
   const [guideTab, setGuideTab] = useState<GuideTab>('how');
-  const [addKind, setAddKind] = useState<'custom' | 'external'>('custom');
+  const [addKind, setAddKind] = useState<'custom' | 'drive' | 'external'>('custom');
   const [folderName, setFolderName] = useState('');
   const [externalRef, setExternalRef] = useState('');
   const [addError, setAddError] = useState('');
+  const [browse, setBrowse] = useState<BrowseView | null>(null);
+  const [trail, setTrail] = useState<{ id: string; name: string }[]>([]);
+  const [browseBusy, setBrowseBusy] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<CloudFolderView | null>(null);
 
   const fileInput = useRef<HTMLInputElement>(null);
@@ -220,10 +236,49 @@ export function CloudUploader(props: CloudUploaderProps) {
     void addFiles(Array.from(event.dataTransfer.files));
   }
 
+  // Respons PUT di peramban tidak pernah dipakai sebagai bukti berhasil/gagal: galat CORS
+  // atau koneksi putus bisa menyembunyikan respons sukses padahal Drive sudah membuat file.
+  // Server memeriksa sesi langsung, memverifikasi file, lalu mencatat Completed.
+  async function settleUpload(draft: Draft, uploadId: string): Promise<boolean> {
+    const result = await completeUpload(uploadId);
+    if (!result.ok) {
+      patch(draft.id, {
+        status: 'error', error: result.message,
+        uploadId: result.code === 'session' ? null : uploadId,
+      });
+      return false;
+    }
+    if (result.data.done) {
+      patch(draft.id, { status: 'done', progress: draft.size, link: result.data.link });
+      return true;
+    }
+    patch(draft.id, {
+      status: 'error', progress: result.data.bytesUploaded,
+      error: `Terputus di ${formatBytes(result.data.bytesUploaded)} dari ${formatBytes(result.data.size)}. Gunakan Lanjutkan untuk meneruskan.`,
+    });
+    return false;
+  }
+
+  async function continueUpload(draft: Draft, uploadId: string, sessionUri: string, startAt: number): Promise<boolean> {
+    try {
+      await putFile(draft.file, sessionUri, startAt, (sent) => patch(draft.id, { progress: sent }));
+    } catch {
+      return settleUpload(draft, uploadId);
+    }
+    patch(draft.id, { status: 'finishing' });
+    try {
+      const done = await completeLoop(uploadId);
+      patch(draft.id, { status: 'done', progress: draft.size, link: done.link });
+      return true;
+    } catch {
+      return settleUpload(draft, uploadId);
+    }
+  }
+
   async function uploadOne(draft: Draft): Promise<boolean> {
-    const folderId = draft.destination?.startsWith('f:') ? draft.destination.slice(7) : null;
+    const folderId = draft.destination?.startsWith('f:') ? draft.destination.slice(2) : null;
     const preferDefault = draft.destination !== 'category';
-    patch(draft.id, { status: 'starting', progress: 0, error: null });
+    patch(draft.id, { status: 'starting', progress: 0, error: null, uploadId: null });
     const begin = await beginUpload({
       originalName: draft.original, size: draft.size, customName: draft.stem,
       folderId, preferDefault,
@@ -233,20 +288,7 @@ export function CloudUploader(props: CloudUploaderProps) {
       return false;
     }
     patch(draft.id, { status: 'uploading', uploadId: begin.data.uploadId });
-    try {
-      await putFile(draft.file, begin.data.sessionUri, 0, (sent) => patch(draft.id, { progress: sent }));
-      patch(draft.id, { status: 'finishing' });
-      const done = await completeLoop(begin.data.uploadId);
-      patch(draft.id, { status: 'done', progress: draft.size, link: done.link });
-      return true;
-    } catch (error) {
-      await cancelUpload(begin.data.uploadId).catch(() => null);
-      patch(draft.id, {
-        status: 'error',
-        error: error instanceof UploadClientError ? error.message : 'Unggahan belum berhasil. Coba lagi.',
-      });
-      return false;
-    }
+    return continueUpload(draft, begin.data.uploadId, begin.data.sessionUri, 0);
   }
 
   async function startAll(event: FormEvent) {
@@ -281,7 +323,26 @@ export function CloudUploader(props: CloudUploaderProps) {
   async function retry(draft: Draft) {
     if (busy || !props.configured) return;
     setBusy(true);
-    const ok = await uploadOne(draft);
+    let ok: boolean;
+    if (!draft.uploadId) {
+      ok = await uploadOne(draft);
+    } else {
+      // Sesi lama dipakai lagi supaya file yang mungkin sudah ada di Drive tidak terduplikasi.
+      const resumed = await resumeUpload(draft.uploadId);
+      if (!resumed.ok) {
+        patch(draft.id, {
+          status: 'error', error: resumed.message,
+          uploadId: resumed.code === 'session' ? null : draft.uploadId,
+        });
+        ok = false;
+      } else if (resumed.data.done) {
+        patch(draft.id, { status: 'done', progress: draft.size, link: resumed.data.link });
+        ok = true;
+      } else {
+        patch(draft.id, { status: 'uploading', progress: resumed.data.bytesUploaded });
+        ok = await continueUpload(draft, draft.uploadId, resumed.data.sessionUri, resumed.data.bytesUploaded);
+      }
+    }
     setBusy(false);
     setMessage(ok
       ? { tone: 'success', text: `"${draft.original}" selesai diunggah.` }
@@ -290,8 +351,19 @@ export function CloudUploader(props: CloudUploaderProps) {
   }
 
   async function cancelDraft(draft: Draft) {
-    if (draft.uploadId) await cancelUpload(draft.uploadId).catch(() => null);
-    patch(draft.id, { status: 'cancelled', error: null });
+    if (!draft.uploadId) {
+      patch(draft.id, { status: 'cancelled', error: null });
+      return;
+    }
+    const result = await cancelUpload(draft.uploadId);
+    if (!result.ok) {
+      patch(draft.id, { status: 'error', error: result.message });
+    } else if (result.data.cancelled) {
+      patch(draft.id, { status: 'cancelled', uploadId: null, error: null });
+    } else {
+      // Drive ternyata sudah menyelesaikan file: finalisasi, bukan dibatalkan.
+      patch(draft.id, { status: 'done', progress: draft.size, link: result.data.link });
+    }
     router.refresh();
   }
 
@@ -322,8 +394,16 @@ export function CloudUploader(props: CloudUploaderProps) {
       const done = await completeLoop(resumeTarget.id);
       setResumeNote({ tone: 'success', text: `"${done.name}" selesai diunggah.` });
       router.refresh();
-    } catch (error) {
-      setResumeNote({ tone: 'error', text: error instanceof UploadClientError ? error.message : 'Unggahan belum bisa dilanjutkan.' });
+    } catch {
+      // Seperti alur utama: keadaan sebenarnya ditentukan server, bukan peramban.
+      const status = await completeUpload(resumeTarget.id);
+      if (!status.ok) setResumeNote({ tone: 'error', text: status.message });
+      else if (status.data.done) setResumeNote({ tone: 'success', text: `"${status.data.name}" selesai diunggah.` });
+      else setResumeNote({
+        tone: 'warning',
+        text: `Terputus di ${formatBytes(status.data.bytesUploaded)} dari ${formatBytes(status.data.size)}. Pilih Lanjutkan lagi untuk meneruskan.`,
+      });
+      router.refresh();
     }
   }
 
@@ -376,12 +456,76 @@ export function CloudUploader(props: CloudUploaderProps) {
     setFolderName('');
     setExternalRef('');
     setAddError('');
+    setBrowse(null);
+    setTrail([]);
     addRef.current?.showModal();
+  }
+
+  // Penelusuran folder selalu lewat server: Drive tidak diakses langsung dari peramban,
+  // dan trailing path disimpan di klien hanya untuk tombol kembali.
+  async function loadBrowse(folderId: string | null, nextTrail: { id: string; name: string }[]) {
+    setBrowseBusy(true);
+    setAddError('');
+    const result = await browseCloudFolders(folderId);
+    setBrowseBusy(false);
+    if (!result.ok) {
+      setAddError(result.message);
+      return;
+    }
+    setBrowse(result.data);
+    setTrail(nextTrail);
+  }
+
+  async function removeBrowsed(folder: BrowseFolderView) {
+    if (!folder.folderId) return;
+    setBrowseBusy(true);
+    setAddError('');
+    const result = await removeCloudFolder(folder.folderId);
+    setBrowseBusy(false);
+    if (!result.ok) {
+      setAddError(result.message);
+      return;
+    }
+    if (destination === `f:${folder.folderId}`) {
+      setDestination(null);
+      setNeedChoice('Folder yang kamu pilih sudah dihapus. Pilih tujuan lain.');
+    }
+    setBrowse((view) => (view ? {
+      ...view,
+      folders: view.folders.map((item) => (item.id === folder.id ? { ...item, folderId: null, isDefault: false } : item)),
+    } : view));
+    setFolderMessage({ tone: 'success', text: `"${folder.name}" dihapus dari daftar. Isi Google Drive tidak disentuh.` });
+    router.refresh();
   }
 
   async function submitFolder(event: FormEvent) {
     event.preventDefault();
     if (addError) return;
+    if (addKind === 'drive') {
+      if (!browse || !browse.parent) {
+        setAddError('Buka salah satu subfolder dulu, lalu tambahkan folder yang ingin dipakai.');
+        return;
+      }
+      if (browse.folder.added) {
+        setAddError('Folder ini sudah ada di daftar tujuanmu.');
+        return;
+      }
+      if (atFolderLimit) {
+        setAddError(`Batas ${GDRIVE_MAX_FOLDERS} folder tercapai.`);
+        return;
+      }
+      setFolderBusy('add');
+      const added = await addCloudFolder(browse.folder.id);
+      setFolderBusy(null);
+      if (!added.ok) {
+        setAddError(added.message);
+        return;
+      }
+      addRef.current?.close();
+      setFolderMessage({ tone: 'success', text: `"${added.data.name}" ditambahkan.` });
+      router.refresh();
+      return;
+    }
     const name = folderName.trim();
     const ref = externalRef.trim();
     if (addKind === 'custom') {
@@ -638,9 +782,11 @@ export function CloudUploader(props: CloudUploaderProps) {
                           type="button" className="btn btn--danger-soft btn--sm"
                           onClick={async () => {
                             const result = await cancelUpload(upload.id);
-                            setResumeNote(result.ok
-                              ? { tone: 'success', text: `"${upload.name}" dibatalkan.` }
-                              : { tone: 'error', text: result.message });
+                            setResumeNote(!result.ok
+                              ? { tone: 'error', text: result.message }
+                              : result.data.cancelled
+                                ? { tone: 'success', text: `"${upload.name}" dibatalkan.` }
+                                : { tone: 'warning', text: `"${result.data.name}" ternyata sudah selesai di Google Drive, jadi dicatat selesai.` });
                             router.refresh();
                           }}
                         >
@@ -796,7 +942,7 @@ export function CloudUploader(props: CloudUploaderProps) {
 
       {/* Panduan */}
       <dialog
-        ref={guideRef} className="cloud-dialog" aria-labelledby="cloud-guide-title"
+        ref={guideRef} className="cloud-dialog cloud-dialog--lg" aria-labelledby="cloud-guide-title"
         onClick={(e) => { if (e.target === e.currentTarget) e.currentTarget.close(); }}
       >
         <div className="cloud-dialog__head">
@@ -940,17 +1086,23 @@ export function CloudUploader(props: CloudUploaderProps) {
 
       {/* Tambah folder */}
       <dialog
-        ref={addRef} className="cloud-dialog" aria-labelledby="cloud-add-title"
+        ref={addRef} className={cx('cloud-dialog', addKind === 'drive' ? 'cloud-dialog--lg' : 'cloud-dialog--md')}
+        aria-labelledby="cloud-add-title"
         onClick={(e) => { if (e.target === e.currentTarget) e.currentTarget.close(); }}
       >
         <form onSubmit={submitFolder} noValidate>
           <div className="dialog__body">
             <h2 id="cloud-add-title">Tambah folder</h2>
-            <div className="cloud-kind" role="radiogroup" aria-label="Jenis folder">
+            <div className="cloud-kind cloud-kind--three" role="radiogroup" aria-label="Jenis folder">
               <label>
                 <input type="radio" name="folder-kind" value="custom" checked={addKind === 'custom'}
                   onChange={() => { setAddKind('custom'); setAddError(''); }} />
                 <Icon name="folder" size={18} />Buat folder baru
+              </label>
+              <label>
+                <input type="radio" name="folder-kind" value="drive" checked={addKind === 'drive'}
+                  onChange={() => { setAddKind('drive'); setAddError(''); void loadBrowse(null, []); }} />
+                <Icon name="search" size={18} />Telusuri Drive
               </label>
               <label>
                 <input type="radio" name="folder-kind" value="external" checked={addKind === 'external'}
@@ -959,7 +1111,7 @@ export function CloudUploader(props: CloudUploaderProps) {
               </label>
             </div>
 
-            {addKind === 'custom' ? (
+            {addKind === 'custom' && (
               <div className="field">
                 <label className="field__label" htmlFor="cloud-folder-name">Nama folder</label>
                 <input
@@ -970,7 +1122,71 @@ export function CloudUploader(props: CloudUploaderProps) {
                 />
                 <p id="cloud-folder-name-hint" className="field__hint">Dibuat di Google Drive, di bawah folder induk yang disiapkan server.</p>
               </div>
-            ) : (
+            )}
+
+            {addKind === 'drive' && (
+              <div className="cloud-browse">
+                <div className="cloud-browse__bar">
+                  <button
+                    type="button" className="btn btn--secondary btn--sm"
+                    disabled={browseBusy || trail.length === 0}
+                    onClick={() => {
+                      const target = trail[trail.length - 1];
+                      if (target) void loadBrowse(target.id, trail.slice(0, -1));
+                    }}
+                  >
+                    <Icon name="arrow-left" size={16} />Kembali
+                  </button>
+                  <span className="cloud-browse__where" aria-live="polite">
+                    <Icon name={browseBusy ? 'loader' : 'folder'} size={16} className={browseBusy ? 'spin' : undefined} />
+                    {browse ? browse.folder.name : 'Memuat folder…'}
+                  </span>
+                </div>
+
+                {browse && browse.folders.length === 0 && !browseBusy && (
+                  <p className="cloud-browse__note">Tidak ada subfolder di folder ini.</p>
+                )}
+
+                {browse && browse.folders.length > 0 && (
+                  <ul className="cloud-browse__grid" aria-label={`Subfolder di ${browse.folder.name}`} aria-busy={browseBusy}>
+                    {browse.folders.map((folder) => (
+                      <li key={folder.id} className="cloud-browse__item">
+                        <button
+                          type="button" className="cloud-browse__card" disabled={browseBusy}
+                          onClick={() => void loadBrowse(folder.id, [...trail, { id: browse.folder.id, name: browse.folder.name }])}
+                        >
+                          <span className="cloud-browse__icon"><Icon name="folder" size={20} /></span>
+                          <span className="cloud-browse__text">
+                            <span className="cloud-browse__name">{folder.name}</span>
+                            {folder.owner && <span className="cloud-browse__owner">{folder.owner}</span>}
+                          </span>
+                          {folder.folderId && (
+                            <span className="cloud-browse__flag">{folder.isDefault ? 'Default' : 'Ditambahkan'}</span>
+                          )}
+                        </button>
+                        {folder.folderId && (
+                          <button
+                            type="button" className="btn btn--ghost btn--sm btn--icon"
+                            aria-label={`Hapus ${folder.name} dari daftar tujuan`} title="Hapus dari daftar"
+                            disabled={browseBusy}
+                            onClick={() => void removeBrowsed(folder)}
+                          >
+                            <Icon name="trash" size={16} />
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <p className="field__hint">
+                  Tekan folder untuk masuk. Tombol tambah menyimpan folder yang sedang dibuka.
+                  Hanya folder yang kamu tambahkan sendiri yang bisa dihapus dari daftar; isi Google Drive tidak disentuh.
+                </p>
+              </div>
+            )}
+
+            {addKind === 'external' && (
               <>
                 <div className="field">
                   <label className="field__label" htmlFor="cloud-folder-url">Tautan folder Google Drive</label>
@@ -991,9 +1207,12 @@ export function CloudUploader(props: CloudUploaderProps) {
           </div>
           <div className="dialog__actions">
             <button type="button" className="btn btn--secondary" onClick={() => addRef.current?.close()}>Batal</button>
-            <button type="submit" className="btn" disabled={folderBusy !== null} aria-busy={folderBusy === 'add'}>
+            <button
+              type="submit" className="btn" aria-busy={folderBusy === 'add'}
+              disabled={folderBusy !== null || (addKind === 'drive' && (browseBusy || !browse?.parent || browse.folder.added))}
+            >
               {folderBusy === 'add' && <Icon name="loader" size={18} className="spin" />}
-              {addKind === 'custom' ? 'Buat folder' : 'Periksa & tambahkan'}
+              {addKind === 'custom' ? 'Buat folder' : addKind === 'drive' ? 'Tambahkan folder ini' : 'Periksa & tambahkan'}
             </button>
           </div>
         </form>
@@ -1001,7 +1220,7 @@ export function CloudUploader(props: CloudUploaderProps) {
 
       {/* Hapus folder */}
       <dialog
-        ref={removeRef} className="cloud-dialog" aria-labelledby="cloud-remove-title"
+        ref={removeRef} className="cloud-dialog cloud-dialog--sm" aria-labelledby="cloud-remove-title"
         onClick={(e) => { if (e.target === e.currentTarget) e.currentTarget.close(); }}
       >
         <div className="dialog__body">

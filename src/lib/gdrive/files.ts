@@ -79,8 +79,18 @@ const SIG_EXT: Record<SignatureKind, readonly string[]> = {
 const ascii = (bytes: Uint8Array, at: number, text: string) =>
   text.split('').every((ch, i) => bytes[at + i] === ch.charCodeAt(0));
 
-const brandAt = (bytes: Uint8Array) =>
-  bytes.length >= 12 && ascii(bytes, 4, 'ftyp') ? String.fromCharCode(...bytes.slice(8, 12)) : '';
+// Brand dicari pada batas box, bukan hanya offset 4: sebagian encoder menaruh box
+// free/skip lebih dulu sehingga ftyp tidak berada tepat setelah ukuran box pertama.
+function brandAt(bytes: Uint8Array): string {
+  let at = 0;
+  for (let box = 0; box < 3 && at + 12 <= bytes.length; box++) {
+    if (ascii(bytes, at + 4, 'ftyp')) return String.fromCharCode(...bytes.slice(at + 8, at + 12));
+    const size = ((bytes[at]! << 24) | (bytes[at + 1]! << 16) | (bytes[at + 2]! << 8) | bytes[at + 3]!) >>> 0;
+    if (size < 8) return '';
+    at += size;
+  }
+  return '';
+}
 
 function looksLikeText(bytes: Uint8Array): boolean {
   if (bytes.length === 0) return false;
@@ -113,7 +123,9 @@ export function detectSignature(bytes: Uint8Array): SignatureKind | null {
     if (['heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'hevm', 'hevs', 'mif1', 'msf1'].includes(brand)) return 'heic';
     if (brand === 'qt  ') return 'mov';
     if (brand === 'M4A ' || brand === 'M4B ') return 'm4a';
-    if (['isom', 'iso2', 'mp41', 'mp42', 'avc1', 'M4V ', 'dash', 'MSNV'].includes(brand)) return 'mp4';
+    // Brand lain (iso2, iso4, isom, mp41, mp42, avc1, 3gp*, dan brand buatan encoder)
+    // tetap kontainer ISO-BMFF yang sah untuk .mp4; daftar putih brand terlalu rapuh.
+    return 'mp4';
   }
   return looksLikeText(bytes) ? 'text' : null;
 }

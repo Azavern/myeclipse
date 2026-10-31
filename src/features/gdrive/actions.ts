@@ -1,16 +1,20 @@
 'use server';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
 import { z } from 'zod';
 import { requireActionContext } from '@/lib/action-context';
 import { withFlash } from '@/lib/flash';
 import { FORBIDDEN, failState, invalid, type FormState } from '@/lib/form-state';
-import { DriveError, gdriveStatus } from '@/lib/gdrive/drive';
+import { DriveError, gdriveStatus, uploadOrigin } from '@/lib/gdrive/drive';
 import { GDRIVE_MAX_FILE_MB, GDRIVE_MAX_FOLDERS } from '@/lib/gdrive/files';
-import { createCustomFolder, validateExternalFolder } from '@/lib/gdrive/folders';
+import {
+  addBrowsedFolder, browseFolders, createCustomFolder, validateExternalFolder,
+  type BrowseView,
+} from '@/lib/gdrive/folders';
 import {
   cancelUpload as cancelUploadService, finishUpload, resumeUpload as resumeUploadService, startUpload,
-  UploadError, type CompleteView, type ResumeView, type StartView,
+  UploadError, type CancelView, type CompleteView, type ResumeView, type StartView,
 } from '@/lib/gdrive/uploads';
 
 export type CloudErrorCode =
@@ -55,9 +59,14 @@ export async function beginUpload(input: unknown): Promise<CloudResult<StartView
   const ctx = await requireActionContext();
   if (!ctx) return fail('forbidden', 'Kamu harus anggota aktif untuk mengunggah.');
   if (!gdriveStatus().ready) return fail('config', 'Google Drive belum dikonfigurasi di server.');
+  // Sesi resumable diikat ke origin peramban pengunggah; hanya origin resmi yang diteruskan.
+  const origin = uploadOrigin((await headers()).get('origin'));
+  if (!origin) {
+    return fail('config', 'Asal aplikasi ini belum diizinkan mengunggah langsung ke Google Drive. Tambahkan origin-nya ke GDRIVE_UPLOAD_ORIGINS.');
+  }
   try {
     const data = await startUpload({
-      supabase: ctx.supabase, userId: ctx.user.id, classId: ctx.classId, timezone: ctx.timezone,
+      supabase: ctx.supabase, userId: ctx.user.id, classId: ctx.classId, timezone: ctx.timezone, origin,
       originalName: parsed.data.originalName, size: parsed.data.size,
       customName: parsed.data.customName || undefined,
       folderId: parsed.data.folderId ?? null, preferDefault: parsed.data.preferDefault,
@@ -98,15 +107,15 @@ export async function resumeUpload(id: string): Promise<CloudResult<ResumeView>>
   }
 }
 
-export async function cancelUpload(id: string): Promise<CloudResult<null>> {
+export async function cancelUpload(id: string): Promise<CloudResult<CancelView>> {
   const parsed = idSchema.safeParse(id);
   if (!parsed.success) return fail('validation', 'Unggahan tidak ditemukan.');
   const ctx = await requireActionContext();
   if (!ctx) return fail('forbidden', 'Sesi berakhir. Masuk kembali lalu coba lagi.');
   try {
-    await cancelUploadService({ supabase: ctx.supabase, userId: ctx.user.id, classId: ctx.classId, id: parsed.data });
+    const data = await cancelUploadService({ supabase: ctx.supabase, userId: ctx.user.id, classId: ctx.classId, id: parsed.data });
     revalidatePath('/cloud');
-    return { ok: true, data: null };
+    return { ok: true, data };
   } catch (error) {
     return mapError(error);
   }
@@ -148,6 +157,50 @@ export async function addExternalFolder(ref: string): Promise<CloudResult<{ name
     const folder = await validateExternalFolder(parsed.data);
     const { error } = await ctx.supabase.rpc('register_gdrive_folder', {
       p_drive_folder_id: folder.driveFolderId, p_name: folder.name, p_kind: 'external', p_parent_drive_id: null,
+    });
+    if (error) return registerError(error.code);
+    revalidatePath('/cloud');
+    return { ok: true, data: { name: folder.name } };
+  } catch (error) {
+    return mapError(error);
+  }
+}
+
+const driveFolderId = z.string().regex(/^[A-Za-z0-9_-]{10,200}$/);
+
+// Menelusuri folder kelas. Tidak ada id dari peramban yang dipercaya: folder tujuan
+// divalidasi server, dan halaman ini hanya bisa dibuka anggota aktif.
+export async function browseCloudFolders(folderId?: string | null): Promise<CloudResult<BrowseView>> {
+  let target: string | null = null;
+  if (folderId) {
+    const parsed = driveFolderId.safeParse(folderId);
+    if (!parsed.success) return fail('validation', 'Folder tidak valid.');
+    target = parsed.data;
+  }
+  const ctx = await requireActionContext();
+  if (!ctx) return fail('forbidden', 'Sesi berakhir. Masuk kembali lalu coba lagi.');
+  if (!gdriveStatus().ready) return fail('config', 'Google Drive belum dikonfigurasi di server.');
+  try {
+    const data = await browseFolders({
+      supabase: ctx.supabase, userId: ctx.user.id, classId: ctx.classId, folderId: target,
+    });
+    return { ok: true, data };
+  } catch (error) {
+    return mapError(error);
+  }
+}
+
+// Menambahkan subfolder yang dipilih dari penelusuran sebagai tujuan unggahan.
+export async function addCloudFolder(folderDriveId: string): Promise<CloudResult<{ name: string }>> {
+  const parsed = driveFolderId.safeParse(folderDriveId);
+  if (!parsed.success) return fail('validation', 'Folder tidak valid.');
+  const ctx = await requireActionContext();
+  if (!ctx) return fail('forbidden', 'Kamu harus anggota aktif untuk menambah folder.');
+  if (!gdriveStatus().ready) return fail('config', 'Google Drive belum dikonfigurasi di server.');
+  try {
+    const folder = await addBrowsedFolder(parsed.data);
+    const { error } = await ctx.supabase.rpc('register_gdrive_folder', {
+      p_drive_folder_id: folder.driveFolderId, p_name: folder.name, p_kind: 'custom', p_parent_drive_id: folder.parentDriveId,
     });
     if (error) return registerError(error.code);
     revalidatePath('/cloud');

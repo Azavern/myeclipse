@@ -2,7 +2,7 @@ import 'server-only';
 import type { createClient } from '@/lib/supabase/server';
 import {
   cancelSession, createResumableSession, deleteFile, DriveError, fileLink, getMeta, headBytes, sessionStatus,
-  uniqueName,
+  uniqueName, type SessionState,
 } from './drive';
 import { detectSignature, extensionOf, mimeForExt, signatureMatches, buildFinalName, categoryForExt, type Category } from './files';
 import { resolveDestination } from './folders';
@@ -78,7 +78,7 @@ function claimError(code: string | undefined): UploadError {
 }
 
 export async function startUpload(o: {
-  supabase: Supabase; userId: string; classId: string; timezone: string;
+  supabase: Supabase; userId: string; classId: string; timezone: string; origin: string;
   originalName: string; size: number; customName?: string; folderId?: string | null; preferDefault?: boolean;
 }): Promise<StartView> {
   const originalName = o.originalName.trim();
@@ -123,7 +123,8 @@ export async function startUpload(o: {
   let sessionUri: string;
   try {
     sessionUri = await createResumableSession({
-      name: finalName, parentId: destination.driveFolderId, mimeType: mimeForExt(ext), uploadId: row.id,
+      name: finalName, parentId: destination.driveFolderId, mimeType: mimeForExt(ext),
+      uploadId: row.id, origin: o.origin,
     });
   } catch (error) {
     await o.supabase.rpc('fail_gdrive_upload', { p_id: row.id, p_error: 'session_init' });
@@ -150,24 +151,32 @@ async function loadOwned(supabase: Supabase, userId: string, classId: string, id
   return data as UploadRow;
 }
 
-// Verifikasi akhir: ukuran, folder, dan signature dibaca langsung dari Drive,
-// bukan dari laporan peramban. File yang tidak lolos dihapus dari Drive.
+const ENDED_MESSAGE = 'Unggahan ini sudah berakhir. Mulai ulang dari daftar file.';
+
+// Verifikasi akhir: ukuran, folder, dan signature dibaca langsung dari Drive, bukan
+// dari laporan peramban. Baris yang sudah ditandai berakhir (cancelled/failed/expired)
+// tetap diperiksa: bila Drive ternyata menyelesaikan filenya, baris direkonsiliasi
+// menjadi completed, bukan dibiarkan bertentangan dengan isi Drive.
 export async function finishUpload(o: { supabase: Supabase; userId: string; classId: string; id: string }): Promise<CompleteView> {
   const row = await loadOwned(o.supabase, o.userId, o.classId, o.id);
   if (row.status === 'completed' && row.drive_file_id) {
     return { done: true, fileId: row.drive_file_id, link: fileLink(row.drive_file_id), name: row.drive_file_name };
   }
-  if (row.status === 'cancelled' || row.status === 'failed' || row.status === 'expired') {
-    throw new UploadError('session', 'Unggahan ini sudah berakhir. Mulai ulang dari daftar file.');
+  const ended = row.status === 'cancelled' || row.status === 'failed' || row.status === 'expired';
+  if (!row.session_uri) {
+    throw new UploadError('session', ended ? ENDED_MESSAGE : 'Sesi unggah tidak ditemukan.');
   }
-  if (!row.session_uri) throw new UploadError('session', 'Sesi unggah tidak ditemukan.');
 
   const state = await sessionStatus(row.session_uri, Number(row.size_bytes));
   if ('expired' in state) {
-    await o.supabase.rpc('fail_gdrive_upload', { p_id: row.id, p_error: 'session_expired' });
-    throw new UploadError('session', 'Sesi unggah kedaluwarsa. Mulai ulang unggahan.');
+    if (!ended) await o.supabase.rpc('fail_gdrive_upload', { p_id: row.id, p_error: 'session_expired' });
+    throw new UploadError('session', ended
+      ? 'Unggahan ini sudah berakhir dan sesinya sudah tidak ada di Google Drive.'
+      : 'Sesi unggah kedaluwarsa. Mulai ulang unggahan.');
   }
   if (!state.done) {
+    // Drive belum punya seluruh file: simpan progres nyata dan pertahankan sesi.
+    if (ended) throw new UploadError('session', ENDED_MESSAGE);
     await o.supabase.rpc('update_gdrive_progress', { p_id: row.id, p_bytes: state.bytesUploaded });
     return { done: false, bytesUploaded: state.bytesUploaded, size: Number(row.size_bytes) };
   }
@@ -176,7 +185,7 @@ export async function finishUpload(o: { supabase: Supabase; userId: string; clas
   const expected = Number(row.size_bytes);
   if (Number(meta.size ?? 0) !== expected || !(meta.parents ?? []).includes(row.drive_folder_id) || meta.trashed === true) {
     await deleteFile(meta.id).catch(() => console.error('gdrive: file tidak lolos verifikasi dan gagal dihapus', meta.id));
-    await o.supabase.rpc('fail_gdrive_upload', { p_id: row.id, p_error: 'metadata_mismatch' });
+    if (!ended) await o.supabase.rpc('fail_gdrive_upload', { p_id: row.id, p_error: 'metadata_mismatch' });
     throw new UploadError('validation', 'File yang diterima Google Drive tidak sesuai dengan data unggahan, jadi dihapus.');
   }
 
@@ -185,11 +194,13 @@ export async function finishUpload(o: { supabase: Supabase; userId: string; clas
   const kind = detectSignature(head);
   if (!kind || !signatureMatches(ext, kind)) {
     await deleteFile(meta.id).catch(() => console.error('gdrive: file signature salah dan gagal dihapus', meta.id));
-    await o.supabase.rpc('fail_gdrive_upload', { p_id: row.id, p_error: 'signature' });
+    if (!ended) await o.supabase.rpc('fail_gdrive_upload', { p_id: row.id, p_error: 'signature' });
     throw new UploadError('signature', 'Isi file tidak sesuai dengan ekstensinya, jadi file dihapus dari Google Drive.');
   }
 
-  const { error } = await o.supabase.rpc('complete_gdrive_upload', { p_id: row.id, p_drive_file_id: meta.id, p_bytes: expected });
+  const { error } = ended
+    ? await o.supabase.rpc('reconcile_gdrive_upload', { p_id: row.id, p_drive_file_id: meta.id, p_bytes: expected })
+    : await o.supabase.rpc('complete_gdrive_upload', { p_id: row.id, p_drive_file_id: meta.id, p_bytes: expected });
   if (error) throw new UploadError('validation', 'Hasil unggahan tidak dapat dicatat. Coba lagi.');
   return { done: true, fileId: meta.id, link: fileLink(meta.id), name: meta.name };
 }
@@ -203,7 +214,7 @@ export async function resumeUpload(o: { supabase: Supabase; userId: string; clas
   if (row.status === 'completed' && row.drive_file_id) {
     return { done: true, fileId: row.drive_file_id, link: fileLink(row.drive_file_id), name: row.drive_file_name };
   }
-  if (row.status !== 'pending' && row.status !== 'uploading') {
+  if (row.status !== 'pending' && row.status !== 'uploading' && row.status !== 'verifying') {
     throw new UploadError('session', 'Unggahan ini tidak bisa dilanjutkan.');
   }
   if (!row.session_uri) throw new UploadError('session', 'Sesi unggah tidak ditemukan.');
@@ -224,12 +235,45 @@ export async function resumeUpload(o: { supabase: Supabase; userId: string; clas
   };
 }
 
-export async function cancelUpload(o: { supabase: Supabase; userId: string; classId: string; id: string }): Promise<void> {
+export type CancelView =
+  | { cancelled: true }
+  | { cancelled: false; fileId: string; link: string; name: string };
+
+// Pembatalan hanya terjadi atas permintaan eksplisit pengguna dan hanya setelah server
+// memastikan Drive belum menyelesaikan file. Kegagalan memeriksa atau menghapus sesi
+// dilaporkan sebagai galat, bukan sebagai pembatalan yang berhasil.
+export async function cancelUpload(o: { supabase: Supabase; userId: string; classId: string; id: string }): Promise<CancelView> {
   const row = await loadOwned(o.supabase, o.userId, o.classId, o.id);
-  if (row.status === 'completed') throw new UploadError('validation', 'Unggahan yang sudah selesai tidak bisa dibatalkan.');
-  if (row.session_uri) await cancelSession(row.session_uri);
+  if (row.status === 'completed' && row.drive_file_id) {
+    return { cancelled: false, fileId: row.drive_file_id, link: fileLink(row.drive_file_id), name: row.drive_file_name };
+  }
+  if (row.status === 'cancelled') return { cancelled: true };
+  if (row.status !== 'pending' && row.status !== 'uploading' && row.status !== 'verifying') {
+    throw new UploadError('session', 'Unggahan ini sudah berakhir dan tidak bisa dibatalkan.');
+  }
+
+  if (row.session_uri) {
+    let state: SessionState;
+    try {
+      state = await sessionStatus(row.session_uri, Number(row.size_bytes));
+    } catch {
+      throw new UploadError('session', 'Status unggahan di Google Drive belum dapat diperiksa, jadi belum dibatalkan. Coba lagi.');
+    }
+    if ('done' in state) {
+      // File sudah dibuat Drive: finalisasi, jangan tandai batal.
+      const finished = await finishUpload(o);
+      if (!finished.done) throw new UploadError('session', 'Google Drive belum menyelesaikan file ini. Coba batalkan lagi sebentar lagi.');
+      return { cancelled: false, fileId: finished.fileId, link: finished.link, name: finished.name };
+    }
+    const removed = 'expired' in state ? true : await cancelSession(row.session_uri);
+    if (!removed) {
+      throw new UploadError('session', 'Sesi unggahan tidak dapat dihentikan di Google Drive, jadi unggahan belum dibatalkan. Coba lagi.');
+    }
+  }
+
   const { error } = await o.supabase.rpc('cancel_gdrive_upload', { p_id: row.id });
   if (error) throw new UploadError('validation', 'Unggahan tidak dapat dibatalkan.');
+  return { cancelled: true };
 }
 
 export function isDriveError(error: unknown): error is DriveError {

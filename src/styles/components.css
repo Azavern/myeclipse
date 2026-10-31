@@ -722,8 +722,12 @@ dialog[open] { animation: rise var(--t-med); }
 .cloud-folder__meta { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-2); margin-top: var(--s-1); }
 .cloud-folder__actions { display: flex; flex: none; align-items: center; gap: var(--s-1); }
 
-/* Dialog Cloud: dibatasi tinggi layar agar tombol tutup selalu terjangkau. */
+/* Dialog Cloud: lebar mengikuti ukuran isi seperti cloud.html (dlg-sm/md/lg)
+   dan tinggi dibatasi layar agar tombol tutup selalu terjangkau. */
 .cloud-dialog { max-height: calc(100dvh - 2rem); overflow: hidden; }
+.cloud-dialog--sm { width: min(27.5rem, calc(100% - 2rem)); }
+.cloud-dialog--md { width: min(32.5rem, calc(100% - 2rem)); }
+.cloud-dialog--lg { width: min(50rem, calc(100% - 2rem)); height: min(38.75rem, calc(100dvh - 2rem)); }
 .cloud-dialog[open] { display: flex; flex-direction: column; }
 .cloud-dialog__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-3); padding: var(--s-5) var(--s-3) var(--s-3) var(--s-5); }
 .cloud-dialog__head h2 { min-width: 0; }
@@ -733,6 +737,8 @@ dialog[open] { animation: rise var(--t-med); }
 .cloud-dialog__foot, .cloud-dialog > .dialog__actions { flex: none; }
 @media (max-width: 639px) {
   .cloud-dialog { width: 100%; max-width: none; max-height: 100dvh; border-radius: 0; }
+  .cloud-dialog--md, .cloud-dialog--lg { height: 100dvh; }
+  .cloud-dialog--sm { width: min(27.5rem, calc(100% - 2rem)); max-height: calc(100dvh - 2rem); border-radius: var(--r-xl); }
 }
 
 /* Panduan bertab di dalam dialog */
@@ -744,6 +750,9 @@ dialog[open] { animation: rise var(--t-med); }
 .cloud-guide__tab:hover { background: var(--surface-2); color: var(--text); }
 .cloud-guide__tab[aria-selected=true] { background: var(--brand-100); color: var(--brand-strong); }
 .cloud-guide__panel { display: grid; gap: var(--s-4); align-content: start; }
+/* display:grid di atas mengalahkan display:none bawaan atribut hidden, jadi panel nonaktif
+   harus disembunyikan eksplisit agar tiap tab hanya menampilkan satu bagian. */
+.cloud-guide__panel[hidden] { display: none; }
 .cloud-guide__panel h3 { font-size: 1rem; }
 .cloud-guide__panel h3 + * { margin-top: var(--s-1); }
 .cloud-guide__panel p, .cloud-guide__panel li { color: var(--text-2); }
@@ -773,6 +782,33 @@ dialog[open] { animation: rise var(--t-med); }
 .cloud-kind label:hover { background: var(--surface-2); }
 .cloud-kind label:has(input:checked) { border-color: var(--brand); background: var(--brand-50); color: var(--brand-strong); box-shadow: inset 0 0 0 1px var(--brand); }
 .cloud-kind input { position: absolute; opacity: 0; pointer-events: none; }
+.cloud-kind--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* Telusuri folder Drive: grid 4 kolom di layar lebar, daftar di ponsel. */
+.cloud-browse { display: grid; gap: var(--s-3); }
+.cloud-browse__bar { display: flex; align-items: center; gap: var(--s-2); }
+.cloud-browse__where { display: inline-flex; align-items: center; gap: var(--s-2); min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.cloud-browse__where svg { flex: none; color: var(--brand-strong); }
+.cloud-browse__note { color: var(--text-2); font-size: var(--fs-sm); }
+.cloud-browse__grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-2); max-height: min(46dvh, 20rem); overflow-y: auto; padding-right: var(--s-1); }
+.cloud-browse__item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--s-1); }
+.cloud-browse__card { display: flex; align-items: center; gap: var(--s-2); width: 100%; min-height: var(--ctl); padding: var(--s-2) var(--s-3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); color: var(--text); text-align: left; }
+.cloud-browse__card:hover { border-color: var(--brand); background: var(--surface-2); }
+.cloud-browse__card:disabled { opacity: .6; }
+.cloud-browse__icon { display: grid; place-items: center; flex: none; width: 2rem; height: 2rem; border-radius: var(--r-md); background: var(--brand-100); color: var(--brand-strong); }
+.cloud-browse__text { display: grid; flex: 1; gap: 2px; min-width: 0; }
+.cloud-browse__name { font-weight: 600; overflow-wrap: anywhere; }
+.cloud-browse__owner { color: var(--text-2); font-size: var(--fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cloud-browse__flag { flex: none; padding: 0 var(--s-2); border-radius: var(--r-full); background: var(--brand-100); color: var(--brand-strong); font-size: var(--fs-xs); font-weight: 600; line-height: 1.7; }
+@media (max-width: 479px) {
+  .cloud-kind--three { grid-template-columns: minmax(0, 1fr); }
+}
+@media (min-width: 640px) {
+  .cloud-browse__grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .cloud-browse__card { flex-direction: column; align-items: flex-start; min-height: 8rem; }
+  .cloud-browse__text { flex: 1 1 auto; }
+  .cloud-browse__flag { margin-top: auto; }
+}
 
 @media (pointer: coarse) {
   .cloud-guide__tab, .cloud-kind label, .cloud-folder__actions .btn--icon { min-height: var(--ctl); }

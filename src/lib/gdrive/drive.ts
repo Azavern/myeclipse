@@ -1,6 +1,7 @@
 import 'server-only';
 import { env } from '@/lib/env';
 import { collisionName } from './files';
+import { originOf } from '@/lib/security/csp';
 
 // Semua kredensial dan ID folder dibaca di sini. Tidak ada varian NEXT_PUBLIC_*:
 // nilai ini tidak pernah dikirim ke peramban, log, atau pesan galat.
@@ -54,6 +55,20 @@ export function categoryFolderId(category: keyof typeof CATEGORY_ENV): string | 
 
 export function customParentId(): string {
   return env.GDRIVE_CUSTOM?.trim() || rootFolderId();
+}
+
+// Origin yang dikirim saat inisialisasi sesi resumable harus origin resmi aplikasi.
+// Daftar berasal dari APP_URL ditambah GDRIVE_UPLOAD_ORIGINS (mis. domain pratinjau),
+// jadi origin sembarang dari peramban tidak pernah diteruskan ke Google.
+export function uploadOrigin(requestOrigin: string | null): string | null {
+  const fallback = originOf(env.APP_URL);
+  const allowed = new Set<string>(fallback ? [fallback] : []);
+  for (const item of (process.env.GDRIVE_UPLOAD_ORIGINS ?? '').split(',')) {
+    const origin = originOf(item.trim());
+    if (origin) allowed.add(origin);
+  }
+  if (!requestOrigin) return fallback;
+  return allowed.has(requestOrigin) ? requestOrigin : null;
 }
 
 let tokenCache: { token: string; expiresAt: number } | null = null;
@@ -157,6 +172,25 @@ export async function uniqueName(parentId: string, name: string): Promise<string
   return collisionName(name, Date.now() % 1000);
 }
 
+export type DriveFolder = { id: string; name: string; owners?: { displayName?: string; emailAddress?: string }[] };
+
+// Anak folder langsung di bawah satu induk, hanya folder (bukan file), urut nama alami
+// dan dibatasi 100 baris agar daftar tidak pernah tidak terbatas.
+export async function listFolders(parentId: string): Promise<DriveFolder[]> {
+  const query = `'${escapeQuery(parentId)}' in parents and mimeType='${FOLDER_MIME}' and trashed=false`;
+  const params = new URLSearchParams({
+    q: query,
+    fields: 'files(id,name,owners(displayName,emailAddress))',
+    pageSize: '100',
+    orderBy: 'name_natural',
+    supportsAllDrives: 'true',
+    includeItemsFromAllDrives: 'true',
+  });
+  const response = await request(`${API}/files?${params}`, { method: 'GET' }, { label: 'list-folders' });
+  const json = (await response.json()) as { files?: DriveFolder[] };
+  return json.files ?? [];
+}
+
 export async function createFolder(name: string, parentId: string): Promise<{ id: string; name: string }> {
   const body = { name, mimeType: FOLDER_MIME, parents: [parentId] };
   const response = await request(`${API}/files?fields=id,name&supportsAllDrives=true`, {
@@ -165,10 +199,13 @@ export async function createFolder(name: string, parentId: string): Promise<{ id
   return (await response.json()) as { id: string; name: string };
 }
 
-export async function createResumableSession(o: { name: string; parentId: string; mimeType: string; uploadId: string }): Promise<string> {
+export async function createResumableSession(o: { name: string; parentId: string; mimeType: string; uploadId: string; origin: string }): Promise<string> {
   const response = await request(`${UPLOAD}?uploadType=resumable&supportsAllDrives=true&fields=id`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': o.mimeType },
+    // Origin peramban pengunggah ikut pada inisialisasi sesi: Google mengikat sesi resumable
+    // ke origin itu dan hanya mengirim header CORS untuk origin tersebut. Tanpa Origin,
+    // respons PUT dari peramban gagal dibaca walau Drive sudah menerima dan membuat file.
+    headers: { 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': o.mimeType, Origin: o.origin },
     body: JSON.stringify({
       name: o.name,
       parents: [o.parentId],
@@ -198,9 +235,10 @@ export async function sessionStatus(sessionUri: string, totalSize: number): Prom
   }
   if (response.status === 404 || response.status === 410) return { expired: true };
   if (response.status === 308) {
-    const range = response.headers.get('range');
-    const end = range ? Number(/bytes=0-(\d+)/.exec(range)?.[1] ?? 0) : 0;
-    return { done: false, bytesUploaded: end };
+    // Range "bytes=0-N" berarti N+1 byte tersimpan. Tanpa Range, protokol berarti
+    // belum ada byte yang dikonfirmasi, jadi jangan pernah menganggap potongan terakhir diterima.
+    const match = /bytes=0-(\d+)/.exec(response.headers.get('range') ?? '');
+    return { done: false, bytesUploaded: match ? Number(match[1]) + 1 : 0 };
   }
   if (response.ok) {
     const json = (await response.json().catch(() => null)) as { id?: string } | null;
@@ -210,13 +248,18 @@ export async function sessionStatus(sessionUri: string, totalSize: number): Prom
   throw driveError(response.status, '');
 }
 
-export async function cancelSession(sessionUri: string): Promise<void> {
-  if (!sessionUri.startsWith('https://www.googleapis.com/')) return;
+// true hanya bila sesi benar-benar tidak ada lagi. Kegagalan jaringan atau status lain
+// dilaporkan false agar pemanggil tidak menganggap pembatalan berhasil.
+export async function cancelSession(sessionUri: string): Promise<boolean> {
+  if (!sessionUri.startsWith('https://www.googleapis.com/')) return false;
   try {
     const response = await fetch(sessionUri, { method: 'DELETE', cache: 'no-store', signal: AbortSignal.timeout(15_000) });
-    if (!response.ok && response.status !== 404 && response.status !== 410) console.error('gdrive cancel session', response.status);
+    if (response.ok || response.status === 404 || response.status === 410) return true;
+    console.error('gdrive cancel session', response.status);
+    return false;
   } catch {
     console.error('gdrive cancel session: koneksi gagal');
+    return false;
   }
 }
 

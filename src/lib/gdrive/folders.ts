@@ -1,6 +1,9 @@
 import 'server-only';
 import type { createClient } from '@/lib/supabase/server';
-import { categoryFolderId, canWriteToFolder, createFolder, createTextFile, customParentId, deleteFile, DriveError, getMeta, hasAnyoneWriter, rootFolderId } from './drive';
+import {
+  categoryFolderId, canWriteToFolder, createFolder, createTextFile, customParentId, deleteFile, DriveError,
+  getMeta, hasAnyoneWriter, listFolders, rootFolderId, type DriveMeta,
+} from './drive';
 import { CATEGORY_LABEL, parseFolderRef, type Category } from './files';
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
@@ -123,6 +126,108 @@ export async function validateExternalFolder(input: string): Promise<{ driveFold
   }
 
   return { driveFolderId: folderId, name: meta.name };
+}
+
+// ── Penelusuran folder kelas ──────────────────────────────────────────────
+
+// Rantai induk dibatasi agar penelusuran tidak berputar tanpa akhir.
+const MAX_ANCESTOR_DEPTH = 12;
+
+// Hanya folder di bawah folder utama kelas yang boleh ditelusuri; ini mencegah
+// folder pribadi akun server (atau folder luar) muncul di daftar anggota.
+async function insideClassRoot(folderId: string): Promise<boolean> {
+  const root = rootFolderId();
+  let current: string | undefined = folderId;
+  for (let depth = 0; current && depth < MAX_ANCESTOR_DEPTH; depth++) {
+    if (current === root) return true;
+    const meta: DriveMeta | null = await getMeta(current).catch(() => null);
+    current = meta?.parents?.[0];
+  }
+  return false;
+}
+
+const lookupError = () => new DriveError('folder', 'Folder tidak ditemukan atau tidak dapat diakses. Periksa konfigurasi Google Drive.');
+
+function ownerLabel(owner: { displayName?: string; emailAddress?: string } | undefined): string | null {
+  return owner?.displayName?.trim() || owner?.emailAddress?.trim() || null;
+}
+
+export type BrowseFolder = {
+  id: string;
+  name: string;
+  owner: string | null;
+  folderId: string | null; // id baris gdrive_folders bila sudah ditambahkan pemanggil
+  isDefault: boolean;
+};
+
+export type BrowseView = {
+  folder: { id: string; name: string; added: boolean };
+  parent: { id: string; name: string } | null;
+  folders: BrowseFolder[];
+};
+
+export async function browseFolders(o: {
+  supabase: Supabase; userId: string; classId: string; folderId?: string | null;
+}): Promise<BrowseView> {
+  const rootId = rootFolderId();
+  const targetId = o.folderId ?? rootId;
+  if (!parseFolderRef(targetId)) throw new DriveError('folder', 'Folder tidak valid.');
+  if (!(await insideClassRoot(targetId))) {
+    throw new DriveError('folder', 'Hanya folder di dalam folder utama kelas yang bisa ditelusuri.');
+  }
+
+  const folder = await getMeta(targetId).catch((error: unknown) => {
+    if (error instanceof DriveError && (error.kind === 'not_found' || error.kind === 'forbidden')) throw lookupError();
+    throw error;
+  });
+  if (!canWriteToFolder(folder)) throw new DriveError('folder', `Folder "${folder.name}" tidak dapat ditulisi.`);
+
+  const parentId = targetId === rootId ? null : folder.parents?.[0] ?? null;
+  const [children, ownResult, profileResult] = await Promise.all([
+    listFolders(targetId),
+    o.supabase.from('gdrive_folders').select('id,drive_folder_id')
+      .eq('class_id', o.classId).eq('owner_id', o.userId),
+    o.supabase.from('gdrive_profiles').select('default_folder_id')
+      .eq('class_id', o.classId).eq('owner_id', o.userId).maybeSingle(),
+  ]);
+  const registered = new Map(
+    ((ownResult.data ?? []) as { id: string; drive_folder_id: string }[])
+      .map((row) => [row.drive_folder_id, row.id] as const),
+  );
+  const defaultRowId = (profileResult.data as { default_folder_id: string | null } | null)?.default_folder_id ?? null;
+  const parent = parentId
+    ? { id: parentId, name: (await getMeta(parentId).catch(() => null))?.name ?? 'Folder induk' }
+    : null;
+
+  return {
+    folder: { id: folder.id, name: folder.name, added: registered.has(folder.id) },
+    parent,
+    folders: children.map((child) => {
+      const rowId = registered.get(child.id) ?? null;
+      return {
+        id: child.id,
+        name: child.name,
+        owner: ownerLabel(child.owners?.[0]),
+        folderId: rowId,
+        isDefault: rowId !== null && rowId === defaultRowId,
+      };
+    }),
+  };
+}
+
+// Folder yang dipilih dari penelusuran harus folder aktif di dalam folder kelas dan
+// dapat ditulisi akun server. Pemeriksaan dilakukan server, bukan dari id kiriman UI.
+export async function addBrowsedFolder(driveFolderId: string): Promise<{ driveFolderId: string; name: string; parentDriveId: string }> {
+  if (!parseFolderRef(driveFolderId)) throw new DriveError('folder', 'Folder tidak valid.');
+  const meta = await getMeta(driveFolderId).catch((error: unknown) => {
+    if (error instanceof DriveError && (error.kind === 'not_found' || error.kind === 'forbidden')) throw lookupError();
+    throw error;
+  });
+  if (!canWriteToFolder(meta)) throw new DriveError('folder', `Folder "${meta.name}" tidak dapat ditulisi.`);
+  if (!(await insideClassRoot(meta.id))) {
+    throw new DriveError('folder', 'Folder itu berada di luar folder utama kelas.');
+  }
+  return { driveFolderId: meta.id, name: meta.name, parentDriveId: meta.parents?.[0] ?? customParentId() };
 }
 
 function cleanFolderName(raw: string): string {
