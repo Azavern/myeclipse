@@ -722,8 +722,23 @@ dialog[open] { animation: rise var(--t-med); }
 .cloud-folder__meta { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-2); margin-top: var(--s-1); }
 .cloud-folder__actions { display: flex; flex: none; align-items: center; gap: var(--s-1); }
 
+/* Dialog Cloud: dibatasi tinggi layar agar tombol tutup selalu terjangkau. */
+.cloud-dialog { max-height: calc(100dvh - 2rem); overflow: hidden; }
+.cloud-dialog[open] { display: flex; flex-direction: column; }
+.cloud-dialog__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-3); padding: var(--s-5) var(--s-3) var(--s-3) var(--s-5); }
+.cloud-dialog__head h2 { min-width: 0; }
+.cloud-dialog__head p { margin-top: var(--s-1); color: var(--text-2); font-size: var(--fs-sm); }
+.cloud-dialog > form { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
+.cloud-dialog > .dialog__body, .cloud-dialog > form > .dialog__body { min-height: 0; overflow-y: auto; }
+.cloud-dialog__foot, .cloud-dialog > .dialog__actions { flex: none; }
+@media (max-width: 639px) {
+  .cloud-dialog { width: 100%; max-width: none; max-height: 100dvh; border-radius: 0; }
+}
+
 /* Panduan bertab di dalam dialog */
-.cloud-guide { display: grid; min-height: 0; }
+.cloud-guide { display: grid; grid-template-rows: auto minmax(0, 1fr); flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.cloud-guide > .dialog__body { min-height: 0; overflow-y: auto; }
+.cloud-guide__tabs { min-height: 0; overflow-x: auto; overflow-y: hidden; }
 .cloud-guide__tabs { display: flex; gap: var(--s-1); padding: 0 var(--s-5) var(--s-3); overflow-x: auto; border-bottom: 1px solid var(--border); }
 .cloud-guide__tab { display: inline-flex; align-items: center; gap: var(--s-2); flex: none; min-height: var(--ctl); padding: 0 var(--s-3); border: 0; border-radius: var(--r-md); background: none; color: var(--text-2); font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; }
 .cloud-guide__tab:hover { background: var(--surface-2); color: var(--text); }
@@ -746,8 +761,8 @@ dialog[open] { animation: rise var(--t-med); }
 .cloud-guide__table th { background: var(--surface-2); color: var(--text-2); font-size: var(--fs-xs); }
 .cloud-guide__table td:last-child, .cloud-guide__table th:last-child { text-align: right; font-variant-numeric: tabular-nums; }
 @media (min-width: 640px) {
-  .cloud-guide { grid-template-columns: 12rem minmax(0, 1fr); }
-  .cloud-guide__tabs { flex-direction: column; padding: var(--s-5) var(--s-3); overflow: visible; border-bottom: 0; border-right: 1px solid var(--border); }
+  .cloud-guide { grid-template-columns: 12rem minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+  .cloud-guide__tabs { flex-direction: column; padding: var(--s-5) var(--s-3); overflow-x: hidden; overflow-y: auto; border-bottom: 0; border-right: 1px solid var(--border); }
   .cloud-guide__tab { width: 100%; }
   .cloud-guide__panel { align-content: start; }
 }

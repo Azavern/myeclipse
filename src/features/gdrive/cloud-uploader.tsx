@@ -795,10 +795,19 @@ export function CloudUploader(props: CloudUploaderProps) {
       </div>
 
       {/* Panduan */}
-      <dialog ref={guideRef} aria-labelledby="cloud-guide-title">
-        <div className="dialog__body">
-          <h2 id="cloud-guide-title">Panduan Cloud</h2>
-          <p className="muted">Semua yang perlu diketahui sebelum mengunggah file kelas.</p>
+      <dialog
+        ref={guideRef} className="cloud-dialog" aria-labelledby="cloud-guide-title"
+        onClick={(e) => { if (e.target === e.currentTarget) e.currentTarget.close(); }}
+      >
+        <div className="cloud-dialog__head">
+          <div>
+            <h2 id="cloud-guide-title">Panduan Cloud</h2>
+            <p>Semua yang perlu diketahui sebelum mengunggah file kelas.</p>
+          </div>
+          <button type="button" className="btn btn--ghost btn--icon" aria-label="Tutup panduan"
+            onClick={() => guideRef.current?.close()}>
+            <Icon name="x" size={20} />
+          </button>
         </div>
         <div className="cloud-guide">
           <div className="cloud-guide__tabs" role="tablist" aria-label="Topik panduan">
@@ -930,7 +939,10 @@ export function CloudUploader(props: CloudUploaderProps) {
       </dialog>
 
       {/* Tambah folder */}
-      <dialog ref={addRef} aria-labelledby="cloud-add-title">
+      <dialog
+        ref={addRef} className="cloud-dialog" aria-labelledby="cloud-add-title"
+        onClick={(e) => { if (e.target === e.currentTarget) e.currentTarget.close(); }}
+      >
         <form onSubmit={submitFolder} noValidate>
           <div className="dialog__body">
             <h2 id="cloud-add-title">Tambah folder</h2>
@@ -988,7 +1000,10 @@ export function CloudUploader(props: CloudUploaderProps) {
       </dialog>
 
       {/* Hapus folder */}
-      <dialog ref={removeRef} aria-labelledby="cloud-remove-title">
+      <dialog
+        ref={removeRef} className="cloud-dialog" aria-labelledby="cloud-remove-title"
+        onClick={(e) => { if (e.target === e.currentTarget) e.currentTarget.close(); }}
+      >
         <div className="dialog__body">
           <h2 id="cloud-remove-title">Hapus “{removeTarget?.name}” dari daftar?</h2>
           <p className="muted">Hanya catatannya di Eclipse yang dihapus. Folder dan isinya di Google Drive tidak ikut terhapus.</p>
