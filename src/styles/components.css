@@ -634,3 +634,131 @@ dialog[open] { animation: rise var(--t-med); }
 .qr-url { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: var(--fs-xs); }
 .qr-result .cluster { margin-top: var(--s-3); }
 .qr-result .muted { margin-top: var(--s-3); }
+
+/* Google Drive Uploader: progres native agar tidak perlu atribut style (CSP). */
+.upload-progress { width: 100%; height: 0.5rem; }
+.upload-item__name { overflow-wrap: anywhere; }
+
+/* Cloud (Google Drive) ------------------------------------------------------------------------- */
+.cloud-grid { display: grid; gap: var(--s-5); align-items: start; }
+.cloud-col { display: grid; gap: var(--s-5); min-width: 0; align-content: start; }
+@media (min-width: 1200px) {
+  .cloud-grid { grid-template-columns: minmax(0, 1fr) minmax(20rem, 25rem); }
+  .cloud-side { position: sticky; top: var(--s-4); }
+  .cloud-side__card { max-height: calc(100dvh - var(--s-8)); overflow-y: auto; }
+}
+
+/* Area seret-lepas: label besar berisi input berkas tersembunyi. */
+.cloud-drop { display: grid; justify-items: center; gap: var(--s-3); padding: var(--s-6) var(--s-5); border: 2px dashed var(--brand-200); border-radius: var(--r-lg); background: var(--brand-50); text-align: center; cursor: pointer; transition: background var(--t-fast), border-color var(--t-fast); }
+.cloud-drop:hover { background: var(--brand-100); }
+.cloud-drop.is-over { border-style: solid; border-color: var(--brand); background: var(--brand-100); }
+.cloud-drop:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+.cloud-drop--off { cursor: not-allowed; opacity: .65; }
+.cloud-drop__art { display: grid; place-items: center; width: 3.25rem; height: 3.25rem; border-radius: var(--r-lg); background: var(--surface); color: var(--brand-strong); box-shadow: var(--shadow-sm); }
+.cloud-drop__title { display: block; font-size: 1.0625rem; font-weight: 700; }
+.cloud-drop__hint { color: var(--text-2); }
+.cloud-drop__pick { color: var(--brand-strong); font-weight: 600; text-decoration: underline; }
+
+/* Berkas terpilih */
+.cloud-sel { display: grid; margin-top: var(--s-4); border: 1px solid var(--border); border-radius: var(--r-md); }
+.cloud-sel__item + .cloud-sel__item { border-top: 1px solid var(--border); }
+.cloud-sel__row { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-2) var(--s-2) var(--s-2) var(--s-3); }
+.cloud-sel__icon { flex: none; color: var(--text-2); }
+.cloud-sel__body { flex: 1; min-width: 0; }
+.cloud-sel__name { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.cloud-sel__meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-2); color: var(--text-2); font-size: var(--fs-sm); }
+.cloud-sel__error { display: inline-flex; align-items: center; gap: .25rem; color: var(--error-text); font-weight: 600; }
+.cloud-sel__error svg { flex: none; }
+.cloud-sel__rename { display: grid; gap: var(--s-2); padding: 0 var(--s-3) var(--s-3); }
+.cloud-sel__rename .field-row input { flex: 1 1 12rem; }
+.cloud-sel__rename code { align-self: center; color: var(--text-2); }
+
+/* Tujuan penyimpanan */
+.cloud-dest { margin-top: var(--s-5); padding-top: var(--s-5); border-top: 1px solid var(--border); }
+.cloud-dest__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-2); margin-bottom: var(--s-3); }
+.cloud-dest__head h3 { font-size: 1rem; }
+.cloud-opts { display: grid; gap: var(--s-2); align-items: stretch; }
+@media (min-width: 768px) { .cloud-opts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.cloud-opt { display: flex; align-items: flex-start; gap: var(--s-3); padding: var(--s-3) var(--s-4); border: 1px solid var(--border-input); border-radius: var(--r-md); background: var(--surface); cursor: pointer; transition: background var(--t-fast), border-color var(--t-fast); }
+.cloud-opt:hover { background: var(--surface-2); }
+.cloud-opt input { flex: none; width: 1.25rem; height: 1.25rem; margin: .1rem 0 0; }
+.cloud-opt:has(input:checked) { border-color: var(--brand); background: var(--brand-50); box-shadow: inset 0 0 0 1px var(--brand); }
+.cloud-opt:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+.cloud-opt:has(input:disabled) { cursor: not-allowed; opacity: .7; }
+.cloud-opt__text { display: grid; gap: 2px; min-width: 0; }
+.cloud-opt__title { font-weight: 600; }
+.cloud-opt__desc { color: var(--text-2); font-size: var(--fs-sm); }
+.cloud-dest__note { display: flex; align-items: flex-start; gap: var(--s-2); margin-top: var(--s-3); color: var(--text-2); }
+.cloud-dest__note svg { flex: none; margin-top: 2px; color: var(--brand-strong); }
+.cloud-dest__note--warn { color: var(--warning-text); font-weight: 600; }
+.cloud-dest__note--warn svg { color: var(--warning); }
+.cloud-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3); margin-top: var(--s-5); padding-top: var(--s-4); border-top: 1px solid var(--border); }
+.cloud-foot p { color: var(--text-2); font-size: var(--fs-sm); }
+@media (max-width: 479px) { .cloud-foot .btn { width: 100%; } }
+
+/* Baris unggahan */
+.cloud-up { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--s-3); padding: var(--s-3) 0; }
+.cloud-up + .cloud-up { border-top: 1px solid var(--border); }
+.cloud-up__art { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: var(--r-md); background: var(--surface-3); color: var(--text-2); }
+.cloud-up__body { min-width: 0; }
+.cloud-up__top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); }
+.cloud-up__name { font-weight: 600; overflow-wrap: anywhere; }
+.cloud-up__size { flex: none; color: var(--text-2); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.cloud-up__progress { width: 100%; height: .5rem; margin: var(--s-2) 0; accent-color: var(--brand); }
+.cloud-up__meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-2); color: var(--text-2); font-size: var(--fs-sm); }
+.cloud-up__meta .nums { color: var(--text); font-variant-numeric: tabular-nums; }
+.cloud-up__actions { display: flex; align-items: center; gap: var(--s-1); }
+@media (max-width: 599px) {
+  .cloud-up { grid-template-columns: auto minmax(0, 1fr); }
+  .cloud-up__actions { grid-column: 1 / -1; justify-content: flex-end; }
+}
+
+/* Tujuan saya */
+.cloud-folder { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) 0; }
+.cloud-folder + .cloud-folder { border-top: 1px solid var(--border); }
+.cloud-folder__art { display: grid; place-items: center; flex: none; width: 2.5rem; height: 2.5rem; border-radius: var(--r-md); background: var(--brand-100); color: var(--brand-strong); }
+.cloud-folder__body { flex: 1; min-width: 0; }
+.cloud-folder__name { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.cloud-folder__meta { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-2); margin-top: var(--s-1); }
+.cloud-folder__actions { display: flex; flex: none; align-items: center; gap: var(--s-1); }
+
+/* Panduan bertab di dalam dialog */
+.cloud-guide { display: grid; min-height: 0; }
+.cloud-guide__tabs { display: flex; gap: var(--s-1); padding: 0 var(--s-5) var(--s-3); overflow-x: auto; border-bottom: 1px solid var(--border); }
+.cloud-guide__tab { display: inline-flex; align-items: center; gap: var(--s-2); flex: none; min-height: var(--ctl); padding: 0 var(--s-3); border: 0; border-radius: var(--r-md); background: none; color: var(--text-2); font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; }
+.cloud-guide__tab:hover { background: var(--surface-2); color: var(--text); }
+.cloud-guide__tab[aria-selected=true] { background: var(--brand-100); color: var(--brand-strong); }
+.cloud-guide__panel { display: grid; gap: var(--s-4); align-content: start; }
+.cloud-guide__panel h3 { font-size: 1rem; }
+.cloud-guide__panel h3 + * { margin-top: var(--s-1); }
+.cloud-guide__panel p, .cloud-guide__panel li { color: var(--text-2); }
+.cloud-guide__pair { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-3); align-items: baseline; }
+.cloud-guide__pair b { min-width: 5rem; color: var(--text); }
+.cloud-guide__pair span { color: var(--text-2); font-size: var(--fs-sm); }
+.cloud-guide__list { display: grid; gap: var(--s-2); }
+.cloud-guide__list li { position: relative; padding-left: var(--s-4); }
+.cloud-guide__list li::before { content: ''; position: absolute; left: 2px; top: .7em; width: .375rem; height: .375rem; border-radius: var(--r-full); background: var(--brand); }
+.cloud-guide__steps { display: grid; gap: var(--s-2); counter-reset: cloud-step; }
+.cloud-guide__steps li { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-2) var(--s-3); border: 1px solid var(--border); border-radius: var(--r-md); color: var(--text); font-weight: 600; }
+.cloud-guide__steps li::before { counter-increment: cloud-step; content: counter(cloud-step); display: grid; place-items: center; flex: none; width: 1.75rem; height: 1.75rem; border-radius: var(--r-full); background: var(--brand-100); color: var(--brand-strong); font-size: var(--fs-sm); }
+.cloud-guide__table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.cloud-guide__table th, .cloud-guide__table td { padding: var(--s-2) var(--s-3); text-align: left; border-bottom: 1px solid var(--border); }
+.cloud-guide__table th { background: var(--surface-2); color: var(--text-2); font-size: var(--fs-xs); }
+.cloud-guide__table td:last-child, .cloud-guide__table th:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+@media (min-width: 640px) {
+  .cloud-guide { grid-template-columns: 12rem minmax(0, 1fr); }
+  .cloud-guide__tabs { flex-direction: column; padding: var(--s-5) var(--s-3); overflow: visible; border-bottom: 0; border-right: 1px solid var(--border); }
+  .cloud-guide__tab { width: 100%; }
+  .cloud-guide__panel { align-content: start; }
+}
+
+/* Dialog tambah folder: pilihan jenis folder */
+.cloud-kind { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2); margin-bottom: var(--s-5); }
+.cloud-kind label { display: flex; align-items: center; justify-content: center; gap: var(--s-2); min-height: var(--ctl); padding: 0 var(--s-3); border: 1px solid var(--border-input); border-radius: var(--r-md); background: var(--surface); font-size: var(--fs-sm); font-weight: 600; text-align: center; cursor: pointer; }
+.cloud-kind label:hover { background: var(--surface-2); }
+.cloud-kind label:has(input:checked) { border-color: var(--brand); background: var(--brand-50); color: var(--brand-strong); box-shadow: inset 0 0 0 1px var(--brand); }
+.cloud-kind input { position: absolute; opacity: 0; pointer-events: none; }
+
+@media (pointer: coarse) {
+  .cloud-guide__tab, .cloud-kind label, .cloud-folder__actions .btn--icon { min-height: var(--ctl); }
+}

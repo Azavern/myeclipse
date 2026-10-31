@@ -16,6 +16,12 @@ export function allowsGoogleSignIn(pathname: string): boolean {
 }
 
 const GOOGLE_GSI = 'https://accounts.google.com';
+const GOOGLE_DRIVE_UPLOAD = 'https://www.googleapis.com';
+
+// Peramban mengunggah potongan file langsung ke sesi resumable Google Drive hanya dari /cloud.
+export function allowsGoogleUpload(pathname: string): boolean {
+  return pathname === '/cloud';
+}
 
 export type CspInput = {
   nonce: string;
@@ -25,6 +31,8 @@ export type CspInput = {
   allowHttpsImages?: boolean;
   /** Hanya untuk /login: skrip dan iframe Google Identity Services. */
   googleSignIn?: boolean;
+  /** Hanya untuk /cloud: koneksi PUT ke sesi resumable Google Drive. */
+  googleUpload?: boolean;
 };
 
 // Asal (origin) dari URL; null bila tidak valid atau bukan http(s), sehingga CSP tetap ketat (fail closed).
@@ -38,7 +46,7 @@ export function originOf(url: string | undefined): string | null {
   }
 }
 
-export function buildCsp({ nonce, supabaseUrl, dev = false, allowHttpsImages = false, googleSignIn = false }: CspInput): string {
+export function buildCsp({ nonce, supabaseUrl, dev = false, allowHttpsImages = false, googleSignIn = false, googleUpload = false }: CspInput): string {
   const media = originOf(supabaseUrl);
   const directives: [string, string[]][] = [
     ['default-src', ["'self'"]],
@@ -47,7 +55,7 @@ export function buildCsp({ nonce, supabaseUrl, dev = false, allowHttpsImages = f
     ['style-src', ["'self'", `'nonce-${nonce}'`]],
     ['img-src', ["'self'", 'data:', 'blob:', ...(media ? [media] : []), ...(allowHttpsImages ? ['https:'] : [])]],
     ['font-src', ["'self'"]],
-    ['connect-src', ["'self'", ...(googleSignIn ? [GOOGLE_GSI] : []), ...(dev ? ['ws:', 'wss:'] : [])]], // ws: hanya untuk HMR di dev
+    ['connect-src', ["'self'", ...(googleSignIn ? [GOOGLE_GSI] : []), ...(googleUpload ? [GOOGLE_DRIVE_UPLOAD] : []), ...(dev ? ['ws:', 'wss:'] : [])]], // ws: hanya untuk HMR di dev
     ['object-src', ["'none'"]],
     ['base-uri', ["'self'"]],
     ['form-action', ["'self'"]],

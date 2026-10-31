@@ -14,6 +14,7 @@ Nama kelas tidak ditulis di kode. Semua tampilan membaca `classes.name` (data aw
 - **Eclipse Knowledge.** Perpustakaan pengetahuan bersama: entri Markdown dengan pratinjau, pencarian/filter/sort, draf lokal, penanda bagian yang diedit, serta alur permintaan akses edit (penulis, editor, dan eskalasi ke Ketua). Entri publik dapat dibaca tanpa masuk.
 - **Inventory pribadi.** Daftar tautan https milik tiap anggota, tidak dijelajahi bersama. Pemilik membagikan seluruh isinya lewat `inv_key` 16 karakter (custom atau acak) dengan masa aktif 24 jam, 7 hari, 1 bulan, 6 bulan, atau tanpa kedaluwarsa. Maksimal 12 key aktif bersamaan; mencabut atau membiarkan key kedaluwarsa mengosongkan slot. Halaman `/inventory/access` membuka inventory dengan key tanpa perlu login.
 - **QR Studio.** Halaman publik `/qr` untuk membuat QR tanpa login. Tautannya selalu ada di navigasi utama, untuk tamu maupun anggota. Dua mode: **Normal** (modul kotak standar) dan **Custom** (titik kotak/bulat/balok, warna, serta ikon tengah dengan bentuk border, crop/shrink, gap, ketebalan, dan outline). Balok dapat memakai orientasi horizontal, vertikal, diagonal turun, atau diagonal naik. Gambar PNG disimpan maksimal 6 jam di bucket publik `qr-shares`, dengan URL gambar dan tombol unduh.
+- **Cloud Google Drive.** Anggota aktif mengunggah file langsung dari peramban ke Google Drive lewat sesi resumable yang dibuat server (file tidak melewati server Eclipse). Folder tujuan mengikuti pilihan unggahan → default pribadi → folder kategori → folder utama. Setiap anggota dapat membuat folder custom, menambahkan folder eksternal (wajib *Anyone with the link → Editor*, diuji dengan dummy.txt), dan menetapkan default. Ketua mengatur batas ukuran (bawaan 500 MB) dan izin ZIP/RAR di **Pengaturan → Cloud**.
 - **Syarat & Privasi.** Halaman publik `/terms` dan `/privacy` menjelaskan ketentuan penggunaan dan pemrosesan data; ditautkan dari halaman masuk dan pengaturan keamanan akun.
 - **PWA.** Manifest, service worker, dan halaman offline membuat aplikasi dapat dipasang ke beranda. Hanya aset statis yang di-cache; halaman berisi data anggota tidak disimpan di cache.
 
@@ -105,6 +106,10 @@ Tidak ada variabel `NEXT_PUBLIC_*`: semuanya dibaca di server dan divalidasi saa
 | `SUPABASE_SECRET_KEY` | Kunci service role. **Rahasia.** Hanya untuk Auth Admin API, unggah/pembersihan gambar QR, dan skrip |
 | `APP_URL` | Dasar URL tautan akses dan origin login Google, tanpa slash di akhir (lokal: `http://localhost:3000`). Harus sama dengan origin yang dibuka di browser |
 | `GOOGLE_CLIENT_ID` | Client ID OAuth (Web) untuk tombol Google Identity Services. Bukan rahasia; client secret tidak dipakai aplikasi |
+| `GDRIVE_CLIENT_ID`, `GDRIVE_CLIENT_SECRET`, `GDRIVE_REFRESH_TOKEN` | **Rahasia**, hanya server. OAuth client + refresh token akun Google pemilik folder. Tanpa ketiganya fitur Cloud menampilkan pesan konfigurasi |
+| `GDRIVE_ROOT_FOLDER_ID` | Folder utama Google Drive untuk fallback kategori dan induk default folder custom |
+| `GDRIVE_PICTURES`, `GDRIVE_VIDEOS`, `GDRIVE_AUDIOS`, `GDRIVE_DOCUMENTS`, `GDRIVE_ARCHIVES_ID` | Folder kategori opsional. Yang kosong memakai `GDRIVE_ROOT_FOLDER_ID` |
+| `GDRIVE_CUSTOM` | Induk folder custom anggota. Opsional; kosong berarti memakai root |
 | `CRON_SECRET` | String acak ≥32 karakter untuk otorisasi `/api/health` dan pemanggilan pembersih QR terjadwal |
 | `SMTP_EMAIL`, `SMTP_PASSWORD` | Akun Gmail pengirim OTP perubahan email (App Password). Opsional; tanpa keduanya tombol Verifikasi email gagal mengirim kode |
 | `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_NAME` | Data Ketua pertama. Hanya untuk skrip lokal, jangan diset di Vercel |

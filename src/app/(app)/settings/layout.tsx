@@ -20,6 +20,7 @@ export default async function SettingsLayout({ children }: { children: ReactNode
   const manage: NavItem[] = [
     ...(viewer.can('class.manage') ? ([
       { href: '/settings/class', label: 'Kelas', icon: 'book' },
+      { href: '/settings/cloud', label: 'Cloud', icon: 'upload' },
       { href: '/settings/theme', label: 'Tema', icon: 'palette' },
       { href: '/settings/visibility', label: 'Visibilitas', icon: 'eye' },
     ] satisfies NavItem[]) : []),

@@ -68,6 +68,7 @@ export async function AppFrame({ children }: { children: ReactNode }) {
   // Inventory pribadi: hanya untuk anggota aktif dan bukan halaman ber-visibility.
   if (viewer.user && viewer.status === 'active') {
     main.push({ href: '/inventory', label: 'Inventory', icon: 'link', except: ['/inventory/access'] });
+    main.push({ href: '/cloud', label: 'Cloud', icon: 'upload' });
   }
   const account: NavItem[] = viewer.user ? [
     { href: '/settings/profile', label: 'Profil saya', icon: 'user', match: ['/settings/profile', '/settings/social', '/settings/account'] },
@@ -76,7 +77,7 @@ export async function AppFrame({ children }: { children: ReactNode }) {
   const canManage = viewer.can('class.manage');
   const manage: NavItem[] = canManage || viewer.can('members.manage')
     ? [{ href: canManage ? '/settings/class' : '/settings/members', label: 'Pengelolaan kelas', icon: 'settings',
-      match: ['/settings/class', '/settings/theme', '/settings/visibility', '/settings/access', '/settings/members'] }]
+      match: ['/settings/class', '/settings/theme', '/settings/visibility', '/settings/access', '/settings/members', '/settings/cloud'] }]
     : viewer.can('members.request')
       ? [{ href: '/settings/members', label: 'Anggota', icon: 'users' }]
       : [];
