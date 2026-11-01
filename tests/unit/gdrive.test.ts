@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildFinalName, categoryForExt, checkFile, collisionName, detectSignature, parseFolderRef, uploadSlotLimit,
+  buildFinalName, categoryForExt, checkFile, collisionName, detectSignature, fileInFolderQuery, parseFolderRef,
+  uploadLocation, uploadSlotLimit, uploadTagQuery,
 } from '../../src/lib/gdrive/files';
 import { allowsGoogleUpload, buildCsp } from '../../src/lib/security/csp';
 
@@ -112,6 +113,43 @@ describe('signature file', () => {
   it('menerima file yang ekstensi dan signature-nya konsisten', () => {
     expect(checkFile({ name: 'Laporan.pdf', size: pdf.length, bytes: pdf, maxBytes: MiB, archivesEnabled: true }))
       .toMatchObject({ ok: true, ext: 'pdf', category: 'documents', mime: 'application/pdf' });
+  });
+});
+
+describe('pencarian file unggahan di Google Drive', () => {
+  it('mencari lewat properti unggahan, bukan hanya nama file', () => {
+    expect(uploadTagQuery('0b8f4c1e-uuid')).toBe(
+      "appProperties has { key='eclipseUploadId' and value='0b8f4c1e-uuid' } and trashed = false",
+    );
+  });
+  it('meng-escape nama dan folder agar query tetap satu ekspresi', () => {
+    const query = fileInFolderQuery("Laporan 'final' A\\B.pdf", '1AbCdEfGh');
+    expect(query).toContain("name = 'Laporan \\'final\\' A\\\\B.pdf'");
+    expect(query).toContain("'1AbCdEfGh' in parents");
+    expect(query.endsWith('and trashed = false')).toBe(true);
+  });
+});
+
+describe('lokasi file hasil unggahan', () => {
+  const destinationId = 'folder-tujuan';
+  it('mengenali file yang sudah berada di folder tujuan', () => {
+    expect(uploadLocation({ destinationId, stagingParentId: 'folder-penampung', parents: [destinationId] }))
+      .toBe('destination');
+    // Tanpa folder penampung (folder custom/kategori), folder tujuan satu-satunya lokasi sah.
+    expect(uploadLocation({ destinationId, stagingParentId: null, parents: [destinationId] }))
+      .toBe('destination');
+  });
+  it('mengenali file yang masih di folder penampung', () => {
+    expect(uploadLocation({ destinationId, stagingParentId: 'folder-penampung', parents: ['folder-penampung'] }))
+      .toBe('staging');
+  });
+  it('menolak folder lain dan parent yang tidak bisa dibaca', () => {
+    expect(uploadLocation({ destinationId, stagingParentId: 'folder-penampung', parents: ['folder-lain'] }))
+      .toBe('unknown');
+    expect(uploadLocation({ destinationId, stagingParentId: null, parents: undefined })).toBe('unknown');
+    // Folder penampung yang sama dengan folder tujuan tidak boleh dianggap staging.
+    expect(uploadLocation({ destinationId, stagingParentId: destinationId, parents: [destinationId] }))
+      .toBe('destination');
   });
 });
 

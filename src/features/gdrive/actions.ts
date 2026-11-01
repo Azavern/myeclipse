@@ -26,8 +26,14 @@ export type CloudResult<T> = { ok: true; data: T } | { ok: false; code: CloudErr
 const fail = (code: CloudErrorCode, message: string): CloudResult<never> => ({ ok: false, code, message });
 
 function mapError(error: unknown): CloudResult<never> {
-  if (error instanceof UploadError) return fail(error.code, error.message);
+  // Kode dan pesan dari lapisan unggahan dicatat agar kegagalan bisa ditelusuri dari
+  // terminal server tanpa menyentuh kredensial atau isi file.
+  if (error instanceof UploadError) {
+    console.error('gdrive upload error', error.code, error.message);
+    return fail(error.code, error.message);
+  }
   if (error instanceof DriveError) {
+    console.error('gdrive drive error', error.kind, error.message);
     switch (error.kind) {
       case 'config': return fail('config', 'Google Drive belum dikonfigurasi di server.');
       case 'auth': return fail('auth', 'Kredensial Google Drive di server bermasalah. Hubungi Ketua.');

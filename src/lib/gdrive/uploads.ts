@@ -1,10 +1,14 @@
 import 'server-only';
 import type { createClient } from '@/lib/supabase/server';
 import {
-  cancelSession, createResumableSession, deleteFile, DriveError, fileLink, getMeta, headBytes, sessionStatus,
-  uniqueName, type SessionState,
+  cancelSession, createResumableSession, customParentId, deleteFile, DriveError, fileLink,
+  findUploadedFile, getFileMeta, getMeta, hasAnyoneWriter, headBytes, moveFile, sessionStatus, uniqueName,
+  type DriveMeta, type SessionState,
 } from './drive';
-import { detectSignature, extensionOf, mimeForExt, signatureMatches, buildFinalName, categoryForExt, type Category } from './files';
+import {
+  detectSignature, extensionOf, mimeForExt, signatureMatches, buildFinalName, categoryForExt, uploadLocation,
+  type Category,
+} from './files';
 import { resolveDestination } from './folders';
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
@@ -23,6 +27,7 @@ export type UploadRow = {
   id: string;
   owner_id: string;
   class_id: string;
+  folder_id: string | null;
   drive_folder_id: string;
   drive_file_name: string;
   original_name: string;
@@ -102,6 +107,10 @@ export async function startUpload(o: {
     supabase: o.supabase, userId: o.userId, classId: o.classId, category,
     folderId: o.folderId, preferDefault: o.preferDefault,
   });
+  // Byte selalu dikirim langsung ke folder tujuan, termasuk folder eksternal: sesi
+  // resumable dibuat dengan folder itu sebagai induk. Tidak ada folder penampung,
+  // sehingga tidak ada langkah tambahan yang bisa gagal sebelum byte pertama terkirim.
+  const uploadParentId = destination.driveFolderId;
   const wanted = buildFinalName({
     originalName, customName: o.customName, timestamp: stamp(new Date(), o.timezone), ext,
   });
@@ -123,7 +132,7 @@ export async function startUpload(o: {
   let sessionUri: string;
   try {
     sessionUri = await createResumableSession({
-      name: finalName, parentId: destination.driveFolderId, mimeType: mimeForExt(ext),
+      name: finalName, parentId: uploadParentId, mimeType: mimeForExt(ext),
       uploadId: row.id, origin: o.origin,
     });
   } catch (error) {
@@ -153,6 +162,61 @@ async function loadOwned(supabase: Supabase, userId: string, classId: string, id
 
 const ENDED_MESSAGE = 'Unggahan ini sudah berakhir. Mulai ulang dari daftar file.';
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// File bisa berada di folder milik akun lain sehingga ID dari sesi tidak selalu dapat
+// dibaca, dan Drive kadang belum konsisten sesaat setelah sesi selesai. Baca file itu
+// beberapa kali, lalu cari di Drive sebelum menyimpulkan file tidak ada.
+async function resolveUploadedFile(o: {
+  uploadId: string; fileId: string; name: string; parentId: string; size: number;
+}): Promise<DriveMeta | null> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await sleep(400 * attempt);
+    try {
+      return await getFileMeta(o.fileId);
+    } catch (error) {
+      if (!(error instanceof DriveError && error.kind === 'not_found')) throw error;
+    }
+    const found = await findUploadedFile(o);
+    if (found) return found;
+  }
+  return null;
+}
+
+// Folder penampung tempat byte bisa ditampung sebelum file dipindahkan ke folder
+// eksternal. Nilainya hanya dipakai untuk mengenali file yang belum dipindahkan, bukan
+// untuk menghitung ulang folder tujuan.
+function stagingParentId(destinationId: string): string | null {
+  try {
+    const staging = customParentId();
+    return staging === destinationId ? null : staging;
+  } catch {
+    return null;
+  }
+}
+
+// Folder tujuan yang dibagikan "Anyone with the link" diakses lewat tautan, bukan lewat
+// keanggotaan. Untuk folder seperti itu Drive bisa tidak melaporkan `parents` ke akun
+// server walau file benar-benar berada di dalamnya, jadi hasilnya tidak boleh dipakai
+// sebagai bukti file salah tempat.
+async function isLinkSharedFolder(folderId: string): Promise<boolean> {
+  try {
+    return hasAnyoneWriter(await getMeta(folderId));
+  } catch {
+    return false;
+  }
+}
+
+// Metadata yang tidak cocok TIDAK dihapus: penyebabnya bisa pemetaan folder di aplikasi
+// ini sendiri, bukan file yang tidak sah. Baris unggahan dibiarkan aktif supaya
+// verifikasi bisa diulang setelah masalahnya diketahui dari log server.
+function metadataMismatch(detail: string): UploadError {
+  return new UploadError(
+    'validation',
+    `Google Drive sudah menerima file, tetapi ${detail}. File tidak dihapus; tekan Coba lagi untuk memeriksa ulang.`,
+  );
+}
+
 // Verifikasi akhir: ukuran, folder, dan signature dibaca langsung dari Drive, bukan
 // dari laporan peramban. Baris yang sudah ditandai berakhir (cancelled/failed/expired)
 // tetap diperiksa: bila Drive ternyata menyelesaikan filenya, baris direkonsiliasi
@@ -181,28 +245,93 @@ export async function finishUpload(o: { supabase: Supabase; userId: string; clas
     return { done: false, bytesUploaded: state.bytesUploaded, size: Number(row.size_bytes) };
   }
 
-  const meta = await getMeta(state.fileId);
   const expected = Number(row.size_bytes);
-  if (Number(meta.size ?? 0) !== expected || !(meta.parents ?? []).includes(row.drive_folder_id) || meta.trashed === true) {
-    await deleteFile(meta.id).catch(() => console.error('gdrive: file tidak lolos verifikasi dan gagal dihapus', meta.id));
-    if (!ended) await o.supabase.rpc('fail_gdrive_upload', { p_id: row.id, p_error: 'metadata_mismatch' });
-    throw new UploadError('validation', 'File yang diterima Google Drive tidak sesuai dengan data unggahan, jadi dihapus.');
+  // Folder tujuan sebenarnya disimpan saat unggahan dimulai; folder penampung hanya
+  // dibaca untuk mengenali file yang belum dipindahkan.
+  const destinationId = row.drive_folder_id;
+  const meta = await resolveUploadedFile({
+    uploadId: row.id, fileId: state.fileId, name: row.drive_file_name,
+    parentId: destinationId, size: expected,
+  });
+  if (!meta) {
+    // Sesi selesai tetapi filenya tidak ada di Drive: lepaskan slot unggahan agar
+    // pengguna bisa memilih file itu lagi, tanpa menyentuh file lain di Drive.
+    console.error('gdrive verify file hilang', { upload: row.id, fileId: state.fileId });
+    if (!ended) await o.supabase.rpc('fail_gdrive_upload', { p_id: row.id, p_error: 'file_missing' });
+    throw new UploadError('session', 'Google Drive tidak menemukan file hasil unggahan. Pilih file itu lagi untuk mengunggah ulang.');
   }
 
-  const ext = extensionOf(row.drive_file_name) ?? '';
-  const head = await headBytes(meta.id, 4096);
-  const kind = detectSignature(head);
-  if (!kind || !signatureMatches(ext, kind)) {
-    await deleteFile(meta.id).catch(() => console.error('gdrive: file signature salah dan gagal dihapus', meta.id));
-    if (!ended) await o.supabase.rpc('fail_gdrive_upload', { p_id: row.id, p_error: 'signature' });
-    throw new UploadError('signature', 'Isi file tidak sesuai dengan ekstensinya, jadi file dihapus dari Google Drive.');
-  }
+  let stagingParent: string | null;
+  let location: 'destination' | 'staging' | 'unknown';
+  try {
+    stagingParent = stagingParentId(destinationId);
+    location = uploadLocation({ destinationId, stagingParentId: stagingParent, parents: meta.parents });
+    const actualSize = Number(meta.size ?? 0);
+    const trashed = meta.trashed === true;
+    // Diagnostik aman: tanpa token, session URI, atau isi file.
+    const facts = {
+      upload: row.id, expectedSize: expected, actualSize,
+      destinationParent: destinationId, stagingParent, location,
+      actualParents: meta.parents ?? [], trashed,
+    };
+    if (actualSize !== expected) {
+      console.error('gdrive verify ukuran tidak cocok', facts);
+      throw metadataMismatch('ukuran file yang tersimpan berbeda dari ukuran unggahan');
+    }
+    if (trashed) {
+      console.error('gdrive verify file terhapus', facts);
+      throw metadataMismatch('file itu berstatus terhapus di Google Drive');
+    }
+    if (location === 'unknown') {
+      // File dari sesi ini sudah dibaca langsung dari Drive dan ukurannya cocok. Kalau
+      // folder tujuan dibagikan lewat tautan, `parents` boleh tidak terlihat; itu bukan
+      // alasan untuk menganggap unggahan gagal.
+      const linkShared = await isLinkSharedFolder(destinationId);
+      console.error('gdrive verify folder tidak terbaca', { ...facts, linkShared });
+      if (!linkShared) throw metadataMismatch('file itu tidak berada di folder tujuan');
+    }
 
-  const { error } = ended
-    ? await o.supabase.rpc('reconcile_gdrive_upload', { p_id: row.id, p_drive_file_id: meta.id, p_bytes: expected })
-    : await o.supabase.rpc('complete_gdrive_upload', { p_id: row.id, p_drive_file_id: meta.id, p_bytes: expected });
-  if (error) throw new UploadError('validation', 'Hasil unggahan tidak dapat dicatat. Coba lagi.');
-  return { done: true, fileId: meta.id, link: fileLink(meta.id), name: meta.name };
+    const ext = extensionOf(row.drive_file_name) ?? '';
+    const head = await headBytes(meta.id, 4096);
+    const kind = detectSignature(head);
+    if (!kind || !signatureMatches(ext, kind)) {
+      console.error('gdrive verify signature salah', { upload: row.id, ext, kind: kind ?? 'null' });
+      await deleteFile(meta.id).catch(() => console.error('gdrive: file signature salah dan gagal dihapus', meta.id));
+      if (!ended) await o.supabase.rpc('fail_gdrive_upload', { p_id: row.id, p_error: 'signature' });
+      throw new UploadError('signature', 'Isi file tidak sesuai dengan ekstensinya, jadi file dihapus dari Google Drive.');
+    }
+
+    let finalMeta = meta;
+    if (location === 'staging' && stagingParent) {
+      // Perpindahan diperiksa dari `parents` yang dikembalikan Drive, bukan dari status HTTP.
+      const parents = await moveFile(meta.id, { fromParentId: stagingParent, toParentId: destinationId })
+        .catch((error: unknown) => {
+          console.error('gdrive: gagal memindahkan file ke folder eksternal', error instanceof DriveError ? error.kind : 'unknown');
+          return null;
+        });
+      if (!parents || !parents.includes(destinationId)) {
+        throw new UploadError('folder', `File sudah tersimpan di folder kelas (${fileLink(meta.id)}) tetapi belum bisa dipindahkan ke folder eksternal tujuan. Periksa izin folder lalu tekan Lanjutkan.`);
+      }
+      finalMeta = { ...meta, parents };
+    }
+
+    const { error } = ended
+      ? await o.supabase.rpc('reconcile_gdrive_upload', { p_id: row.id, p_drive_file_id: finalMeta.id, p_bytes: expected })
+      : await o.supabase.rpc('complete_gdrive_upload', { p_id: row.id, p_drive_file_id: finalMeta.id, p_bytes: expected });
+    if (error) throw new UploadError('validation', 'Hasil unggahan tidak dapat dicatat. Coba lagi.');
+    return { done: true, fileId: finalMeta.id, link: fileLink(finalMeta.id), name: finalMeta.name };
+  } catch (error) {
+    // Galat verifikasi tidak boleh hilang diam-diam: log ini yang membedakan salah
+    // pemetaan folder dari file yang benar-benar bermasalah.
+    if (!(error instanceof UploadError && error.code === 'validation' && error.message.startsWith('Google Drive sudah menerima file'))) {
+      console.error('gdrive verify error', {
+        upload: row.id, status: row.status,
+        cause: error instanceof Error ? error.name : 'unknown',
+        kind: error instanceof DriveError ? error.kind : undefined,
+      });
+    }
+    throw error;
+  }
 }
 
 export type ResumeView =

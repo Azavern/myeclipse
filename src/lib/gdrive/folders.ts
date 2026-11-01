@@ -2,7 +2,7 @@ import 'server-only';
 import type { createClient } from '@/lib/supabase/server';
 import {
   categoryFolderId, canWriteToFolder, createFolder, createTextFile, customParentId, deleteFile, DriveError,
-  getMeta, hasAnyoneWriter, listFolders, rootFolderId, type DriveMeta,
+  getFileMeta, getMeta, hasAnyoneWriter, listFolders, rootFolderId, type DriveMeta,
 } from './drive';
 import { CATEGORY_LABEL, parseFolderRef, type Category } from './files';
 
@@ -16,7 +16,10 @@ export type CloudFolderRow = {
   validated_at: string | null;
 };
 
-export type Destination = { driveFolderId: string; label: string; source: 'folder' | 'category' | 'root' };
+export type Destination = {
+  driveFolderId: string; label: string; source: 'folder' | 'category' | 'root';
+  kind: 'custom' | 'external' | null;
+};
 
 export async function ownFolder(supabase: Supabase, userId: string, classId: string, id: string): Promise<CloudFolderRow | null> {
   const { data } = await supabase.from('gdrive_folders')
@@ -58,7 +61,7 @@ export async function resolveDestination(o: {
     if (row.kind === 'external' && !hasAnyoneWriter(meta)) {
       throw new DriveError('folder', `Izin folder "${meta.name}" berubah. Folder eksternal harus "Anyone with the link" sebagai Editor.`);
     }
-    return { driveFolderId: meta.id, label: meta.name, source: 'folder' };
+    return { driveFolderId: meta.id, label: meta.name, source: 'folder', kind: row.kind };
   }
 
   const categoryId = categoryFolderId(o.category);
@@ -67,7 +70,7 @@ export async function resolveDestination(o: {
   try {
     const meta = await getMeta(target);
     if (!canWriteToFolder(meta)) throw new DriveError('folder', `Folder ${label} tidak dapat ditulisi.`);
-    return { driveFolderId: meta.id, label: meta.name, source: categoryId ? 'category' : 'root' };
+    return { driveFolderId: meta.id, label: meta.name, source: categoryId ? 'category' : 'root', kind: null };
   } catch (error) {
     if (error instanceof DriveError && (error.kind === 'not_found' || error.kind === 'forbidden')) {
       throw new DriveError('folder', `Folder ${label} yang dikonfigurasi server tidak ditemukan atau tidak dapat diakses.`);
@@ -119,7 +122,7 @@ export async function validateExternalFolder(input: string): Promise<{ driveFold
   }
 
   try {
-    await getMeta(dummyId);
+    await getFileMeta(dummyId);
     throw new DriveError('cleanup', `File uji "${dummyName}" masih ada di folder. Hapus manual sebelum memakai folder ini.`);
   } catch (error) {
     if (!(error instanceof DriveError && error.kind === 'not_found')) throw error;

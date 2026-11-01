@@ -1,6 +1,6 @@
 import 'server-only';
 import { env } from '@/lib/env';
-import { collisionName } from './files';
+import { collisionName, fileInFolderQuery, uploadTagQuery } from './files';
 import { originOf } from '@/lib/security/csp';
 
 // Semua kredensial dan ID folder dibaca di sini. Tidak ada varian NEXT_PUBLIC_*:
@@ -105,6 +105,10 @@ function driveError(status: number, body: string): DriveError {
   return new DriveError('server', 'Google Drive sedang bermasalah.');
 }
 
+function googleReason(body: string): string {
+  return /"reason"\s*:\s*"([A-Za-z0-9_.-]{1,40})"/.exec(body)?.[1] ?? '-';
+}
+
 async function request(url: string, init: RequestInit, opts: { label: string; retries?: number; auth?: boolean }): Promise<Response> {
   const retries = opts.retries ?? 2;
   for (let attempt = 0; ; attempt++) {
@@ -123,6 +127,9 @@ async function request(url: string, init: RequestInit, opts: { label: string; re
       continue;
     }
     const body = await response.text().catch(() => '');
+    // Alasan Google (notFound, insufficientFilePermissions, ...) dicatat agar kegagalan
+    // bisa didiagnosis dari log server tanpa menulis ID, email, atau isi file.
+    console.error('gdrive', opts.label, response.status, googleReason(body));
     throw driveError(response.status, body);
   }
 }
@@ -141,6 +148,15 @@ export type DriveMeta = {
 export async function getMeta(fileId: string): Promise<DriveMeta> {
   const fields = 'id,name,mimeType,size,trashed,parents,permissions(type,role),capabilities(canAddChildren)';
   const response = await request(`${API}/files/${encodeURIComponent(fileId)}?fields=${encodeURIComponent(fields)}&supportsAllDrives=true`, { method: 'GET' }, { label: 'meta' });
+  return (await response.json()) as DriveMeta;
+}
+
+// Metadata file hasil unggahan: hanya field dasar. `permissions` dan `capabilities`
+// menyangkut folder tujuan; memintanya untuk file yang dibuat di folder milik akun lain
+// bisa dijawab Google sebagai 404 walau file benar-benar ada di sana.
+export async function getFileMeta(fileId: string): Promise<DriveMeta> {
+  const fields = 'id,name,mimeType,size,trashed,parents';
+  const response = await request(`${API}/files/${encodeURIComponent(fileId)}?fields=${encodeURIComponent(fields)}&supportsAllDrives=true`, { method: 'GET' }, { label: 'file-meta' });
   return (await response.json()) as DriveMeta;
 }
 
@@ -170,6 +186,34 @@ export async function uniqueName(parentId: string, name: string): Promise<string
     candidate = collisionName(name, i);
   }
   return collisionName(name, Date.now() % 1000);
+}
+
+// Daftar file (bukan folder) dengan query bebas, dibatasi 10 hasil.
+async function listFiles(query: string): Promise<DriveMeta[]> {
+  const params = new URLSearchParams({
+    q: query,
+    fields: 'files(id,name,mimeType,size,trashed,parents)',
+    pageSize: '10',
+    orderBy: 'createdTime desc',
+    supportsAllDrives: 'true',
+    includeItemsFromAllDrives: 'true',
+  });
+  const response = await request(`${API}/files?${params}`, { method: 'GET' }, { label: 'find-files' });
+  const json = (await response.json()) as { files?: DriveMeta[] };
+  return json.files ?? [];
+}
+
+// ID dari respons sesi tidak selalu bisa dibaca langsung (file dibuat di folder milik
+// akun lain dan Drive bisa belum konsisten sesaat). Cari lewat appProperties unggahan,
+// lalu lewat nama di folder tujuan; hasil pencarian nama hanya diterima bila ukurannya sama
+// supaya file lain dengan nama serupa tidak ikut terverifikasi.
+export async function findUploadedFile(o: {
+  uploadId: string; name: string; parentId: string; size: number;
+}): Promise<DriveMeta | null> {
+  const tagged = await listFiles(uploadTagQuery(o.uploadId));
+  if (tagged[0]) return tagged[0];
+  const named = await listFiles(fileInFolderQuery(o.name, o.parentId));
+  return named.find((file) => Number(file.size ?? 0) === o.size) ?? null;
 }
 
 export type DriveFolder = { id: string; name: string; owners?: { displayName?: string; emailAddress?: string }[] };
@@ -265,6 +309,18 @@ export async function cancelSession(sessionUri: string): Promise<boolean> {
 
 export async function deleteFile(fileId: string): Promise<void> {
   await request(`${API}/files/${encodeURIComponent(fileId)}?supportsAllDrives=true`, { method: 'DELETE' }, { label: 'delete' });
+}
+
+// Memindahkan file antar folder. Dipakai untuk folder eksternal: file dibuat di folder
+// penampung milik akun server, lalu dipindahkan setelah metadata dan signature lolos.
+// Hasilnya mengembalikan `parents` Drive agar pemanggil bisa memastikan perpindahannya.
+export async function moveFile(fileId: string, o: { fromParentId: string; toParentId: string }): Promise<string[]> {
+  const params = new URLSearchParams({
+    addParents: o.toParentId, removeParents: o.fromParentId, supportsAllDrives: 'true', fields: 'id,parents',
+  });
+  const response = await request(`${API}/files/${encodeURIComponent(fileId)}?${params}`, { method: 'PATCH' }, { label: 'move-file' });
+  const json = (await response.json().catch(() => null)) as { parents?: string[] } | null;
+  return json?.parents ?? [];
 }
 
 // Beberapa KB pertama untuk verifikasi signature setelah file benar-benar ada di Drive.

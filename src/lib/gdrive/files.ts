@@ -231,6 +231,41 @@ export function parseFolderRef(input: string): string | null {
   return match?.[1] ?? null;
 }
 
+// ── Pencarian file unggahan ──────────────────────────────────────────────
+
+// Nilai di dalam query Drive diapit kutip tunggal; kutip dan garis miring harus
+// di-escape agar nama file pengguna tidak bisa mengubah bentuk query.
+export function escapeDriveQuery(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+// appProperties hanya terlihat oleh aplikasi ini dan isinya UUID unggahan, jadi
+// hasilnya tidak bisa tertukar dengan file lain di folder yang sama.
+export function uploadTagQuery(uploadId: string): string {
+  return `appProperties has { key='eclipseUploadId' and value='${escapeDriveQuery(uploadId)}' } and trashed = false`;
+}
+
+export function fileInFolderQuery(name: string, parentId: string): string {
+  return `name = '${escapeDriveQuery(name)}' and '${escapeDriveQuery(parentId)}' in parents and trashed = false`;
+}
+
+// Folder eksternal milik akun lain tidak ditulisi langsung: Drive bisa menerima byte
+// lalu tidak menyimpan filenya di folder itu. File ditampung di folder milik akun
+// server, diverifikasi, baru dipindahkan ke folder eksternal. Karena itu file hasil
+// unggahan bisa berada di folder tujuan atau masih di folder penampung.
+export type UploadLocation = 'destination' | 'staging' | 'unknown';
+
+export function uploadLocation(o: {
+  destinationId: string; stagingParentId: string | null; parents: readonly string[] | undefined;
+}): UploadLocation {
+  const parents = o.parents ?? [];
+  if (parents.includes(o.destinationId)) return 'destination';
+  if (o.stagingParentId && o.stagingParentId !== o.destinationId && parents.includes(o.stagingParentId)) {
+    return 'staging';
+  }
+  return 'unknown';
+}
+
 // ── Batas unggahan bersamaan ─────────────────────────────────────────────
 
 const MIB = 1024 * 1024;
