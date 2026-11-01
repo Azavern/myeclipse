@@ -68,6 +68,21 @@ const SLOT_ROWS: [string, number][] = [
   ['> 99 MB', 1], ['> 50 MB', 2], ['> 25 MB', 3], ['> 10 MB', 4], ['> 1 MB', 5], ['≤ 1 MB', 10],
 ];
 
+// Pemilih tujuan: daftar dipecah 10 per halaman dan disaring di peramban. Tidak ada
+// data yang diminta tambahan ke server; nilai yang dipilih selalu diambil dari daftar
+// tujuan yang diterima komponen, bukan dari teks pencarian.
+type DestGroup = 'bawaan' | 'custom' | 'eksternal';
+const DEST_PAGE_SIZE = 10;
+const DEST_QUERY_MAX = 80;
+const DEST_GROUPS: { id: 'semua' | DestGroup; label: string }[] = [
+  { id: 'semua', label: 'Semua' },
+  { id: 'bawaan', label: 'Bawaan' },
+  { id: 'custom', label: 'Custom' },
+  { id: 'eksternal', label: 'Eksternal' },
+];
+
+const normaliseText = (value: string) => value.normalize('NFKC').toLocaleLowerCase('id-ID');
+
 class UploadClientError extends Error {}
 
 function stamp(now: Date, timeZone: string): string {
@@ -155,12 +170,17 @@ export function CloudUploader(props: CloudUploaderProps) {
   const [trail, setTrail] = useState<{ id: string; name: string }[]>([]);
   const [browseBusy, setBrowseBusy] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<CloudFolderView | null>(null);
+  const [destQuery, setDestQuery] = useState('');
+  const [destGroup, setDestGroup] = useState<'semua' | DestGroup>('semua');
+  const [destPage, setDestPage] = useState(1);
 
   const fileInput = useRef<HTMLInputElement>(null);
   const resumeInput = useRef<HTMLInputElement>(null);
   const guideRef = useRef<HTMLDialogElement>(null);
   const addRef = useRef<HTMLDialogElement>(null);
   const removeRef = useRef<HTMLDialogElement>(null);
+  const destRef = useRef<HTMLDialogElement>(null);
+  const destSearchRef = useRef<HTMLInputElement>(null);
 
   const maxBytes = props.maxMb * 1024 * 1024;
   const defaultFolder = props.folders.find((f) => f.id === props.defaultFolderId) ?? null;
@@ -171,14 +191,25 @@ export function CloudUploader(props: CloudUploaderProps) {
     .flatMap(([, exts]) => exts.map((ext) => `.${ext}`))
     .join(',');
 
-  const destOptions = [
-    { id: 'auto', label: 'Kategori otomatis (bawaan kelas)', desc: 'Ikuti urutan tujuan, termasuk folder default milikmu.' },
-    { id: 'category', label: 'Folder kategori bawaan (tanpa default)', desc: 'Lewati folder default milikmu.' },
+  const destOptions: { id: string; label: string; desc: string; group: DestGroup; isDefault: boolean }[] = [
+    { id: 'auto', label: 'Kategori otomatis (bawaan kelas)', desc: 'Ikuti urutan tujuan, termasuk folder default milikmu.', group: 'bawaan', isDefault: false },
+    { id: 'category', label: 'Folder kategori bawaan (tanpa default)', desc: 'Lewati folder default milikmu.', group: 'bawaan', isDefault: false },
     ...props.folders.map((folder) => ({
-      id: `f:${folder.id}`, label: folder.name, desc: folder.kind === 'external' ? 'Folder eksternal' : 'Folder custom',
+      id: `f:${folder.id}`, label: folder.name,
+      desc: folder.kind === 'external' ? 'Folder eksternal' : 'Folder custom',
+      group: (folder.kind === 'external' ? 'eksternal' : 'custom') as DestGroup,
+      isDefault: folder.isDefault,
     })),
   ];
   const useRadios = destOptions.length <= 4;
+  const selectedDest = destOptions.find((option) => option.id === destination) ?? null;
+  const destTerm = normaliseText(destQuery.trim().slice(0, DEST_QUERY_MAX));
+  const filteredDest = destOptions.filter((option) =>
+    (destGroup === 'semua' || option.group === destGroup)
+    && (!destTerm || normaliseText(`${option.label} ${option.desc}`).includes(destTerm)));
+  const destPageCount = Math.max(1, Math.ceil(filteredDest.length / DEST_PAGE_SIZE));
+  const destCurrentPage = Math.min(destPage, destPageCount);
+  const destSlice = filteredDest.slice((destCurrentPage - 1) * DEST_PAGE_SIZE, destCurrentPage * DEST_PAGE_SIZE);
 
   function resolveDest(): string | null {
     if (!destination) return null;
@@ -423,6 +454,22 @@ export function CloudUploader(props: CloudUploaderProps) {
         : 'Folder dihapus dari daftar. Isi Google Drive tidak disentuh.',
     });
     router.refresh();
+  }
+
+  // Nilai tujuan selalu diambil dari opsi yang dikenal, bukan dari teks di kolom
+  // pencarian; id folder tetap divalidasi ulang di server saat unggahan dimulai.
+  function chooseDestination(id: string) {
+    if (!destOptions.some((option) => option.id === id)) return;
+    setDestination(id);
+    setNeedChoice('');
+    destRef.current?.close();
+  }
+
+  function openDestPicker() {
+    setDestPage(1);
+    destRef.current?.showModal();
+    // Fokus ke pencarian supaya pemilih bisa dipakai langsung dari kibor.
+    window.requestAnimationFrame(() => destSearchRef.current?.focus());
   }
 
   function openGuide(tab: GuideTab) {
@@ -706,16 +753,21 @@ export function CloudUploader(props: CloudUploaderProps) {
                     ))}
                   </div>
                 ) : (
-                  <select
-                    aria-labelledby="cloud-dest-label" value={destination ?? ''}
-                    disabled={busy || !props.configured}
-                    onChange={(e) => { setDestination(e.currentTarget.value || null); setNeedChoice(''); }}
+                  <button
+                    type="button" className="cloud-dest__pick" id="cloud-dest-pick"
+                    aria-labelledby="cloud-dest-label cloud-dest-value" aria-haspopup="dialog"
+                    disabled={busy || !props.configured} onClick={openDestPicker}
                   >
-                    {destination === null && <option value="" disabled>Pilih tujuan…</option>}
-                    {destOptions.map((option) => (
-                      <option key={option.id} value={option.id}>{option.label} — {option.desc}</option>
-                    ))}
-                  </select>
+                    <span className="cloud-dest__pick-text">
+                      <span className="cloud-dest__pick-value" id="cloud-dest-value">
+                        {selectedDest ? selectedDest.label : 'Pilih tujuan…'}
+                      </span>
+                      <span className="cloud-dest__pick-desc">
+                        {selectedDest ? selectedDest.desc : `Pilih dari ${destOptions.length} tujuan`}
+                      </span>
+                    </span>
+                    <Icon name="chevron-right" size={18} />
+                  </button>
                 )}
 
                 <p className={cx('cloud-dest__note', !destLabel && 'cloud-dest__note--warn')} aria-live="polite">
@@ -1216,6 +1268,109 @@ export function CloudUploader(props: CloudUploaderProps) {
             </button>
           </div>
         </form>
+      </dialog>
+
+      {/* Pilih tujuan penyimpanan */}
+      <dialog
+        ref={destRef} className="cloud-dialog cloud-dialog--md" aria-labelledby="cloud-pick-title"
+        onClick={(e) => { if (e.target === e.currentTarget) e.currentTarget.close(); }}
+        onClose={() => { setDestQuery(''); setDestPage(1); }}
+      >
+        <div className="cloud-dialog__head">
+          <div>
+            <h2 id="cloud-pick-title">Pilih tujuan penyimpanan</h2>
+            <p id="cloud-pick-count" aria-live="polite">
+              {filteredDest.length} dari {destOptions.length} tujuan · {DEST_PAGE_SIZE} per halaman
+            </p>
+          </div>
+          <button type="button" className="btn btn--ghost btn--icon" aria-label="Tutup pilihan tujuan"
+            onClick={() => destRef.current?.close()}>
+            <Icon name="x" size={20} />
+          </button>
+        </div>
+
+        <div className="dialog__body">
+          <div className="cloud-pick__tools">
+            <div className="field">
+              <label className="field__label" htmlFor="cloud-pick-search">Cari tujuan</label>
+              <input
+                id="cloud-pick-search" ref={destSearchRef} type="search" value={destQuery}
+                maxLength={DEST_QUERY_MAX} autoComplete="off" spellCheck={false}
+                placeholder="Nama folder, atau kata “custom” / “eksternal”"
+                aria-describedby="cloud-pick-count"
+                onChange={(e) => { setDestQuery(e.currentTarget.value); setDestPage(1); }}
+              />
+            </div>
+            <div className="cloud-pick__filters" role="group" aria-label="Saring jenis tujuan">
+              {DEST_GROUPS.map((group) => (
+                <button
+                  key={group.id} type="button" className={cx('btn', 'btn--sm', destGroup !== group.id && 'btn--secondary')}
+                  aria-pressed={destGroup === group.id}
+                  onClick={() => { setDestGroup(group.id); setDestPage(1); }}
+                >
+                  {group.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {destSlice.length === 0 ? (
+            <div className="empty empty--compact">
+              <div className="empty__art"><Icon name="search" size={26} /></div>
+              <p className="empty__title">Tidak ada tujuan yang cocok</p>
+              <p className="empty__text">Ubah kata kunci atau saringan jenis tujuan.</p>
+              <button
+                type="button" className="btn btn--secondary"
+                onClick={() => { setDestQuery(''); setDestGroup('semua'); setDestPage(1); }}
+              >
+                Hapus pencarian
+              </button>
+            </div>
+          ) : (
+            <ul className="cloud-pick__list" aria-label="Daftar tujuan penyimpanan">
+              {destSlice.map((option) => (
+                <li key={option.id}>
+                  <button
+                    type="button" className="cloud-pick__btn" aria-pressed={destination === option.id}
+                    onClick={() => chooseDestination(option.id)}
+                  >
+                    <span className="cloud-pick__icon">
+                      <Icon name={option.group === 'eksternal' ? 'link' : 'folder'} size={18} />
+                    </span>
+                    <span className="cloud-pick__text">
+                      <span className="cloud-pick__name">{option.label}</span>
+                      <span className="cloud-pick__desc">{option.desc}</span>
+                    </span>
+                    {option.isDefault && <Chip tone="brand" icon="star">Default</Chip>}
+                    {destination === option.id && <Chip tone="success" icon="check-circle">Dipilih</Chip>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {destPageCount > 1 && (
+            <div className="cloud-pick__pages">
+              <button
+                type="button" className="btn btn--secondary btn--sm"
+                disabled={destCurrentPage <= 1} onClick={() => setDestPage(destCurrentPage - 1)}
+              >
+                <Icon name="arrow-left" size={16} />Sebelumnya
+              </button>
+              <span className="nums">Halaman {destCurrentPage} dari {destPageCount}</span>
+              <button
+                type="button" className="btn btn--secondary btn--sm"
+                disabled={destCurrentPage >= destPageCount} onClick={() => setDestPage(destCurrentPage + 1)}
+              >
+                Berikutnya<Icon name="chevron-right" size={16} />
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="dialog__actions">
+          <button type="button" className="btn btn--secondary" onClick={() => destRef.current?.close()}>Tutup</button>
+        </div>
       </dialog>
 
       {/* Hapus folder */}
