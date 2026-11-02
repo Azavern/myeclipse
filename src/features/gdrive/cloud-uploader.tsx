@@ -113,8 +113,11 @@ async function putFile(file: File, sessionUri: string, start: number, onProgress
         credentials: 'omit',
         signal: AbortSignal.timeout(120_000),
       });
-    } catch {
-      throw new UploadClientError('Koneksi ke Google Drive terputus.');
+    } catch (error) {
+      // Galat mentah peramban (CORS, CSP, jaringan, timeout) adalah satu-satunya bukti nyata di
+      // sisi klien; jangan diganti pesan yang menyimpulkan penyebabnya.
+      console.error('gdrive upload PUT gagal', error);
+      throw error;
     }
     if (response.status === 308) {
       const match = /bytes=0-(\d+)/.exec(response.headers.get('range') ?? '');
@@ -293,7 +296,8 @@ export function CloudUploader(props: CloudUploaderProps) {
   async function continueUpload(draft: Draft, uploadId: string, sessionUri: string, startAt: number): Promise<boolean> {
     try {
       await putFile(draft.file, sessionUri, startAt, (sent) => patch(draft.id, { progress: sent }));
-    } catch {
+    } catch (error) {
+      console.error('gdrive upload terhenti', error);
       return settleUpload(draft, uploadId);
     }
     patch(draft.id, { status: 'finishing' });
@@ -301,7 +305,8 @@ export function CloudUploader(props: CloudUploaderProps) {
       const done = await completeLoop(uploadId);
       patch(draft.id, { status: 'done', progress: draft.size, link: done.link });
       return true;
-    } catch {
+    } catch (error) {
+      console.error('gdrive pemeriksaan akhir gagal', error);
       return settleUpload(draft, uploadId);
     }
   }
@@ -425,7 +430,8 @@ export function CloudUploader(props: CloudUploaderProps) {
       const done = await completeLoop(resumeTarget.id);
       setResumeNote({ tone: 'success', text: `"${done.name}" selesai diunggah.` });
       router.refresh();
-    } catch {
+    } catch (error) {
+      console.error('gdrive unggahan lanjutan terhenti', error);
       // Seperti alur utama: keadaan sebenarnya ditentukan server, bukan peramban.
       const status = await completeUpload(resumeTarget.id);
       if (!status.ok) setResumeNote({ tone: 'error', text: status.message });

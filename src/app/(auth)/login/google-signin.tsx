@@ -60,6 +60,8 @@ export function GoogleSignIn({ clientId, next }: { clientId: string; next: strin
   const slot = useRef<HTMLDivElement>(null);
   const alive = useRef(true);
   const submitRef = useRef<(credential: string) => void>(() => {});
+  // API GIS yang siap merender; renderButton baru dipanggil setelah wadah terlihat.
+  const pending = useRef<GisId | null>(null);
   const [phase, setPhase] = useState<'loading' | 'ready' | 'busy' | 'failed'>('loading');
   const [message, setMessage] = useState<string | null>(null);
 
@@ -115,10 +117,10 @@ export function GoogleSignIn({ clientId, next }: { clientId: string; next: strin
       use_fedcm_for_button: true,
       callback: (response) => { if (response.credential) submitRef.current(response.credential); },
     });
-    api.renderButton(target, {
-      type: 'standard', theme: 'outline', size: 'large', text: 'continue_with', shape: 'pill', logo_alignment: 'left',
-      width: Math.max(240, Math.min(400, Math.round(target.clientWidth || 320))),
-    });
+    pending.current = api;
+    // Wadah sengaja masih display:none selama memuat. GIS menghitung lebar tombol dari
+    // wadah induk; saat wadah tersembunyi, GIS bisa merender varian selebar ikon sehingga
+    // yang terlihat hanya logo G. Tampilkan wadah dulu, render di efek di bawah.
     setPhase('ready');
   }, [clientId]);
 
@@ -127,6 +129,25 @@ export function GoogleSignIn({ clientId, next }: { clientId: string; next: strin
     void prepare();
     return () => { alive.current = false; };
   }, [prepare]);
+
+  // Render setelah wadah benar-benar tampil agar GIS mengukur lebar nyata dan
+  // menghasilkan tombol penuh (logo + teks), bukan tombol ikon saja.
+  useEffect(() => {
+    if (phase !== 'ready') return;
+    const target = slot.current;
+    const api = pending.current;
+    if (!target || !api || target.childElementCount > 0) return;
+    try {
+      api.renderButton(target, {
+        type: 'standard', theme: 'outline', size: 'large', text: 'continue_with', shape: 'pill', logo_alignment: 'left',
+        width: Math.max(240, Math.min(400, Math.round(target.clientWidth || 320))),
+      });
+    } catch (error) {
+      console.error('renderButton', error);
+      setMessage(UNAVAILABLE);
+      setPhase('failed');
+    }
+  }, [phase]);
 
   return (
     <div className="google-signin">

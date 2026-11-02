@@ -1,6 +1,7 @@
 // Content-Security-Policy berbasis nonce (blueprint §23). Fungsi murni agar bisa dites tanpa runtime Next.
-// Tidak ada klien Supabase di browser, jadi connect-src cukup 'self'. Asal luar untuk <img> adalah host
-// Storage Supabase, ditambah https: pada rute yang menampilkan gambar pihak ketiga (allowsHttpsImages).
+// Tidak ada klien Supabase di browser, jadi connect-src hanya 'self' ditambah asal Google yang memang
+// dipakai (unggahan Drive di semua dokumen, GIS di /login). Asal luar untuk <img> adalah host Storage
+// Supabase, ditambah https: pada rute yang menampilkan gambar pihak ketiga (allowsHttpsImages).
 
 // Rute yang menampilkan gambar dari host https mana pun: entri Knowledge (gambar di Markdown) dan pratinjau
 // tautan portofolio (gambar Open Graph dari situs sumber, lihat src/lib/preview/server.ts).
@@ -16,12 +17,10 @@ export function allowsGoogleSignIn(pathname: string): boolean {
 }
 
 const GOOGLE_GSI = 'https://accounts.google.com';
+// Sesi resumable Drive di-PUT langsung oleh peramban. Asal ini harus ada di connect-src pada SETIAP
+// dokumen: header CSP hanya dipasang saat dokumen dimuat, sedangkan navigasi <Link> ke /cloud tidak
+// memuat ulang dokumen, sehingga CSP halaman asal tetap berlaku dan PUT diblokir sebelum byte pertama.
 const GOOGLE_DRIVE_UPLOAD = 'https://www.googleapis.com';
-
-// Peramban mengunggah potongan file langsung ke sesi resumable Google Drive hanya dari /cloud.
-export function allowsGoogleUpload(pathname: string): boolean {
-  return pathname === '/cloud';
-}
 
 export type CspInput = {
   nonce: string;
@@ -31,8 +30,6 @@ export type CspInput = {
   allowHttpsImages?: boolean;
   /** Hanya untuk /login: skrip dan iframe Google Identity Services. */
   googleSignIn?: boolean;
-  /** Hanya untuk /cloud: koneksi PUT ke sesi resumable Google Drive. */
-  googleUpload?: boolean;
 };
 
 // Asal (origin) dari URL; null bila tidak valid atau bukan http(s), sehingga CSP tetap ketat (fail closed).
@@ -46,7 +43,7 @@ export function originOf(url: string | undefined): string | null {
   }
 }
 
-export function buildCsp({ nonce, supabaseUrl, dev = false, allowHttpsImages = false, googleSignIn = false, googleUpload = false }: CspInput): string {
+export function buildCsp({ nonce, supabaseUrl, dev = false, allowHttpsImages = false, googleSignIn = false }: CspInput): string {
   const media = originOf(supabaseUrl);
   const directives: [string, string[]][] = [
     ['default-src', ["'self'"]],
@@ -55,7 +52,7 @@ export function buildCsp({ nonce, supabaseUrl, dev = false, allowHttpsImages = f
     ['style-src', ["'self'", `'nonce-${nonce}'`]],
     ['img-src', ["'self'", 'data:', 'blob:', ...(media ? [media] : []), ...(allowHttpsImages ? ['https:'] : [])]],
     ['font-src', ["'self'"]],
-    ['connect-src', ["'self'", ...(googleSignIn ? [GOOGLE_GSI] : []), ...(googleUpload ? [GOOGLE_DRIVE_UPLOAD] : []), ...(dev ? ['ws:', 'wss:'] : [])]], // ws: hanya untuk HMR di dev
+    ['connect-src', ["'self'", ...(googleSignIn ? [GOOGLE_GSI] : []), GOOGLE_DRIVE_UPLOAD, ...(dev ? ['ws:', 'wss:'] : [])]], // ws: hanya untuk HMR di dev
     ['object-src', ["'none'"]],
     ['base-uri', ["'self'"]],
     ['form-action', ["'self'"]],

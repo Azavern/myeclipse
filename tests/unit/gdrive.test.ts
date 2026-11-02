@@ -3,7 +3,8 @@ import {
   buildFinalName, categoryForExt, checkFile, collisionName, detectSignature, fileInFolderQuery, parseFolderRef,
   uploadLocation, uploadSlotLimit, uploadTagQuery,
 } from '../../src/lib/gdrive/files';
-import { allowsGoogleUpload, buildCsp } from '../../src/lib/security/csp';
+import { buildCsp } from '../../src/lib/security/csp';
+import { resolveUploadOrigin } from '../../src/lib/gdrive/origin';
 
 const MiB = 1024 * 1024;
 const text = (value: string) => new TextEncoder().encode(value);
@@ -166,17 +167,46 @@ describe('slot unggahan bersamaan', () => {
   });
 });
 
-describe('CSP unggahan langsung Google Drive', () => {
-  const directive = (csp: string, name: string) => csp.split('; ').find((d) => d.startsWith(`${name} `)) ?? '';
-  it('hanya /cloud yang membuka koneksi ke googleapis.com', () => {
-    expect(allowsGoogleUpload('/cloud')).toBe(true);
-    for (const path of ['/', '/clouds', '/settings/cloud', '/inventory']) {
-      expect(allowsGoogleUpload(path), path).toBe(false);
+describe('origin unggahan Google Drive', () => {
+  const appUrl = 'http://www.myeclipse.my.id';
+  it('menerima origin aplikasi walau skema APP_URL berbeda dengan peramban', () => {
+    // APP_URL http:// sementara peramban membuka https:// sempat menolak semua unggahan.
+    expect(resolveUploadOrigin({
+      requestOrigin: 'https://www.myeclipse.my.id', requestHost: 'www.myeclipse.my.id', appUrl, extraOrigins: '',
+    })).toBe('https://www.myeclipse.my.id');
+  });
+  it('menerima origin yang terdaftar persis dan daftar tambahan', () => {
+    expect(resolveUploadOrigin({ requestOrigin: appUrl, requestHost: null, appUrl, extraOrigins: '' })).toBe(appUrl);
+    expect(resolveUploadOrigin({
+      requestOrigin: 'https://eclipse-pratinjau.vercel.app', requestHost: 'www.myeclipse.my.id',
+      appUrl, extraOrigins: 'https://eclipse-pratinjau.vercel.app/',
+    })).toBe('https://eclipse-pratinjau.vercel.app');
+  });
+  it('menolak origin host lain, host mirip, dan origin yang tidak valid', () => {
+    for (const requestOrigin of ['https://myeclipse.my.id', 'https://www.myeclipse.my.id.evil.com', 'null', 'bukan-url']) {
+      expect(resolveUploadOrigin({ requestOrigin, requestHost: 'www.myeclipse.my.id', appUrl, extraOrigins: '' }), requestOrigin)
+        .toBeNull();
     }
   });
-  it('menambah connect-src tanpa membuka skrip Google', () => {
-    const csp = buildCsp({ nonce: 'n', googleUpload: true });
-    expect(directive(csp, 'connect-src')).toBe("connect-src 'self' https://www.googleapis.com");
+  it('memakai APP_URL bila permintaan tidak membawa origin', () => {
+    expect(resolveUploadOrigin({ requestOrigin: null, requestHost: 'www.myeclipse.my.id', appUrl, extraOrigins: '' }))
+      .toBe(appUrl);
+  });
+  it('memakai host pertama dari x-forwarded-host berantai', () => {
+    expect(resolveUploadOrigin({
+      requestOrigin: 'https://www.myeclipse.my.id', requestHost: 'www.myeclipse.my.id, proxy.internal', appUrl, extraOrigins: '',
+    })).toBe('https://www.myeclipse.my.id');
+  });
+});
+
+describe('CSP unggahan langsung Google Drive', () => {
+  const directive = (csp: string, name: string) => csp.split('; ').find((d) => d.startsWith(`${name} `)) ?? '';
+  it('setiap dokumen boleh terhubung ke googleapis.com (navigasi <Link> tidak memperbarui CSP)', () => {
+    expect(directive(buildCsp({ nonce: 'n' }), 'connect-src'))
+      .toBe("connect-src 'self' https://www.googleapis.com");
+  });
+  it('tidak membuka skrip Google di luar /login', () => {
+    const csp = buildCsp({ nonce: 'n' });
     expect(directive(csp, 'script-src')).not.toContain('googleapis');
     expect(directive(csp, 'connect-src')).not.toContain('accounts.google.com');
   });

@@ -29,11 +29,11 @@ function mapError(error: unknown): CloudResult<never> {
   // Kode dan pesan dari lapisan unggahan dicatat agar kegagalan bisa ditelusuri dari
   // terminal server tanpa menyentuh kredensial atau isi file.
   if (error instanceof UploadError) {
-    console.error('gdrive upload error', error.code, error.message);
+    console.error('gdrive upload error', error);
     return fail(error.code, error.message);
   }
   if (error instanceof DriveError) {
-    console.error('gdrive drive error', error.kind, error.message);
+    console.error('gdrive drive error', error);
     switch (error.kind) {
       case 'config': return fail('config', 'Google Drive belum dikonfigurasi di server.');
       case 'auth': return fail('auth', 'Kredensial Google Drive di server bermasalah. Hubungi Ketua.');
@@ -47,7 +47,7 @@ function mapError(error: unknown): CloudResult<never> {
       default: return fail('unknown', 'Google Drive sedang bermasalah. Coba lagi nanti.');
     }
   }
-  console.error('gdrive', error instanceof Error ? error.name : 'unknown');
+  console.error('gdrive', error);
   return fail('unknown', 'Unggahan belum berhasil. Coba lagi.');
 }
 
@@ -65,9 +65,14 @@ export async function beginUpload(input: unknown): Promise<CloudResult<StartView
   const ctx = await requireActionContext();
   if (!ctx) return fail('forbidden', 'Kamu harus anggota aktif untuk mengunggah.');
   if (!gdriveStatus().ready) return fail('config', 'Google Drive belum dikonfigurasi di server.');
-  // Sesi resumable diikat ke origin peramban pengunggah; hanya origin resmi yang diteruskan.
-  const origin = uploadOrigin((await headers()).get('origin'));
+  // Sesi resumable diikat ke origin peramban pengunggah; hanya origin aplikasi sendiri yang diteruskan.
+  const requestHeaders = await headers();
+  const requestOrigin = requestHeaders.get('origin');
+  const requestHost = requestHeaders.get('x-forwarded-host') ?? requestHeaders.get('host');
+  const origin = uploadOrigin(requestOrigin, requestHost);
   if (!origin) {
+    // Origin bukan rahasia: catat agar penyebabnya terlihat di log server.
+    console.error('gdrive origin ditolak', requestOrigin ?? '(tanpa origin)', requestHost ?? '(tanpa host)');
     return fail('config', 'Asal aplikasi ini belum diizinkan mengunggah langsung ke Google Drive. Tambahkan origin-nya ke GDRIVE_UPLOAD_ORIGINS.');
   }
   try {

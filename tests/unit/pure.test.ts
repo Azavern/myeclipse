@@ -383,9 +383,9 @@ describe('CSP bernonce', () => {
     expect(dir(prod, 'style-src')).toBe("style-src 'self' 'nonce-abc123'");
     expect(prod).not.toMatch(/unsafe-inline|unsafe-eval/);
   });
-  it('img-src memuat asal Supabase saja (tanpa path); connect-src hanya self', () => {
+  it('img-src memuat asal Supabase saja (tanpa path); connect-src self + Google Drive', () => {
     expect(dir(prod, 'img-src')).toBe("img-src 'self' data: blob: https://proj.supabase.co");
-    expect(dir(prod, 'connect-src')).toBe("connect-src 'self'");
+    expect(dir(prod, 'connect-src')).toBe("connect-src 'self' https://www.googleapis.com");
   });
   it('menutup framing, plugin, dan form ke luar', () => {
     expect(dir(prod, 'frame-ancestors')).toBe("frame-ancestors 'none'");
@@ -396,7 +396,7 @@ describe('CSP bernonce', () => {
   it('mode dev menambah unsafe-eval dan ws: saja', () => {
     const dev = buildCsp({ nonce: 'n', dev: true });
     expect(dir(dev, 'script-src')).toContain("'unsafe-eval'");
-    expect(dir(dev, 'connect-src')).toBe("connect-src 'self' ws: wss:");
+    expect(dir(dev, 'connect-src')).toBe("connect-src 'self' https://www.googleapis.com ws: wss:");
     expect(dir(dev, 'style-src')).not.toContain('unsafe-inline');
   });
   it('https: untuk gambar hanya dibuka bila rute memintanya', () => {

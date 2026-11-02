@@ -104,13 +104,13 @@ Tidak ada variabel `NEXT_PUBLIC_*`: semuanya dibaca di server dan divalidasi saa
 | `SUPABASE_URL` | URL proyek Supabase |
 | `SUPABASE_PUBLISHABLE_KEY` | Kunci publishable (anon). Dipakai server, tidak dikirim ke browser |
 | `SUPABASE_SECRET_KEY` | Kunci service role. **Rahasia.** Hanya untuk Auth Admin API, unggah/pembersihan gambar QR, dan skrip |
-| `APP_URL` | Dasar URL tautan akses dan origin login Google, tanpa slash di akhir (lokal: `http://localhost:3000`). Harus sama dengan origin yang dibuka di browser |
+| `APP_URL` | Dasar URL tautan akses dan origin login Google, tanpa slash di akhir (lokal: `http://localhost:3000`). Tulis dengan skema yang benar (`https://` di produksi): origin ini dipakai saat masuk dengan Google dan saat membuat sesi unggah Drive |
 | `GOOGLE_CLIENT_ID` | Client ID OAuth (Web) untuk tombol Google Identity Services. Bukan rahasia; client secret tidak dipakai aplikasi |
 | `GDRIVE_CLIENT_ID`, `GDRIVE_CLIENT_SECRET`, `GDRIVE_REFRESH_TOKEN` | **Rahasia**, hanya server. OAuth client + refresh token akun Google pemilik folder. Tanpa ketiganya fitur Cloud menampilkan pesan konfigurasi |
 | `GDRIVE_ROOT_FOLDER_ID` | Folder utama Google Drive untuk fallback kategori dan induk default folder custom |
 | `GDRIVE_PICTURES`, `GDRIVE_VIDEOS`, `GDRIVE_AUDIOS`, `GDRIVE_DOCUMENTS`, `GDRIVE_ARCHIVES_ID` | Folder kategori opsional. Yang kosong memakai `GDRIVE_ROOT_FOLDER_ID` |
 | `GDRIVE_CUSTOM` | Induk folder custom anggota. Opsional; kosong berarti memakai root |
-| `GDRIVE_UPLOAD_ORIGINS` | Origin peramban tambahan yang boleh mengunggah langsung (dipisah koma, tanpa path), mis. domain pratinjau Vercel. `APP_URL` sudah otomatis diizinkan |
+| `GDRIVE_UPLOAD_ORIGINS` | Origin peramban tambahan yang boleh mengunggah langsung (dipisah koma, tanpa path), mis. origin lain milik aplikasi. `APP_URL` dan origin yang host-nya sama dengan permintaan sudah otomatis diizinkan |
 | `CRON_SECRET` | String acak ≥32 karakter untuk otorisasi `/api/health` dan pemanggilan pembersih QR terjadwal |
 | `SMTP_EMAIL`, `SMTP_PASSWORD` | Akun Gmail pengirim OTP perubahan email (App Password). Opsional; tanpa keduanya tombol Verifikasi email gagal mengirim kode |
 | `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_NAME` | Data Ketua pertama. Hanya untuk skrip lokal, jangan diset di Vercel |

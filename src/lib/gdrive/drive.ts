@@ -1,7 +1,7 @@
 import 'server-only';
 import { env } from '@/lib/env';
 import { collisionName, fileInFolderQuery, uploadTagQuery } from './files';
-import { originOf } from '@/lib/security/csp';
+import { resolveUploadOrigin } from './origin';
 
 // Semua kredensial dan ID folder dibaca di sini. Tidak ada varian NEXT_PUBLIC_*:
 // nilai ini tidak pernah dikirim ke peramban, log, atau pesan galat.
@@ -57,18 +57,13 @@ export function customParentId(): string {
   return env.GDRIVE_CUSTOM?.trim() || rootFolderId();
 }
 
-// Origin yang dikirim saat inisialisasi sesi resumable harus origin resmi aplikasi.
-// Daftar berasal dari APP_URL ditambah GDRIVE_UPLOAD_ORIGINS (mis. domain pratinjau),
-// jadi origin sembarang dari peramban tidak pernah diteruskan ke Google.
-export function uploadOrigin(requestOrigin: string | null): string | null {
-  const fallback = originOf(env.APP_URL);
-  const allowed = new Set<string>(fallback ? [fallback] : []);
-  for (const item of (process.env.GDRIVE_UPLOAD_ORIGINS ?? '').split(',')) {
-    const origin = originOf(item.trim());
-    if (origin) allowed.add(origin);
-  }
-  if (!requestOrigin) return fallback;
-  return allowed.has(requestOrigin) ? requestOrigin : null;
+// Origin yang dikirim saat inisialisasi sesi resumable harus origin aplikasi sendiri:
+// APP_URL, GDRIVE_UPLOAD_ORIGINS (mis. domain pratinjau), atau origin yang host-nya sama
+// dengan permintaan. Origin sembarang dari peramban tidak pernah diteruskan ke Google.
+export function uploadOrigin(requestOrigin: string | null, requestHost: string | null = null): string | null {
+  return resolveUploadOrigin({
+    requestOrigin, requestHost, appUrl: env.APP_URL, extraOrigins: process.env.GDRIVE_UPLOAD_ORIGINS,
+  });
 }
 
 let tokenCache: { token: string; expiresAt: number } | null = null;
