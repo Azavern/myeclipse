@@ -77,7 +77,7 @@ export async function AppFrame({ children }: { children: ReactNode }) {
   const canManage = viewer.can('class.manage');
   const manage: NavItem[] = canManage || viewer.can('members.manage')
     ? [{ href: canManage ? '/settings/class' : '/settings/members', label: 'Pengelolaan kelas', icon: 'settings',
-      match: ['/settings/class', '/settings/theme', '/settings/visibility', '/settings/access', '/settings/members', '/settings/cloud'] }]
+      match: ['/settings/class', '/settings/theme', '/settings/visibility', '/settings/access', '/settings/members', '/settings/cloud', '/settings/developer'] }]
     : viewer.can('members.request')
       ? [{ href: '/settings/members', label: 'Anggota', icon: 'users' }]
       : [];

@@ -4,6 +4,7 @@ import { PwaRegister } from '@/components/pwa-register';
 import '../styles/tokens.css';
 import '../styles/base.css';
 import '../styles/components.css';
+import '../styles/developer.css';
 import '../styles/shell.css';
 import { getClass } from '@/lib/class';
 import { DEFAULT_THEME } from '@/lib/theme/defaults';

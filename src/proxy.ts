@@ -44,4 +44,6 @@ export async function proxy(request: NextRequest) {
   await supabase.auth.getUser();
   return response;
 }
-export const config = { matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'] };
+// Rute API memakai Bearer key sendiri dan tidak butuh CSP dokumen atau refresh
+// cookie; melewatinya juga menghindari panggilan Auth pada setiap request API.
+export const config = { matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'] };
