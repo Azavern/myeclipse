@@ -3,13 +3,14 @@ import { useActionState, useEffect, useId, useRef, useState } from 'react';
 import { CopyButton } from '@/components/copy-button';
 import { Icon } from '@/components/ui/icon';
 import { Notice } from '@/components/ui/primitives';
+import { keyFileName } from '@/lib/api/key-file';
 import { scopeFor, type ApiPermissions, type ApiScope } from '@/lib/api/permissions';
 import {
   API_ACTIONS, API_RESOURCES, SCOPE_LABEL, SCOPED_RESOURCES,
   type ApiAction,
 } from '@/lib/api/resources';
 import {
-  createApiKey, deleteApiKey, revokeApiKey, setApiKeyStatus, updateApiKey,
+  createApiKey, deleteApiKey, revokeApiKey, rotateApiKey, setApiKeyStatus, updateApiKey,
   type KeyActionState, type KeyFormState,
 } from './actions';
 
@@ -266,6 +267,110 @@ export function KeyLifecycle({ id, status }: { id: string; status: string }) {
             </button>
           </div>
         </form>
+      </dialog>
+    </div>
+  );
+}
+
+// Rotasi kredensial: satu dialog dua keadaan — konfirmasi, lalu secret baru.
+// Secret hanya hidup di state klien setelah rotasi; menutup dialog membuangnya
+// dari tampilan sehingga tidak bisa dibuka lagi.
+export function KeyRefresh({ id, name, author }: { id: string; name: string; author: string }) {
+  const [state, act, pending] = useActionState<KeyFormState, FormData>(rotateApiKey, null);
+  const [closedState, setClosedState] = useState<KeyFormState>(null);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const secret = state?.ok && state !== closedState ? state.data.secret : null;
+  const error = state && !state.ok ? state.error.message : null;
+
+  useEffect(() => {
+    if (secret && dialog.current && !dialog.current.open) dialog.current.showModal();
+  }, [secret]);
+
+  function download() {
+    if (!secret) return;
+    const payload = {
+      name,
+      key: secret,
+      prefix: secret.slice(4, 16),
+      author,
+      generated_at: new Date().toISOString(),
+      note: 'Secret ini hanya ditampilkan sekali oleh Eclipse. Simpan di tempat aman.',
+    };
+    const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = keyFileName(name, author, new Date());
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <div className="card">
+      <div className="card__head">
+        <div>
+          <h2 className="card__title">Refresh key</h2>
+          <p className="card__desc">
+            Buat prefix dan secret baru untuk key ini. Nama, izin, dan cakupan tetap; secret lama langsung tidak berlaku.
+          </p>
+        </div>
+      </div>
+      <div className="form__actions">
+        <button type="button" className="btn btn--secondary" onClick={() => dialog.current?.showModal()}>
+          <Icon name="refresh" size={18} />Refresh key
+        </button>
+      </div>
+      <dialog ref={dialog} aria-labelledby={titleId}
+        onClose={() => setClosedState(state)}
+        onClick={(event) => { if (event.target === event.currentTarget && !pending) dialog.current?.close(); }}>
+        {secret ? (
+          <div className="dialog__body">
+            <span className="tile tile--success" aria-hidden="true"><Icon name="key" size={22} /></span>
+            <h2 id={titleId}>API key baru</h2>
+            <p className="muted">
+              Salin atau unduh sekarang. Secret hanya ditampilkan sekali dan tidak bisa dilihat lagi setelah popup ditutup.
+            </p>
+            <div className="copy-row">
+              <input readOnly value={secret} className="key-code" aria-label="Secret API key"
+                onFocus={(event) => event.currentTarget.select()} autoFocus />
+            </div>
+          </div>
+        ) : (
+          <form action={act} aria-busy={pending}>
+            <input type="hidden" name="id" value={id} />
+            <div className="dialog__body">
+              <span className="tile" aria-hidden="true"><Icon name="refresh" size={22} /></span>
+              <h2 id={titleId}>Buat key baru?</h2>
+              <p className="muted">
+                Aplikasi yang masih memakai key lama langsung gagal terautentikasi. Secret baru hanya tampil sekali,
+                jadi salin atau unduh sebelum menutup popup ini.
+              </p>
+              {error && <Notice tone="error" role="alert">{error}</Notice>}
+            </div>
+            <div className="dialog__actions">
+              <button type="button" className="btn btn--secondary" disabled={pending}
+                onClick={() => dialog.current?.close()}>Batal</button>
+              <button type="submit" className="btn" disabled={pending}>
+                {pending ? <Icon name="loader" size={18} className="spin" /> : <Icon name="refresh" size={18} />}
+                {pending ? 'Membuat…' : 'Buat key baru'}
+              </button>
+            </div>
+          </form>
+        )}
+        {secret && (
+          <div className="dialog__actions">
+            <CopyButton text={secret} label="Salin key" />
+            <button type="button" className="btn btn--secondary" onClick={download}>
+              <Icon name="download" size={18} />Unduh JSON
+            </button>
+            <button type="button" className="btn" onClick={() => dialog.current?.close()}>
+              <Icon name="check" size={18} />Selesai
+            </button>
+          </div>
+        )}
       </dialog>
     </div>
   );

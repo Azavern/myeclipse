@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   API_KEY_PATTERN, generateApiKey, hashApiKeySecret, parseApiKey, verifyApiKeySecret,
 } from '../../src/lib/api/keys';
+import { keyFileName } from '../../src/lib/api/key-file';
 import {
   canWriteOwned, isAllowed, normalizePermissions, normalizeScope,
   permissionCount, scopeFor, scopeMatches,
@@ -59,6 +60,21 @@ describe('izin API', () => {
     expect(normalizeScope({ inventory: 'self' }).inventory).toBe('self');
     expect(scopeFor(normalizeScope({ portfolio: 'self' }), 'portfolio')).toBe('self');
     expect(scopeFor(normalizeScope({}), 'members')).toBe('none');
+  });
+});
+
+describe('nama berkas unduhan key', () => {
+  it('menggabungkan nama key, waktu UTC, dan username pembuat', () => {
+    const at = new Date(Date.UTC(2026, 10, 3, 14, 25, 30));
+    expect(keyFileName('Bot Pengingat Tugas', 'rleader', at))
+      .toBe('bot-pengingat-tugas-20261103T142530Z-rleader.json');
+    expect(keyFileName('Café Éclipse', 'M. Fauzi', at))
+      .toBe('cafe-eclipse-20261103T142530Z-m-fauzi.json');
+  });
+
+  it('memakai cadangan bila nama kosong atau hanya tanda baca', () => {
+    const at = new Date(Date.UTC(2026, 10, 3, 14, 25, 30));
+    expect(keyFileName('  ...  ', '', at)).toBe('key-20261103T142530Z-key.json');
   });
 });
 

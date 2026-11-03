@@ -97,6 +97,28 @@ export async function updateApiKey(_prev: KeyFormState, fd: FormData): Promise<K
   return { ok: true, data: { id: id.data, secret: null } };
 }
 
+// Rotasi kredensial: prefix dan secret baru, izin/cakupan/nama tetap. Secret lama
+// langsung tidak berlaku karena hash-nya ditimpa. Secret baru hanya dikembalikan
+// ke pemanggil dan tidak pernah disimpan.
+export async function rotateApiKey(_prev: KeyFormState, fd: FormData): Promise<KeyFormState> {
+  const id = idSchema.safeParse(fd.get('id'));
+  if (!id.success) return fail('validation', 'API key tidak valid.');
+  const ctx = await requireActionContext();
+  if (!ctx?.can('class.manage')) return fail('forbidden', 'Kamu tidak punya izin untuk mengelola API key.');
+
+  const generated = generateApiKey();
+  const { error } = await ctx.supabase.rpc('rotate_api_key', {
+    p_id: id.data,
+    p_prefix: generated.prefix,
+    p_secret_hash: generated.hash,
+  });
+  if (error) return rpcFailure(error, 'API key belum bisa diperbarui. Coba lagi.');
+
+  revalidatePath('/settings/developer');
+  revalidatePath(`/settings/developer/${id.data}`);
+  return { ok: true, data: { id: id.data, secret: generated.key } };
+}
+
 export async function setApiKeyStatus(_prev: KeyActionState, fd: FormData): Promise<KeyActionState> {
   const id = idSchema.safeParse(fd.get('id'));
   const status = z.enum(['active', 'disabled']).safeParse(fd.get('status'));

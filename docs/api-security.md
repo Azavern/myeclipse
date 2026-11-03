@@ -108,13 +108,19 @@ ada.
 - `disabled` berlaku segera (status diperiksa setiap request).
 - `revoke` permanen: status `revoked`, tidak bisa diaktifkan kembali, dan RPC
   `update_api_key` menolak (`EC080`).
-- Rotasi = buat key baru, pindahkan aplikasi, lalu revoke key lama.
+- Rotasi: tombol **Refresh key** di `/settings/developer/[id]` memanggil RPC
+  `rotate_api_key`, yang menimpa `prefix` dan `secret_hash` baris yang sama
+  (nama, izin, cakupan, dan pemilik tetap). Secret lama langsung tidak berlaku;
+  hash lama tidak disimpan sehingga tidak ada masa transisi. Key `revoked`
+  ditolak (`EC080`), kuota menit direset, dan secret baru ditampilkan sekali di
+  popup (salin atau unduh JSON).
 - Key yang dicabut dapat dihapus dari daftar; audit tetap disimpan.
 
 ## 9. Batasan yang diketahui
 
-- Tidak ada UI untuk melihat secret setelah pembuatan; kehilangan secret berarti
-  membuat key baru.
+- Secret tidak bisa dilihat lagi setelah popup pembuatan ditutup; gunakan
+  **Refresh key** untuk menerbitkan secret baru (secret lama langsung tidak
+  berlaku).
 - `public` untuk portfolio/social memakai `visibility = 'public'` eksplisit, bukan
   evaluasi warisan section. Ini lebih ketat (fail-closed), bukan lebih longgar.
 - `all`/`selected` untuk portfolio/social memindai maksimum 1000 kandidat sebelum

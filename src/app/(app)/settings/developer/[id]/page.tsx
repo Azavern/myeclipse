@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { NoAccess } from '@/components/states';
 import { Chip, EmptyState, LinkButton, Notice, PageHeader, Section } from '@/components/ui/primitives';
-import { ApiKeyForm, KeyLifecycle, type MemberOption } from '@/features/developer/components';
+import { ApiKeyForm, KeyLifecycle, KeyRefresh, type MemberOption } from '@/features/developer/components';
 import { normalizePermissions, normalizeScope } from '@/lib/api/permissions';
 import { getClass } from '@/lib/class';
 import { createClient } from '@/lib/supabase/server';
@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: 'Kelola API key' };
 
 type KeyRow = {
   id: string; name: string; prefix: string; permissions: unknown; scope: unknown;
-  status: string; created_at: string; updated_at: string;
+  status: string; created_by: string; created_at: string; updated_at: string;
   last_used_at: string | null; revoked_at: string | null;
 };
 
@@ -31,18 +31,20 @@ export default async function DeveloperKeyPage({ params }: { params: Promise<{ i
 
   const supabase = await createClient();
   const { data, error } = await supabase.from('api_keys')
-    .select('id,name,prefix,permissions,scope,status,created_at,updated_at,last_used_at,revoked_at')
+    .select('id,name,prefix,permissions,scope,status,created_by,created_at,updated_at,last_used_at,revoked_at')
     .eq('id', id).maybeSingle();
   if (error || !data) notFound();
   const key = data as KeyRow;
 
-  const [selectedResult, membersResult, auditResult, cls] = await Promise.all([
+  const [selectedResult, membersResult, auditResult, authorResult, cls] = await Promise.all([
     supabase.from('api_key_members').select('user_id').eq('key_id', id),
     supabase.from('member_profile_v').select('user_id,full_name,status')
       .eq('status', 'active').order('full_name').limit(200),
     supabase.from('api_audit_log')
       .select('id,method,path,resource,status_code,duration_ms,created_at')
       .eq('api_key_id', id).order('created_at', { ascending: false }).limit(20),
+    // Username pembuat key dipakai sebagai bagian nama berkas unduhan JSON.
+    supabase.from('member_profile_v').select('username').eq('user_id', key.created_by).maybeSingle(),
     getClass(),
   ]);
 
@@ -50,6 +52,7 @@ export default async function DeveloperKeyPage({ params }: { params: Promise<{ i
     .map((row) => ({ id: row.user_id, name: row.full_name }));
   const selected = (selectedResult.data ?? []).map((row) => (row as { user_id: string }).user_id);
   const audit = (auditResult.data ?? []) as AuditRow[];
+  const author = (authorResult.data as { username: string } | null)?.username ?? 'eclipse';
   const tz = cls?.timezone ?? 'Asia/Jakarta';
   const revoked = key.status === 'revoked';
 
@@ -84,6 +87,12 @@ export default async function DeveloperKeyPage({ params }: { params: Promise<{ i
           />
         </div>
       </Section>
+
+      {!revoked && (
+        <Section id="key-refresh" title="Kredensial" icon="key">
+          <KeyRefresh id={key.id} name={key.name} author={author} />
+        </Section>
+      )}
 
       <KeyLifecycle id={key.id} status={key.status} />
 
