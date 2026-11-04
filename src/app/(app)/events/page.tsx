@@ -12,14 +12,20 @@ import { getViewer, requireView } from '@/lib/visibility/server';
 
 export const metadata: Metadata = { title: 'Event' };
 
-type Row = { id: string; title: string; description: string | null; start_at: string; end_at: string; location: string | null; organizer: string | null; cover_path: string | null };
-const COLS = 'id,title,description,start_at,end_at,location,organizer,cover_path';
+type Row = { id: string; title: string; description: string | null; start_at: string; end_at: string; location: string | null; organizer: string | null; cover_path: string | null; created_by: string | null };
+const COLS = 'id,title,description,start_at,end_at,location,organizer,cover_path,created_by';
 
 export default async function EventsPage({ searchParams }: { searchParams: Promise<{ when?: string }> }) {
   if (!(await requireView('page.events', '/events'))) return <NoAccess />;
-  const canManage = (await getViewer()).can('events.manage');
+  const viewer = await getViewer();
   const past = (await searchParams).when === 'past';
   const supabase = await createClient();
+  const roleAccess = await supabase.rpc('has_role_access', { p_permission: 'events.manage' });
+  // Akses per anggota hanya berlaku untuk event buatannya sendiri; jabatan yang
+  // memegang `events.manage` boleh mengubah semua event.
+  const canManage = viewer.can('events.manage');
+  const canManageAll = roleAccess.data === true;
+  const canEditEvent = (owner: string | null) => canManageAll || (canManage && owner === viewer.user?.id);
   const nowDate = new Date();
   const now = nowDate.toISOString();
   const [cls, res] = await Promise.all([
@@ -72,7 +78,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
                       {e.description && <p className="muted clamp-2">{e.description}</p>}
                       <div className="cluster">
                         {(photoCount.get(e.id) ?? 0) > 0 && <EventPhotoViewer eventId={e.id} count={photoCount.get(e.id) ?? 0} />}
-                        {canManage && <Link href={`/events/${e.id}/edit`} className="btn btn--ghost btn--sm above event-card__edit"><Icon name="pencil" size={16} />Ubah</Link>}
+                        {canEditEvent(e.created_by) && <Link href={`/events/${e.id}/edit`} className="btn btn--ghost btn--sm above event-card__edit"><Icon name="pencil" size={16} />Ubah</Link>}
                       </div>
                     </div>
                   </article>

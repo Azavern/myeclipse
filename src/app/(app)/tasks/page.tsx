@@ -9,18 +9,21 @@ import { getViewer, requireView } from '@/lib/visibility/server';
 export const metadata: Metadata = { title: 'Tugas' };
 
 type Status = 'active' | 'completed' | 'archived';
-type Row = { id: string; title: string; deadline: string; status: Status; course: string | null; approval: 'pending' | 'approved' };
+type Row = { id: string; title: string; deadline: string; status: Status; course: string | null; approval: 'pending' | 'approved'; created_by: string | null };
 const TABS: [Status, string][] = [['active', 'Aktif'], ['completed', 'Selesai'], ['archived', 'Arsip']];
 const EMPTY: Record<Status, string> = { active: 'Tidak ada tugas aktif', completed: 'Belum ada tugas yang selesai', archived: 'Arsip tugas kosong' };
 
 export default async function TasksPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
   if (!(await requireView('page.tasks', '/tasks'))) return <NoAccess />;
-  const canManage = (await getViewer()).can('tasks.manage');
+  const viewer = await getViewer();
   const raw = (await searchParams).status;
   const status: Status = raw === 'completed' || raw === 'archived' ? raw : 'active';
   const supabase = await createClient();
+  const roleAccess = await supabase.rpc('has_role_access', { p_permission: 'tasks.manage' });
+  const canManage = viewer.can('tasks.manage');
+  const canManageAll = roleAccess.data === true;
   const [cls, res] = await Promise.all([getClass(), supabase.from('tasks')
-    .select('id,title,deadline,status,course,approval').eq('status', status)
+    .select('id,title,deadline,status,course,approval,created_by').eq('status', status)
     .order('deadline', { ascending: status === 'active' }).limit(100)]);
   const tz = cls?.timezone ?? 'Asia/Jakarta';
   const now = new Date();
@@ -34,7 +37,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       </div>
       {rows.length === 0
         ? <EmptyState icon="tasks" title={EMPTY[status]} action={status === 'active' ? add : undefined}>Tugas baru akan muncul di sini.</EmptyState>
-        : <div className="card card--flush"><ul className="rows">{rows.map((t) => <TaskRow key={t.id} t={t} tz={tz} now={now} editable={canManage} />)}</ul></div>}
+        : <div className="card card--flush"><ul className="rows">{rows.map((t) => <TaskRow key={t.id} t={t} tz={tz} now={now} editable={canManageAll || (canManage && t.created_by === viewer.user?.id)} />)}</ul></div>}
     </>
   );
 }

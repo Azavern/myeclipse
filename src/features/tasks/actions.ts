@@ -27,13 +27,14 @@ export async function deleteTask(_p: FormState, fd: FormData) {
   return runDelete({ fd, id: idOf(fd), perm: base.perm, table: base.table, paths: base.paths, to: base.to });
 }
 
-// Persetujuan tugas oleh Ketua. Trigger `app.tasks_approval_guard` menolak
-// perubahan status persetujuan dari selain Ketua, jadi RLS + guard yang menjaga.
+// Persetujuan tugas hanya oleh Ketua (`class.manage`). Pemberian akses
+// `tasks.manage` kepada anggota tidak boleh dipakai menyetujui tugas; trigger
+// `app.tasks_approval_guard` menolak perubahan dari selain Ketua.
 export async function approveTask(fd: FormData): Promise<void> {
   const id = idOf(fd);
   if (!id) return;
   const ctx = await requireActionContext();
-  if (!ctx?.can('tasks.manage')) return;
+  if (!ctx?.can('class.manage')) return;
   const { error } = await ctx.supabase.from('tasks')
     .update({ approval: 'approved', approved_by: ctx.user.id, approved_at: new Date().toISOString() })
     .eq('id', id);

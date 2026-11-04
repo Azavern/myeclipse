@@ -10,7 +10,7 @@ import { createClient } from '@/lib/supabase/server';
 import { formatWhen, relativeTime } from '@/lib/time';
 import { getViewer, requireView } from '@/lib/visibility/server';
 
-type Row = { title: string; description: string | null; deadline: string; target: string; url: string | null; status: 'active' | 'completed' | 'archived'; course: string | null; approval: 'pending' | 'approved' };
+type Row = { title: string; description: string | null; deadline: string; target: string; url: string | null; status: 'active' | 'completed' | 'archived'; course: string | null; approval: 'pending' | 'approved'; created_by: string | null };
 
 export const metadata: Metadata = { title: 'Detail tugas' };
 
@@ -18,25 +18,30 @@ export default async function TaskDetail({ params }: { params: Promise<{ id: str
   const { id } = await params;
   if (!(await requireView('page.tasks', `/tasks/${id}`))) return <NoAccess />;
   const supabase = await createClient();
-  const [cls, res, viewer] = await Promise.all([getClass(), supabase.from('tasks')
-    .select('title,description,deadline,target,url,status,course,approval').eq('id', id).maybeSingle(), getViewer()]);
+  const [cls, res, viewer, roleAccess] = await Promise.all([getClass(), supabase.from('tasks')
+    .select('title,description,deadline,target,url,status,course,approval,created_by').eq('id', id).maybeSingle(), getViewer(),
+    supabase.rpc('has_role_access', { p_permission: 'tasks.manage' })]);
   const t = res.data as Row | null;
   if (res.error || !t) notFound(); // id tak ada, tak valid, atau tak terlihat: respons sama
   const tz = cls?.timezone ?? 'Asia/Jakarta';
   const now = new Date();
+  // Persetujuan hanya untuk Ketua; akses `tasks.manage` per anggota tidak
+  // memberi wewenang menyetujui tugas anggota lain.
+  const canApprove = viewer.can('class.manage');
+  const canEdit = roleAccess.data === true || (viewer.can('tasks.manage') && t.created_by === viewer.user?.id);
   const d = taskDisplayStatus({ status: t.status, deadline: new Date(t.deadline) }, now);
   return (
     <>
       <PageHeader crumbs={[{ label: 'Tugas', href: '/tasks' }, { label: t.title }]} icon="tasks" title={t.title} description={t.course ?? 'Tanpa mata kuliah'}
-        actions={viewer.can('tasks.manage') ? (
+        actions={(canApprove || canEdit) ? (
           <>
-            {t.approval === 'pending' && (
+            {canApprove && t.approval === 'pending' && (
               <form action={approveTask}>
                 <input type="hidden" name="id" value={id} />
                 <button type="submit" className={btnClass({ variant: 'primary' })}>Setujui</button>
               </form>
             )}
-            <LinkButton href={`/tasks/${id}/edit`} variant="secondary" icon="pencil">Ubah</LinkButton>
+            {canEdit && <LinkButton href={`/tasks/${id}/edit`} variant="secondary" icon="pencil">Ubah</LinkButton>}
           </>
         ) : undefined} />
       {t.approval === 'pending' && (

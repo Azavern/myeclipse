@@ -1,4 +1,5 @@
 'use client';
+import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useId, useState } from 'react';
 import { Icon } from '@/components/ui/icon';
 import { Chip, Notice, btnClass } from '@/components/ui/primitives';
@@ -12,11 +13,15 @@ export function AccessToggle({ roleId, permissionKey, label, hint, checked }: {
   roleId: string; permissionKey: string; label: string; hint: string; checked: boolean;
 }) {
   const [state, act, pending] = useActionState(toggleRoleAccess, null);
+  const router = useRouter();
   const [on, setOn] = useState(checked);
   const id = useId();
   const error = errorOf(state);
 
   useEffect(() => setOn(checked), [checked]);
+  // Server action hanya me-revalidate cache; refresh memastikan nilai centang
+  // diambil ulang dari server setelah perubahan benar-benar tersimpan.
+  useEffect(() => { if (state?.ok) router.refresh(); }, [state, router]);
   useEffect(() => { if (state && !state.ok) setOn(checked); }, [state, checked]);
 
   return (
@@ -108,11 +113,15 @@ export function MemberAccessToggle({ userId, permissionKey, label, hint, checked
   userId: string; permissionKey: string; label: string; hint?: string; checked: boolean;
 }) {
   const [state, act, pending] = useActionState(toggleMemberAccess, null);
+  const router = useRouter();
   const [on, setOn] = useState(checked);
   const id = useId();
   const error = errorOf(state);
 
   useEffect(() => setOn(checked), [checked]);
+  // Server action hanya me-revalidate cache; refresh memastikan nilai centang
+  // diambil ulang dari server setelah perubahan benar-benar tersimpan.
+  useEffect(() => { if (state?.ok) router.refresh(); }, [state, router]);
   useEffect(() => { if (state && !state.ok) setOn(checked); }, [state, checked]);
 
   return (

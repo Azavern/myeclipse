@@ -10,7 +10,7 @@ import { formatRange, relativeTime } from '@/lib/time';
 import { getViewer, requireView } from '@/lib/visibility/server';
 
 type Row = { title: string; description: string | null; start_at: string; end_at: string;
-  location: string | null; organizer: string | null; url: string | null; cover_path: string | null };
+  location: string | null; organizer: string | null; url: string | null; cover_path: string | null; created_by: string | null };
 
 export const metadata: Metadata = { title: 'Detail event' };
 
@@ -18,8 +18,9 @@ export default async function EventDetail({ params }: { params: Promise<{ id: st
   const { id } = await params;
   if (!(await requireView('page.events', `/events/${id}`))) return <NoAccess />;
   const supabase = await createClient();
-  const [cls, res, viewer] = await Promise.all([getClass(), supabase.from('events')
-    .select('title,description,start_at,end_at,location,organizer,url,cover_path').eq('id', id).maybeSingle(), getViewer()]);
+  const [cls, res, viewer, roleAccess] = await Promise.all([getClass(), supabase.from('events')
+    .select('title,description,start_at,end_at,location,organizer,url,cover_path,created_by').eq('id', id).maybeSingle(), getViewer(),
+    supabase.rpc('has_role_access', { p_permission: 'events.manage' })]);
   const e = res.data as Row | null;
   if (res.error || !e) notFound(); // id tak ada, tak valid, atau tak terlihat: respons sama
   const tz = cls?.timezone ?? 'Asia/Jakarta';
@@ -29,13 +30,16 @@ export default async function EventDetail({ params }: { params: Promise<{ id: st
   const photoRows = (photoResult.data ?? []) as { id: string; path: string }[];
   const photoUrls = await signMany(supabase, 'class-media', photoRows.map((photo) => photo.path));
   const now = new Date();
+  // Jabatan pemegang `events.manage` boleh mengubah semua event; akses per
+  // anggota hanya event buatannya sendiri. RLS menegakkan aturan yang sama.
+  const canEdit = roleAccess.data === true || (viewer.can('events.manage') && e.created_by === viewer.user?.id);
   const ended = new Date(e.end_at) < now;
   const live = !ended && new Date(e.start_at) <= now;
   return (
     <>
       <PageHeader crumbs={[{ label: 'Event', href: '/events' }, { label: e.title }]} icon="calendar-days" title={e.title}
         description={<span className="cluster">{ended ? <Chip>Sudah lewat</Chip> : live ? <Chip tone="success" icon="sparkles">Sedang berlangsung</Chip> : <Chip tone="brand" icon="clock">{relativeTime(e.start_at, now)}</Chip>}</span>}
-        actions={viewer.can('events.manage') && <LinkButton href={`/events/${id}/edit`} variant="secondary" icon="pencil">Ubah</LinkButton>} />
+        actions={canEdit && <LinkButton href={`/events/${id}/edit`} variant="secondary" icon="pencil">Ubah</LinkButton>} />
       <div className="stack">
         {cover && <div className="card card--flush"><StorageImage src={cover} alt={`Sampul ${e.title}`} width={1600} height={900} ratio="wide" priority /></div>}
         {photoRows.length > 0 && (
