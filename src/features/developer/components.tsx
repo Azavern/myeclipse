@@ -139,8 +139,8 @@ export function ApiKeyForm({ mode, id, defaults, members, disabled }: {
         </div>
       </section>
 
-      <details className="card" open={memberIds.size > 0}>
-        <summary className="card__title">Anggota tertentu ({memberIds.size} dipilih)</summary>
+      <section className="card" aria-labelledby="api-members-title">
+        <h3 className="card__title" id="api-members-title">Anggota tertentu ({memberIds.size} dipilih)</h3>
         <p className="card__desc">
           Dipakai bila cakupan anggota, profil, portofolio, tautan sosial, atau inventory diset ke
           “Anggota tertentu”. Hanya anggota aktif yang ditampilkan.
@@ -158,7 +158,7 @@ export function ApiKeyForm({ mode, id, defaults, members, disabled }: {
             ))}
           </div>
         )}
-      </details>
+      </section>
 
       <div className="form__actions">
         <button type="submit" className="btn" disabled={busy}>

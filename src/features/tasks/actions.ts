@@ -1,5 +1,7 @@
 'use server';
+import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
+import { requireActionContext } from '@/lib/action-context';
 import { runDelete, runSave } from '@/lib/crud';
 import { failState, type FormState } from '@/lib/form-state';
 import { localToUtc } from '@/lib/time';
@@ -23,4 +25,23 @@ export async function updateTask(_p: FormState, fd: FormData) {
 }
 export async function deleteTask(_p: FormState, fd: FormData) {
   return runDelete({ fd, id: idOf(fd), perm: base.perm, table: base.table, paths: base.paths, to: base.to });
+}
+
+// Persetujuan tugas oleh Ketua. Trigger `app.tasks_approval_guard` menolak
+// perubahan status persetujuan dari selain Ketua, jadi RLS + guard yang menjaga.
+export async function approveTask(fd: FormData): Promise<void> {
+  const id = idOf(fd);
+  if (!id) return;
+  const ctx = await requireActionContext();
+  if (!ctx?.can('tasks.manage')) return;
+  const { error } = await ctx.supabase.from('tasks')
+    .update({ approval: 'approved', approved_by: ctx.user.id, approved_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) {
+    console.error('approveTask', error.code);
+    return;
+  }
+  revalidatePath('/tasks');
+  revalidatePath(`/tasks/${id}`);
+  revalidatePath('/');
 }

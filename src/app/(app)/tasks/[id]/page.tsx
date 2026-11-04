@@ -2,14 +2,15 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { ExtLink, NoAccess } from '@/components/states';
 import { Icon } from '@/components/ui/icon';
-import { LinkButton, PageHeader, TaskStatusChip } from '@/components/ui/primitives';
+import { btnClass, LinkButton, Notice, PageHeader, TaskStatusChip } from '@/components/ui/primitives';
+import { approveTask } from '@/features/tasks/actions';
 import { getClass } from '@/lib/class';
 import { taskDisplayStatus } from '@/lib/tasks';
 import { createClient } from '@/lib/supabase/server';
 import { formatWhen, relativeTime } from '@/lib/time';
 import { getViewer, requireView } from '@/lib/visibility/server';
 
-type Row = { title: string; description: string | null; deadline: string; target: string; url: string | null; status: 'active' | 'completed' | 'archived'; course: string | null };
+type Row = { title: string; description: string | null; deadline: string; target: string; url: string | null; status: 'active' | 'completed' | 'archived'; course: string | null; approval: 'pending' | 'approved' };
 
 export const metadata: Metadata = { title: 'Detail tugas' };
 
@@ -18,7 +19,7 @@ export default async function TaskDetail({ params }: { params: Promise<{ id: str
   if (!(await requireView('page.tasks', `/tasks/${id}`))) return <NoAccess />;
   const supabase = await createClient();
   const [cls, res, viewer] = await Promise.all([getClass(), supabase.from('tasks')
-    .select('title,description,deadline,target,url,status,course').eq('id', id).maybeSingle(), getViewer()]);
+    .select('title,description,deadline,target,url,status,course,approval').eq('id', id).maybeSingle(), getViewer()]);
   const t = res.data as Row | null;
   if (res.error || !t) notFound(); // id tak ada, tak valid, atau tak terlihat: respons sama
   const tz = cls?.timezone ?? 'Asia/Jakarta';
@@ -27,7 +28,22 @@ export default async function TaskDetail({ params }: { params: Promise<{ id: str
   return (
     <>
       <PageHeader crumbs={[{ label: 'Tugas', href: '/tasks' }, { label: t.title }]} icon="tasks" title={t.title} description={t.course ?? 'Tanpa mata kuliah'}
-        actions={viewer.can('tasks.manage') && <LinkButton href={`/tasks/${id}/edit`} variant="secondary" icon="pencil">Ubah</LinkButton>} />
+        actions={viewer.can('tasks.manage') ? (
+          <>
+            {t.approval === 'pending' && (
+              <form action={approveTask}>
+                <input type="hidden" name="id" value={id} />
+                <button type="submit" className={btnClass({ variant: 'primary' })}>Setujui</button>
+              </form>
+            )}
+            <LinkButton href={`/tasks/${id}/edit`} variant="secondary" icon="pencil">Ubah</LinkButton>
+          </>
+        ) : undefined} />
+      {t.approval === 'pending' && (
+        <Notice tone="warning">
+          Tugas ini menunggu persetujuan Ketua. Anggota lain baru bisa melihatnya setelah disetujui.
+        </Notice>
+      )}
       <div className="stack">
         <section className="card" aria-label="Ringkasan tugas">
           <dl className="facts">

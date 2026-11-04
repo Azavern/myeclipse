@@ -18,3 +18,11 @@ export const ACCESS_ITEMS: { key: AccessKey; label: string; hint: string; icon: 
 
 // Akses penuh kelola anggota; hanya Ketua yang memegangnya dan tidak dapat diberikan lewat checklist.
 export const FULL_MEMBER_ACCESS = { key: 'members.manage', label: 'Kelola anggota penuh' } as const;
+
+// Akses tambahan untuk anggota dengan role `member` (migrasi 0026). Berbeda dari
+// akses jabatan: tugas yang dibuat tetap menunggu persetujuan Ketua, dan event
+// hanya dapat diubah untuk event buatannya sendiri.
+export const MEMBER_ACCESS_ITEMS = [
+  { key: 'events.manage', label: 'Kelola event', hint: 'Membuat event sendiri dan mengatur fotonya.' },
+  { key: 'tasks.manage', label: 'Kelola tugas', hint: 'Membuat tugas; tugas baru tampil setelah disetujui Ketua.' },
+] as const;

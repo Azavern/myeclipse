@@ -19,8 +19,10 @@ export async function GET(request: Request) {
       throw new ApiFailure(400, 'validation', 'Status harus active, completed, atau archived.');
     }
 
+    // Tugas yang belum disetujui Ketua tidak pernah tampil lewat API.
     let query = principal.admin.from('tasks')
-      .select(TASK_FIELDS, { count: 'exact' }).eq('class_id', principal.classId);
+      .select(TASK_FIELDS, { count: 'exact' }).eq('class_id', principal.classId)
+      .eq('approval', 'approved');
     if (status) query = query.eq('status', status);
     if (q) query = query.or(`title.ilike.%${q}%,course.ilike.%${q}%`);
 
@@ -43,6 +45,8 @@ export async function POST(request: Request) {
       url: input.url ?? null,
       status: input.status ?? 'active',
       created_by: principal.ownerId,
+      // Service role melewati trigger, jadi persetujuan diisi eksplisit.
+      approval: 'approved',
     }).select(TASK_FIELDS).single();
     if (error) dbFailure(error);
     return apiJson({ data }, 201);

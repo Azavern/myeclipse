@@ -1,11 +1,11 @@
 import Link from 'next/link';
 import { Icon } from '@/components/ui/icon';
-import { TASK_UI, TaskStatusChip, Tile } from '@/components/ui/primitives';
+import { Chip, TASK_UI, TaskStatusChip, Tile } from '@/components/ui/primitives';
 import { cx } from '@/lib/cx';
 import { taskDisplayStatus } from '@/lib/tasks';
 import { formatWhen, relativeTime } from '@/lib/time';
 
-export type TaskItem = { id: string; title: string; deadline: string; course: string | null; status?: 'active' | 'completed' | 'archived' };
+export type TaskItem = { id: string; title: string; deadline: string; course: string | null; status?: 'active' | 'completed' | 'archived'; approval?: 'pending' | 'approved' };
 
 // Satu baris tugas: ikon status, judul (seluruh baris bisa diklik), mata kuliah, tenggat, dan chip status.
 // Status dihitung dari `now` yang disuntikkan, jadi baris ini murni dan bisa dites.
@@ -24,6 +24,7 @@ export function TaskRow({ t, tz, now, editable }: { t: TaskItem; tz: string; now
         </div>
       </div>
       <div className="task__side">
+        {t.approval === 'pending' && <Chip tone="warning" icon="hourglass">Menunggu ACC</Chip>}
         <TaskStatusChip status={d} />
         {open && <span className="muted nums">{relativeTime(t.deadline, now)}</span>}
         {editable && <Link href={`/tasks/${t.id}/edit`} className="btn btn--ghost btn--sm above"><Icon name="pencil" size={16} />Ubah</Link>}

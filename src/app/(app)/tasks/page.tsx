@@ -9,7 +9,7 @@ import { getViewer, requireView } from '@/lib/visibility/server';
 export const metadata: Metadata = { title: 'Tugas' };
 
 type Status = 'active' | 'completed' | 'archived';
-type Row = { id: string; title: string; deadline: string; status: Status; course: string | null };
+type Row = { id: string; title: string; deadline: string; status: Status; course: string | null; approval: 'pending' | 'approved' };
 const TABS: [Status, string][] = [['active', 'Aktif'], ['completed', 'Selesai'], ['archived', 'Arsip']];
 const EMPTY: Record<Status, string> = { active: 'Tidak ada tugas aktif', completed: 'Belum ada tugas yang selesai', archived: 'Arsip tugas kosong' };
 
@@ -20,7 +20,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const status: Status = raw === 'completed' || raw === 'archived' ? raw : 'active';
   const supabase = await createClient();
   const [cls, res] = await Promise.all([getClass(), supabase.from('tasks')
-    .select('id,title,deadline,status,course').eq('status', status)
+    .select('id,title,deadline,status,course,approval').eq('status', status)
     .order('deadline', { ascending: status === 'active' }).limit(100)]);
   const tz = cls?.timezone ?? 'Asia/Jakarta';
   const now = new Date();

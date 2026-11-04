@@ -81,3 +81,29 @@ export async function decideRoleChange(_p: AccessState, fd: FormData): Promise<A
   ['/settings/access', '/settings/members', '/members', '/'].forEach((p) => revalidatePath(p));
   return { ok: true, data: null };
 }
+
+// Akses tambahan per anggota dengan role `member` untuk event/tugas. Hanya Ketua.
+export async function toggleMemberAccess(_p: AccessState, fd: FormData): Promise<AccessState> {
+  const parsed = z.object({
+    user_id: z.string().uuid(),
+    permission: z.enum(['events.manage', 'tasks.manage']),
+  }).safeParse({ user_id: fd.get('user_id'), permission: fd.get('permission') });
+  if (!parsed.success) return fail('validation', 'Akses tidak valid.');
+  const ctx = await requireActionContext();
+  if (!ctx?.can('members.manage')) return fail('forbidden', FORBIDDEN);
+  const { error } = await ctx.supabase.rpc('set_member_access', {
+    p_user_id: parsed.data.user_id,
+    p_permission: parsed.data.permission,
+    p_enabled: fd.get('enabled') === '1',
+  });
+  if (error) {
+    console.error('toggleMemberAccess', error.code);
+    const message = error.code === 'EC083' ? 'Akses khusus hanya untuk anggota dengan role member.'
+      : error.code === 'P0002' ? 'Anggota tidak ditemukan.'
+      : error.code === '22023' ? 'Akses ini tidak dapat diberikan.'
+      : 'Akses belum bisa disimpan. Coba lagi.';
+    return fail('unknown', message);
+  }
+  revalidatePath('/settings/access');
+  return { ok: true, data: null };
+}

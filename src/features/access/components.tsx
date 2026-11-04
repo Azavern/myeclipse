@@ -2,7 +2,7 @@
 import { useActionState, useEffect, useId, useState } from 'react';
 import { Icon } from '@/components/ui/icon';
 import { Chip, Notice, btnClass } from '@/components/ui/primitives';
-import { decideRoleChange, requestRoleChange, toggleRoleAccess, type AccessState } from './actions';
+import { decideRoleChange, requestRoleChange, toggleMemberAccess, toggleRoleAccess, type AccessState } from './actions';
 
 const errorOf = (s: AccessState) => (s && !s.ok ? s.error.message : null);
 
@@ -99,5 +99,40 @@ export function RoleChangeRequest({ targetId, targetName, currentRoleId, options
       </form>
       {error && <Notice tone="error" role="alert">{error}</Notice>}
     </div>
+  );
+}
+
+// Checklist akses per anggota dengan role `member` (event/tugas). Satu centang =
+// satu akses, sama seperti AccessToggle; server memvalidasi ulang role anggota.
+export function MemberAccessToggle({ userId, permissionKey, label, hint, checked }: {
+  userId: string; permissionKey: string; label: string; hint?: string; checked: boolean;
+}) {
+  const [state, act, pending] = useActionState(toggleMemberAccess, null);
+  const [on, setOn] = useState(checked);
+  const id = useId();
+  const error = errorOf(state);
+
+  useEffect(() => setOn(checked), [checked]);
+  useEffect(() => { if (state && !state.ok) setOn(checked); }, [state, checked]);
+
+  return (
+    <li className="checklist__item">
+      <form action={act} aria-busy={pending}>
+        <input type="hidden" name="user_id" value={userId} />
+        <input type="hidden" name="permission" value={permissionKey} />
+        <label className="checklist__label" htmlFor={id}>
+          <input id={id} type="checkbox" name="enabled" value="1" checked={on} disabled={pending}
+            onChange={(e) => { setOn(e.currentTarget.checked); e.currentTarget.form?.requestSubmit(); }} />
+          <span className="checklist__text">
+            <span className="checklist__title">
+              {label}
+              {pending && <><Icon name="loader" size={14} className="spin" /><span className="sr-only">Menyimpan</span></>}
+            </span>
+            {hint && <span className="checklist__hint">{hint}</span>}
+          </span>
+        </label>
+        {error && <Notice tone="error" role="alert">{error}</Notice>}
+      </form>
+    </li>
   );
 }

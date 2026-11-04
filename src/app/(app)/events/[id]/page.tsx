@@ -24,6 +24,10 @@ export default async function EventDetail({ params }: { params: Promise<{ id: st
   if (res.error || !e) notFound(); // id tak ada, tak valid, atau tak terlihat: respons sama
   const tz = cls?.timezone ?? 'Asia/Jakarta';
   const cover = e.cover_path ? (await signMany(supabase, 'class-media', [e.cover_path])).get(e.cover_path) : undefined;
+  const photoResult = await supabase.from('event_photos')
+    .select('id,path').eq('event_id', id).order('position').order('created_at');
+  const photoRows = (photoResult.data ?? []) as { id: string; path: string }[];
+  const photoUrls = await signMany(supabase, 'class-media', photoRows.map((photo) => photo.path));
   const now = new Date();
   const ended = new Date(e.end_at) < now;
   const live = !ended && new Date(e.start_at) <= now;
@@ -34,6 +38,21 @@ export default async function EventDetail({ params }: { params: Promise<{ id: st
         actions={viewer.can('events.manage') && <LinkButton href={`/events/${id}/edit`} variant="secondary" icon="pencil">Ubah</LinkButton>} />
       <div className="stack">
         {cover && <div className="card card--flush"><StorageImage src={cover} alt={`Sampul ${e.title}`} width={1600} height={900} ratio="wide" priority /></div>}
+        {photoRows.length > 0 && (
+          <section className="card" aria-labelledby="photos">
+            <div className="card__head">
+              <h2 id="photos" className="card__title"><Icon name="image" size={20} />Foto event</h2>
+              <Chip tone="outline">{photoRows.length} foto</Chip>
+            </div>
+            <ul className="photo-grid">
+              {photoRows.map((photo, index) => (
+                <li key={photo.id} className="photo-tile">
+                  <StorageImage src={photoUrls.get(photo.path)} alt={`Foto ${index + 1} ${e.title}`} width={1200} height={800} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         <div className="dash">
           <section className="card" aria-labelledby="desc">
             <div className="card__head"><h2 id="desc" className="card__title"><Icon name="info" size={20} />Tentang event</h2></div>

@@ -48,10 +48,29 @@ export async function PATCH(request: Request, { params }: Ctx) {
 export async function DELETE(request: Request, { params }: Ctx) {
   return withApi(request, { resource: 'events', action: 'delete' }, async ({ principal }) => {
     const { id } = await params;
+    const { data: existing, error: readError } = await principal.admin.from('events')
+      .select('id,cover_path').eq('id', id).eq('class_id', principal.classId).maybeSingle();
+    if (readError) dbFailure(readError);
+    if (!existing) throw missing();
+
+    // Kumpulkan media sebelum baris dihapus: baris `event_photos` ikut cascade.
+    const { data: photos, error: photoError } = await principal.admin.from('event_photos')
+      .select('path').eq('event_id', id).eq('class_id', principal.classId);
+    if (photoError) dbFailure(photoError);
+    const paths = [
+      ...((photos ?? []) as { path: string }[]).map((photo) => photo.path),
+      ...(existing.cover_path ? [existing.cover_path as string] : []),
+    ];
+
     const { data, error } = await principal.admin.from('events')
       .delete().eq('id', id).eq('class_id', principal.classId).select('id');
     if (error) dbFailure(error);
     if (!data?.length) throw missing();
+
+    if (paths.length) {
+      const { error: removeError } = await principal.admin.storage.from('class-media').remove(paths);
+      if (removeError) console.error('api events media', removeError.message);
+    }
     return new Response(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
   });
 }

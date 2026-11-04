@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { NoAccess } from '@/components/states';
 import { Icon } from '@/components/ui/icon';
 import { Chip, DateBadge, EmptyState, LinkButton, PageHeader, Segmented, StorageImage } from '@/components/ui/primitives';
+import { EventPhotoViewer } from '@/features/events/photo-viewer';
 import { getClass } from '@/lib/class';
 import { signMany } from '@/lib/storage/sign';
 import { createClient } from '@/lib/supabase/server';
@@ -30,6 +31,12 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   const tz = cls?.timezone ?? 'Asia/Jakarta';
   const rows = (res.data ?? []) as Row[];
   const covers = await signMany(supabase, 'class-media', rows.map((r) => r.cover_path));
+  const ids = rows.map((row) => row.id);
+  const photoRows = ids.length
+    ? ((await supabase.from('event_photos').select('event_id').in('event_id', ids)).data ?? []) as { event_id: string }[]
+    : [];
+  const photoCount = new Map<string, number>();
+  photoRows.forEach((row) => photoCount.set(row.event_id, (photoCount.get(row.event_id) ?? 0) + 1));
   const add = canManage && <LinkButton href="/events/new" icon="plus">Tambah event</LinkButton>;
   return (
     <>
@@ -63,7 +70,10 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
                       </div>
                       {live && <div><Chip tone="success" icon="sparkles">Sedang berlangsung</Chip></div>}
                       {e.description && <p className="muted clamp-2">{e.description}</p>}
-                      {canManage && <Link href={`/events/${e.id}/edit`} className="btn btn--ghost btn--sm above event-card__edit"><Icon name="pencil" size={16} />Ubah</Link>}
+                      <div className="cluster">
+                        {(photoCount.get(e.id) ?? 0) > 0 && <EventPhotoViewer eventId={e.id} count={photoCount.get(e.id) ?? 0} />}
+                        {canManage && <Link href={`/events/${e.id}/edit`} className="btn btn--ghost btn--sm above event-card__edit"><Icon name="pencil" size={16} />Ubah</Link>}
+                      </div>
                     </div>
                   </article>
                 </li>);
