@@ -32,10 +32,13 @@ select set_config('tap.class_id', (select id::text from public.classes), false);
 -- ===== Pemilik A =============================================================
 do $$ begin perform set_config('role', 'authenticated', true);
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000d1","role":"authenticated"}', true); end $$;
+-- `returning id` meniru `.insert(...).select('id')` PostgREST: baris baru harus
+-- terlihat oleh policy SELECT dalam statement yang sama (regresi migrasi 0030).
 select lives_ok($$ insert into public.library_items (class_id, owner_id, title, storage_path, mime_type, size_bytes)
   values (current_setting('tap.class_id')::uuid, '00000000-0000-0000-0000-0000000000d1', 'Foto A',
-          current_setting('tap.class_id') || '/00000000-0000-0000-0000-0000000000d1/library/a.webp', 'image/webp', 1024) $$,
-  'pemilik menyimpan item Library');
+          current_setting('tap.class_id') || '/00000000-0000-0000-0000-0000000000d1/library/a.webp', 'image/webp', 1024)
+  returning id $$,
+  'pemilik menyimpan item Library dan menerima id-nya');
 select set_config('tap.item_id', (select id::text from public.library_items), false);
 select is((select count(*) from public.library_items)::int, 1, 'pemilik melihat itemnya');
 select is((select count(*) from public.library_item_access)::int, 0, 'item baru belum dibagikan ke siapa pun');
