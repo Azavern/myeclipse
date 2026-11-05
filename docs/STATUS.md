@@ -34,7 +34,7 @@ Rute (halaman aplikasi + route handler: `/api/health`, `/api/qr`, `/api/qr/clean
 | Google | Tombol Google Identity Services di `/login` (`renderButton`); Server Action `beginGoogleSignIn`/`completeGoogleSignIn` menerbitkan nonce dan menukar ID token lewat `signInWithIdToken`. Rute `/auth/google` dan `/auth/callback` sudah dihapus |
 | Lain-lain | `/api/health` (cron harian, Bearer `CRON_SECRET`), `/api/qr` (unggah PNG QR), `/api/qr/cleanup` (sapu file >6 jam), `/dev/ui` (galeri state; `notFound()` saat `NODE_ENV=production`) |
 
-Database: migrasi **0001–0030** (`supabase/migrations`). 0001–0029 sudah diterapkan di proyek Supabase `udlxcngowgbydlxhofdl`; **0030 (policy SELECT Library untuk `INSERT … RETURNING`)** belum diterapkan. Tes DB: `001`–`010`, total 316 pemeriksaan (18 + 36 + 40 + 105 + 15 + 34 + 45 + 4 + 6 + 13). Pada data nyata 307 lulus dan 9 gagal karena 0024/0025, bukan Library.
+Database: migrasi **0001–0030** (`supabase/migrations`), seluruhnya sudah diterapkan di proyek Supabase `udlxcngowgbydlxhofdl`. Tes DB `001`–`010` berjumlah 316 pemeriksaan; `010_library` lulus 13/13 dan suite penuh mencatat 307 lulus, 9 gagal karena 0024/0025 (bukan Library).
 
 ## Role kepengurusan (migrasi 0015–0016)
 
@@ -237,7 +237,7 @@ Database: migrasi **0001–0030** (`supabase/migrations`). 0001–0029 sudah dit
 - **Halaman `/library`.** Anggota aktif melihat item miliknya dan item yang dibagikan. Unggahan bisa beberapa file sekaligus; setiap kartu punya checkbox multi-pilih yang jelas (bingkai terpilih, centang, bilah "n dipilih"), tombol pilih semua, serta aksi massal **Atur visibilitas** dan **Hapus**. Visibilitas `specific` memilih anggota lewat daftar bercari; bila daftar anggota tidak terlihat karena visibilitas halaman Anggota, opsi "Semua anggota" tetap tersedia.
 - **Unduhan versi.** `/api/library/[id]/download?v=hd` memakai file asli dari Drive (nama dan MIME asli, `Content-Disposition` aman, token tidak keluar server); `?v=preview` memakai URL bertanda tangan Storage. Keduanya memakai RLS yang sama; versi yang tidak tersedia dijawab 409 agar UI menawarkan versi lain.
 - **Pakai ulang.** `LibraryPicker` dipakai di kartu foto profil dan gambar portofolio. Server menyalin objek Storage ke folder form tujuan lalu mengganti path form, sehingga item Library tetap utuh dan bisa dipakai di form lain. Salinan terpisah juga berarti menghapus item Library tidak merusak gambar yang sudah dipakai.
-- **Verifikasi sesi ini.** Typecheck, tes unit, pemeriksaan token, dan build dijalankan (lihat tabel hasil). Migrasi 0029 sudah diterapkan; `010_library` lulus 13/13 setelah policy 0030 disimulasikan di dalam transaksi. Tanpa 0030, unggahan melalui `/api/library/upload` ditolak `42501`. Policy Storage dan alur Drive nyata belum diuji. Alur browser dengan login (unggah, multi-pilih, bagikan ke anggota, unduh HD) juga belum dijalankan karena sesi ini tidak punya kredensial login.
+- **Verifikasi sesi ini.** Typecheck, tes unit, pemeriksaan token, dan build dijalankan (lihat tabel hasil). Migrasi 0029 dan 0030 sudah diterapkan; `010_library` lulus 13/13, termasuk insert pemilik dengan `RETURNING id`. Sebelum 0030, unggahan melalui `/api/library/upload` ditolak `42501`. Policy Storage dan alur Drive nyata belum diuji. Alur browser dengan login (unggah, multi-pilih, bagikan ke anggota, unduh HD) juga belum dijalankan karena sesi ini tidak punya kredensial login.
 
 ## Blueprint vs migrasi (migrasi = sumber kebenaran; blueprint belum diperbarui)
 
