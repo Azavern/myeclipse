@@ -212,21 +212,40 @@ export async function findUploadedFile(o: {
 }
 
 export type DriveFolder = { id: string; name: string; owners?: { displayName?: string; emailAddress?: string }[] };
+export type DriveEntry = { id: string; name: string; mimeType: string; size?: string; createdTime?: string };
 
-// Anak folder langsung di bawah satu induk, hanya folder (bukan file), urut nama alami
-// dan dibatasi 100 baris agar daftar tidak pernah tidak terbatas.
-export async function listFolders(parentId: string): Promise<DriveFolder[]> {
+// Anak folder langsung di bawah satu induk, hanya folder (bukan file), urut nama alami.
+// Batas default 100 baris; pemanggil yang hanya menampilkan sebagian (penjelajah
+// Library) meminta lebih sedikit agar satu render tidak mengambil daftar penuh.
+export async function listFolders(parentId: string, limit = 100): Promise<DriveFolder[]> {
   const query = `'${escapeQuery(parentId)}' in parents and mimeType='${FOLDER_MIME}' and trashed=false`;
   const params = new URLSearchParams({
     q: query,
     fields: 'files(id,name,owners(displayName,emailAddress))',
-    pageSize: '100',
+    pageSize: String(Math.min(100, Math.max(1, Math.round(limit)))),
     orderBy: 'name_natural',
     supportsAllDrives: 'true',
     includeItemsFromAllDrives: 'true',
   });
   const response = await request(`${API}/files?${params}`, { method: 'GET' }, { label: 'list-folders' });
   const json = (await response.json()) as { files?: DriveFolder[] };
+  return json.files ?? [];
+}
+
+// Gambar langsung di bawah satu induk, urut nama. Penjelajah Library memakai
+// batas kecil (10 per halaman) supaya setiap render tetap ringan.
+export async function listImagesInFolder(parentId: string, limit = 10): Promise<DriveEntry[]> {
+  const query = `'${escapeQuery(parentId)}' in parents and mimeType contains 'image/' and trashed=false`;
+  const params = new URLSearchParams({
+    q: query,
+    fields: 'files(id,name,mimeType,size,createdTime)',
+    pageSize: String(Math.min(100, Math.max(1, Math.round(limit)))),
+    orderBy: 'name_natural',
+    supportsAllDrives: 'true',
+    includeItemsFromAllDrives: 'true',
+  });
+  const response = await request(`${API}/files?${params}`, { method: 'GET' }, { label: 'list-images' });
+  const json = (await response.json()) as { files?: DriveEntry[] };
   return json.files ?? [];
 }
 

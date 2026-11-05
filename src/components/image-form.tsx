@@ -1,5 +1,5 @@
 'use client';
-import { useActionState, type ReactNode } from 'react';
+import { useActionState } from 'react';
 import { DeleteButton } from '@/components/entity-form';
 import { ImageUploadField } from '@/components/image-upload';
 import { Icon } from '@/components/ui/icon';
@@ -10,10 +10,10 @@ import type { FormState } from '@/lib/form-state';
 type Action = (p: FormState, fd: FormData) => Promise<FormState>;
 
 // Kartu unggah gambar tunggal (logo, sampul, foto profil, gambar portofolio/event): pratinjau, unggah, dan hapus dengan konfirmasi.
-export function ImageForm({ id, title, description, url, variant, name, uploadAction, removeAction, hidden, spec, removeConsequence, picker }: {
+export function ImageForm({ id, title, description, url, variant, name, uploadAction, removeAction, hidden, spec, removeConsequence }: {
   id: string; title: string; description: string; url?: string; variant: 'avatar' | 'logo' | 'wide'; name?: string;
   uploadAction: Action; removeAction: Action; hidden?: Record<string, string>; spec: { maxSide?: number; crop?: [number, number] };
-  removeConsequence: string; picker?: ReactNode;
+  removeConsequence: string;
 }) {
   const [state, act, pending] = useActionState(uploadAction, null);
   return (
@@ -43,7 +43,6 @@ export function ImageForm({ id, title, description, url, variant, name, uploadAc
           </form>
           {/* Di luar <form> unggah: dialog hapus punya form sendiri dan form tidak boleh bersarang. */}
           {url && <div><DeleteButton action={removeAction} hidden={hidden} label="Hapus gambar" title={`Hapus ${title.toLowerCase()}?`} consequence={removeConsequence} confirmLabel="Hapus gambar" permanent={false} /></div>}
-          {picker}
         </div>
       </div>
     </section>

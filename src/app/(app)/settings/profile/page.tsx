@@ -7,9 +7,6 @@ import { NoAccess } from '@/components/states';
 import { Icon } from '@/components/ui/icon';
 import { Chip, EmptyState, LinkButton, Notice, PageHeader, Tile } from '@/components/ui/primitives';
 import { PLATFORM_ICON, PLATFORM_LABEL, profileFields, type Row } from '@/features/fields';
-import { applyLibraryToAvatar } from '@/features/library/actions';
-import { libraryPickerItems } from '@/features/library/data';
-import { LibraryPicker } from '@/features/library/picker';
 import { removeAvatar, updateProfile, uploadAvatar } from '@/features/profile/actions';
 import { signMany } from '@/lib/storage/sign';
 import { createClient } from '@/lib/supabase/server';
@@ -37,7 +34,6 @@ export default async function ProfileSettings({ searchParams }: { searchParams: 
   const socials = (so.data ?? []) as Soc[];
   const mine = v.data as Me | null;
   const avatar = mine?.avatar_path ? (await signMany(supabase, 'member-media', [mine.avatar_path])).get(mine.avatar_path) : undefined;
-  const libraryItems = await libraryPickerItems(supabase, me);
   const fullName = String((prof.data as Row | null)?.full_name ?? 'Profil');
   return (
     <>
@@ -46,10 +42,7 @@ export default async function ProfileSettings({ searchParams }: { searchParams: 
       <div className="stack">
         {sp.onboarding === '1' && <Notice tone="success" role="status">Selamat datang! Lengkapi profilmu di bawah. Semua bagian opsional.</Notice>}
         <ImageForm id="avatar" title="Foto profil" description="Tampil di daftar anggota dan profilmu." variant="avatar" name={fullName} url={avatar}
-          uploadAction={uploadAvatar} removeAction={removeAvatar} spec={{ crop: [512, 512] }} removeConsequence="Fotomu diganti dengan inisial namamu."
-          picker={<LibraryPicker items={libraryItems} action={applyLibraryToAvatar}
-            title="Gunakan foto dari Library" trigger="Pilih dari Library"
-            description="Foto profil disalin dari Library. Gambar asli tetap tersimpan dan bisa dipakai lagi." />} />
+          uploadAction={uploadAvatar} removeAction={removeAvatar} spec={{ crop: [512, 512] }} removeConsequence="Fotomu diganti dengan inisial namamu." />
         <section className="card" aria-labelledby="h-data">
           <div className="card__head"><h2 id="h-data" className="card__title"><Icon name="user" size={20} />Data diri</h2></div>
           <EntityForm action={updateProfile} fields={profileFields(prof.data as Row | null)} submit="Simpan profil" />

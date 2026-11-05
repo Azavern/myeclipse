@@ -1,16 +1,12 @@
 'use server';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { requireActionContext } from '@/lib/action-context';
 import { deleteFile } from '@/lib/gdrive/drive';
-import { withFlash } from '@/lib/flash';
-import { dbMessage, FORBIDDEN, type FormState } from '@/lib/form-state';
+import { dbMessage, FORBIDDEN } from '@/lib/form-state';
 import { LIBRARY_MAX_TITLE, LIBRARY_VISIBILITIES } from '@/lib/library/shared';
 import { fail, type ActionResult } from '@/lib/result';
-import { copyObject } from '@/lib/storage/copy';
 import { removeObject } from '@/lib/storage/upload';
-import { idOf } from '@/lib/zod-fields';
 
 const idsSchema = z.array(z.string().uuid()).min(1).max(100);
 const visibilitySchema = z.object({
@@ -102,86 +98,4 @@ export async function deleteLibraryItems(input: string[]): Promise<ActionResult<
   }
   notify();
   return { ok: true, data: { removed: deleted?.length ?? 0 } };
-}
-
-// ---- Pakai ulang media Library di form gambar lain ---------------------------
-// Salinan dibuat di folder form tujuan, lalu path baris form diganti. Item Library
-// tetap utuh sehingga bisa dipakai lagi di form lain.
-
-async function ownedLibraryPath(ctx: NonNullable<Awaited<ReturnType<typeof requireActionContext>>>, id: string) {
-  const { data } = await ctx.supabase.from('library_items')
-    .select('storage_path').eq('id', id).eq('owner_id', ctx.user.id).maybeSingle();
-  return (data as { storage_path: string } | null)?.storage_path ?? null;
-}
-
-export async function applyLibraryToAvatar(_p: FormState, fd: FormData): Promise<FormState> {
-  const libId = z.string().uuid().safeParse(fd.get('library_id'));
-  if (!libId.success) return { error: 'Pilih gambar dari Library.' };
-  const ctx = await requireActionContext();
-  if (!ctx) return { error: FORBIDDEN };
-
-  const source = await ownedLibraryPath(ctx, libId.data);
-  if (!source) return { error: 'Gambar itu tidak ada di Library-mu.' };
-
-  const { data: profile } = await ctx.supabase.from('member_profiles')
-    .select('avatar_path').eq('class_id', ctx.classId).eq('user_id', ctx.user.id).maybeSingle();
-  const old = (profile as { avatar_path: string | null } | null)?.avatar_path ?? null;
-
-  const copied = await copyObject({
-    supabase: ctx.supabase, bucket: 'member-media', from: source,
-    dir: `${ctx.classId}/${ctx.user.id}/avatar`,
-  });
-  if (!copied.ok) return { error: copied.message };
-
-  const { data, error } = await ctx.supabase.from('member_profiles')
-    .update({ avatar_path: copied.path })
-    .eq('class_id', ctx.classId).eq('user_id', ctx.user.id).select('user_id');
-  if (error || !data?.length) {
-    await removeObject(ctx.supabase, 'member-media', copied.path);
-    if (error) console.error('applyLibraryToAvatar', error.code);
-    return { error: error ? dbMessage(error) : 'Profil tidak ditemukan.' };
-  }
-
-  await removeObject(ctx.supabase, 'member-media', old);
-  revalidatePath('/settings/profile');
-  revalidatePath('/members');
-  notify();
-  redirect(withFlash('/settings/profile', 'uploaded'));
-}
-
-export async function applyLibraryToPortfolio(_p: FormState, fd: FormData): Promise<FormState> {
-  const itemId = idOf(fd);
-  const libId = z.string().uuid().safeParse(fd.get('library_id'));
-  if (!itemId || !libId.success) return { error: 'Pilih gambar dari Library.' };
-  const ctx = await requireActionContext();
-  if (!ctx) return { error: FORBIDDEN };
-
-  const { data: item } = await ctx.supabase.from('portfolio_items')
-    .select('media_path').eq('id', itemId).eq('user_id', ctx.user.id).maybeSingle();
-  if (!item) return { error: 'Item portofolio tidak ditemukan.' };
-  const old = (item as { media_path: string | null }).media_path;
-
-  const source = await ownedLibraryPath(ctx, libId.data);
-  if (!source) return { error: 'Gambar itu tidak ada di Library-mu.' };
-
-  const copied = await copyObject({
-    supabase: ctx.supabase, bucket: 'member-media', from: source,
-    dir: `${ctx.classId}/${ctx.user.id}/portfolio`,
-  });
-  if (!copied.ok) return { error: copied.message };
-
-  const { data, error } = await ctx.supabase.from('portfolio_items')
-    .update({ media_path: copied.path }).eq('id', itemId).eq('user_id', ctx.user.id).select('id');
-  if (error || !data?.length) {
-    await removeObject(ctx.supabase, 'member-media', copied.path);
-    if (error) console.error('applyLibraryToPortfolio', error.code);
-    return { error: error ? dbMessage(error) : 'Item portofolio tidak ditemukan.' };
-  }
-
-  await removeObject(ctx.supabase, 'member-media', old);
-  revalidatePath('/settings/portfolio');
-  revalidatePath('/settings/profile');
-  revalidatePath('/members');
-  notify();
-  redirect(withFlash(`/settings/portfolio/${itemId}/edit`, 'uploaded'));
 }
