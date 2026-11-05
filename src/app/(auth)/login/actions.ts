@@ -1,6 +1,7 @@
 'use server';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
+import { mfaPending } from '@/lib/auth/mfa';
 import { createClient } from '@/lib/supabase/server';
 import { safeRedirect } from '@/lib/safe-redirect';
 
@@ -19,5 +20,9 @@ export async function signIn(_prev: LoginState, fd: FormData): Promise<LoginStat
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email: parsed.data.email, password: parsed.data.password });
   if (error) return generic; // pesan generik: tidak membedakan akun ada/tidak
-  redirect(safeRedirect(parsed.data.next)); // redirect() melempar; di luar try/catch
+  const target = safeRedirect(parsed.data.next);
+  // Akun dengan faktor terverifikasi baru mendapat sesi aal1; tahan di tantangan
+  // TOTP sebelum halaman aplikasi mana pun dibuka.
+  if (await mfaPending(supabase)) redirect(`/login/2fa?next=${encodeURIComponent(target)}`);
+  redirect(target); // redirect() melempar; di luar try/catch
 }

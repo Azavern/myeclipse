@@ -2,6 +2,8 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
+import { mfaPending } from '@/lib/auth/mfa';
+import { verifyUserPin } from '@/lib/auth/pin';
 import { env } from '@/lib/env';
 import { withFlash } from '@/lib/flash';
 import { PWD_COOKIE } from '@/lib/auth-flags';
@@ -48,7 +50,8 @@ export async function setPassword(_p: AuthState, fd: FormData): Promise<AuthStat
 }
 
 const changeForm = z.object({
-  current: z.string().min(1, 'Kata sandi lama wajib diisi.').max(72),
+  current: z.string().max(72).optional(),
+  pin: z.string().regex(/^\d{6}$/, 'PIN tepat 6 angka.').optional(),
   password: z.string().min(10, 'Kata sandi baru minimal 10 karakter.').max(72, 'Kata sandi maksimal 72 karakter.'),
   confirm: z.string(),
 }).refine((v) => v.password === v.confirm, { message: 'Konfirmasi kata sandi tidak sama.', path: ['confirm'] });
@@ -60,8 +63,22 @@ export async function changePassword(_p: { error?: string } | null, fd: FormData
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user?.email) return { error: 'Sesi ini sudah berakhir. Masuk kembali.' };
-  if ((await supabase.auth.signInWithPassword({ email: user.email, password: parsed.data.current })).error)
-    return { error: 'Kata sandi lama salah.' };
+  // Aksi ini memakai klien langsung (bukan requireActionContext), jadi sesi aal1
+  // milik akun ber-2FA harus ditahan sebelum bisa mengganti kredensial.
+  if (await mfaPending(supabase)) return { error: 'Selesaikan verifikasi dua langkah sebelum mengganti kata sandi.' };
+  // Bila PIN aktif, PIN menggantikan kata sandi lama sebagai konfirmasi. Ini
+  // juga menghindari re-auth kata sandi yang menurunkan sesi aal2 ke aal1.
+  const pinStatus = await supabase.rpc('pin_status');
+  const hasPin = pinStatus.data === true;
+  if (hasPin) {
+    if (!parsed.data.pin) return { error: 'Masukkan PIN 6 angka.' };
+    if (!(await verifyUserPin(createAdminClient(), user.id, parsed.data.pin)))
+      return { error: 'PIN salah atau terlalu banyak percobaan. Coba lagi nanti.' };
+  } else {
+    if (!parsed.data.current) return { error: 'Kata sandi lama wajib diisi.' };
+    if ((await supabase.auth.signInWithPassword({ email: user.email, password: parsed.data.current })).error)
+      return { error: 'Kata sandi lama salah.' };
+  }
   if ((await supabase.auth.updateUser({ password: parsed.data.password })).error)
     return { error: 'Kata sandi belum bisa disimpan. Coba lagi.' };
   await supabase.auth.signOut({ scope: 'others' });

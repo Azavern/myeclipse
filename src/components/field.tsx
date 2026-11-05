@@ -14,6 +14,7 @@ export function FieldControl({ field: f, error, value, idPrefix = 'f' }: { field
   const describedBy = [f.hint && `${id}-h`, error && `${id}-e`].filter(Boolean).join(' ') || undefined;
   const common = {
     id, name: f.name, required: f.required, 'aria-invalid': error ? (true as const) : undefined, 'aria-describedby': describedBy,
+    inputMode: f.inputMode, pattern: f.pattern,
   };
   const counted = f.max !== undefined && (f.type === 'text' || f.type === 'textarea' || f.type === 'url');
   const track = counted ? { onInput: (e: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>) => setLen(e.currentTarget.value.length) } : {};

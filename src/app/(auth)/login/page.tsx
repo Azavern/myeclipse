@@ -12,7 +12,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <>
       <header className="stack stack--sm">
         <h1>Selamat datang kembali</h1>
-        <p className="muted">Masuk dengan akun yang diberikan Ketua kelas.</p>
+        <p className="muted">Masuk dengan akun yang diberikan Ketua kelas, memakai kata sandi atau PIN.</p>
       </header>
       <LoginForm next={safeRedirect(next)} googleClientId={env.GOOGLE_CLIENT_ID ?? null} />
       <p className="muted">

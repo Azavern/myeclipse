@@ -4,6 +4,7 @@ import { z } from 'zod';
 import {
   GOOGLE_NONCE_COOKIE, GOOGLE_NONCE_TTL_SECONDS, checkClaims, createNonce, hashNonce, readClaims,
 } from '@/lib/auth/google';
+import { mfaPending } from '@/lib/auth/mfa';
 import { env } from '@/lib/env';
 import { safeRedirect } from '@/lib/safe-redirect';
 import { createClient } from '@/lib/supabase/server';
@@ -81,5 +82,8 @@ export async function completeGoogleSignIn(rawCredential: string, next: string):
     await supabase.auth.signOut();
     return { error: status ? INACTIVE : MEMBER };
   }
-  return { next: safeRedirect(next) };
+  const target = safeRedirect(next);
+  // Google juga hanya menghasilkan sesi aal1 bila akun punya faktor TOTP.
+  if (await mfaPending(supabase)) return { next: `/login/2fa?next=${encodeURIComponent(target)}` };
+  return { next: target };
 }

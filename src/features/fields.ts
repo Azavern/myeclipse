@@ -8,6 +8,7 @@ export type Field = {
   type: 'text' | 'email' | 'url' | 'textarea' | 'datetime' | 'time' | 'date' | 'password' | 'select';
   required?: boolean; hint?: string; options?: [string, string][]; value?: string;
   max?: number; min?: number; group?: string; full?: boolean; placeholder?: string; autoComplete?: string;
+  inputMode?: 'numeric' | 'text'; pattern?: string;
 };
 export type Row = Record<string, unknown>;
 const s = (r: Row | null, k: string) => (r?.[k] == null ? '' : String(r[k]));
@@ -91,8 +92,10 @@ export const visibilityFields = (keys: [string, string][], current: Record<strin
   }));
 export { AUDIENCE_LABEL };
 
-export const accountFields = (): Field[] => [
-  { name: 'current', label: 'Kata sandi lama', type: 'password', required: true, max: 72, full: true, autoComplete: 'current-password' },
+export const accountFields = (hasPin = false): Field[] => [
+  hasPin
+    ? { name: 'pin', label: 'PIN saat ini', type: 'password', required: true, max: 6, full: true, inputMode: 'numeric', pattern: '\\d{6}', autoComplete: 'off', hint: '6 angka. Dipakai untuk mengonfirmasi tindakan sensitif di halaman ini.' }
+    : { name: 'current', label: 'Kata sandi lama', type: 'password', required: true, max: 72, full: true, autoComplete: 'current-password' },
   { name: 'password', label: 'Kata sandi baru', type: 'password', required: true, min: 10, max: 72, hint: 'Minimal 10 karakter.', autoComplete: 'new-password' },
   { name: 'confirm', label: 'Ulangi kata sandi baru', type: 'password', required: true, max: 72, autoComplete: 'new-password' },
 ];

@@ -1,6 +1,7 @@
 import 'server-only';
 import { cache } from 'react';
 import { redirect } from 'next/navigation';
+import { mfaPending } from '@/lib/auth/mfa';
 import { createClient } from '@/lib/supabase/server';
 
 type VisRow = { key: string; allowed: boolean };
@@ -18,7 +19,8 @@ export const getViewer = cache(async () => {
   const [auth, ctx] = await Promise.all([supabase.auth.getUser(), supabase.rpc('get_viewer_context')]);
   const row = ((ctx.data ?? []) as ViewerRow[])[0];
   const permissions = row?.permissions ?? [];
-  return { user: auth.data.user, status: row?.status ?? null, can: (p: string) => permissions.includes(p) };
+  const pending = auth.data.user ? await mfaPending(supabase) : false;
+  return { user: auth.data.user, status: row?.status ?? null, mfaPending: pending, can: (p: string) => permissions.includes(p) };
 });
 
 export async function canShow(key: string) {
