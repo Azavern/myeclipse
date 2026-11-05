@@ -69,6 +69,7 @@ export async function AppFrame({ children }: { children: ReactNode }) {
   if (viewer.user && viewer.status === 'active') {
     main.push({ href: '/inventory', label: 'Inventory', icon: 'link', except: ['/inventory/access'] });
     main.push({ href: '/cloud', label: 'Cloud', icon: 'upload' });
+    main.push({ href: '/library', label: 'Library', icon: 'image' });
   }
   const account: NavItem[] = viewer.user ? [
     { href: '/settings/profile', label: 'Profil saya', icon: 'user', match: ['/settings/profile', '/settings/social', '/settings/account'] },

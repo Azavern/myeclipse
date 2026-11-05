@@ -10,6 +10,7 @@ import { env } from '@/lib/env';
 import { withFlash } from '@/lib/flash';
 import { fail, type ActionResult } from '@/lib/result';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { syncLibraryFolderName } from '@/lib/gdrive/library-folders';
 import { pickUsername, slugifyUsername } from '@/lib/username';
 
 export type LinkState = ActionResult<{ url: string }> | null;
@@ -95,6 +96,14 @@ export async function updateMemberIdentity(_p: FormState, fd: FormData): Promise
     console.error('updateMemberIdentity', error.code);
     return failState(error.code === '23505' ? 'Username sudah dipakai.' : dbMessage(error), fd);
   }
+  // Nama folder Drive mengikuti username. Folder diganti nama (file tidak pernah
+  // dihapus); kegagalan dicatat dan dicoba lagi saat unggahan Library berikutnya.
+  const synced = await syncLibraryFolderName({
+    supabase: ctx.supabase, classId: ctx.classId, userId: id, username: parsed.data.username,
+  });
+  if (synced.failed > 0) {
+    console.error('updateMemberIdentity: folder Library tidak seluruhnya tersesuaikan', synced.failed);
+  }
   return done(id);
 }
 
@@ -131,7 +140,7 @@ export async function setMemberStatus(_p: FormState, fd: FormData): Promise<Form
 async function purgeMemberMedia(admin: ReturnType<typeof createAdminClient>, classId: string, userId: string) {
   try { // best-effort setelah semua langkah dependen sukses (blueprint §6.2, §13.6)
     const bucket = admin.storage.from('member-media');
-    for (const sub of ['avatar', 'portfolio']) {
+    for (const sub of ['avatar', 'portfolio', 'library']) {
       const dir = `${classId}/${userId}/${sub}`;
       const { data } = await bucket.list(dir, { limit: 100 });
       if (data?.length) await bucket.remove(data.map((o: { name: string }) => `${dir}/${o.name}`));

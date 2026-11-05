@@ -1,50 +1,89 @@
 'use client';
-import { useEffect, useId, useState, type ChangeEvent } from 'react';
+import { useEffect, useId, useRef, useState, type ChangeEvent } from 'react';
 import { Icon } from '@/components/ui/icon';
+import { compressImage } from '@/lib/image-client';
+import { LIBRARY_MAX_ORIGINAL_BYTES, libraryTitle } from '@/lib/library/shared';
 
 type Status = { tone: 'idle' | 'busy' | 'ok' | 'error'; text: string };
 
-// Resize/crop di klien (UX saja); server tetap memvalidasi tipe, ukuran, dan isi berkas (blueprint §13.4).
+async function saveToLibrary(original: File, preview: Blob): Promise<{ hd: boolean; warning: string | null }> {
+  const body = new FormData();
+  body.set('original', original);
+  body.set('preview', new File([preview], 'gambar.webp', { type: preview.type }));
+  body.set('title', libraryTitle(original.name));
+  const response = await fetch('/api/library/upload', { method: 'POST', body });
+  const json = (await response.json().catch(() => null)) as
+    | { ok?: boolean; item?: { hd?: boolean }; warning?: string | null; error?: { message?: string } }
+    | null;
+  if (!response.ok || !json?.ok) throw new Error(json?.error?.message ?? 'Gambar belum tersimpan di Library.');
+  return { hd: json.item?.hd === true, warning: json.warning ?? null };
+}
+
+// Resize/crop di klien (UX saja); server tetap memvalidasi tipe, ukuran, dan isi berkas.
+// Setiap gambar juga dikirim ke Library: versi ringan untuk tampilan dan versi asli
+// (sebelum dikompresi) ke Google Drive. Kegagalan Library tidak memblokir unggahan form.
 export function ImageUploadField({ name, label, maxSide, crop }: { name: string; label: string; maxSide?: number; crop?: [number, number] }) {
-  const [status, setStatus] = useState<Status>({ tone: 'idle', text: 'JPEG, PNG, atau WebP. Gambar diperkecil otomatis sebelum diunggah.' });
+  const [status, setStatus] = useState<Status>({
+    tone: 'idle',
+    text: 'JPEG, PNG, atau WebP. Gambar diperkecil otomatis; versi asli ikut disimpan ke Library.',
+  });
   const [preview, setPreview] = useState<string | null>(null);
   const uid = useId(); // beberapa unggahan dapat berada di satu halaman; id harus unik
+  const run = useRef(0);
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
 
   async function onChange(e: ChangeEvent<HTMLInputElement>) {
     const input = e.currentTarget;
-    const f = input.files?.[0];
+    const file = input.files?.[0];
+    const current = ++run.current;
     setPreview(null);
-    if (!f) return;
-    if (!/^image\/(jpeg|png|webp)$/.test(f.type) || f.size > 10 * 1024 * 1024) {
+    if (!file) return;
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size > LIBRARY_MAX_ORIGINAL_BYTES) {
       input.value = '';
       setStatus({ tone: 'error', text: 'Gambar harus JPEG, PNG, atau WebP dan maksimal 10 MB sebelum diperkecil.' });
       return;
     }
-    input.setCustomValidity('Gambar sedang diproses.'); // memblokir submit selama resize
+    input.setCustomValidity('Gambar sedang diproses.'); // memblokir submit selama resize dan penyimpanan Library
     setStatus({ tone: 'busy', text: 'Memproses gambar…' });
     try {
-      const bmp = await createImageBitmap(f);
-      let [sx, sy, sw, sh, dw, dh] = [0, 0, bmp.width, bmp.height, 0, 0];
-      if (crop) {
-        [dw, dh] = crop;
-        const r = dw / dh;
-        if (sw / sh > r) { const nw = sh * r; sx = (sw - nw) / 2; sw = nw; } else { const nh = sw / r; sy = (sh - nh) / 2; sh = nh; }
-      } else { const s = Math.min(1, (maxSide ?? 1600) / Math.max(sw, sh)); dw = Math.round(sw * s); dh = Math.round(sh * s); }
-      const canvas = document.createElement('canvas');
-      canvas.width = dw; canvas.height = dh;
-      canvas.getContext('2d')?.drawImage(bmp, sx, sy, sw, sh, 0, 0, dw, dh);
-      const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/webp', 0.85));
-      if (!blob) throw new Error('toBlob');
+      const blob = await compressImage(file, { maxSide, crop });
+      if (current !== run.current) return;
       const dt = new DataTransfer();
       dt.items.add(new File([blob], 'gambar.webp', { type: blob.type }));
       input.files = dt.files;
       setPreview(URL.createObjectURL(blob));
-      setStatus({ tone: 'ok', text: `Siap diunggah (${Math.round(blob.size / 1024)} KB).` });
+      input.setCustomValidity('Gambar sedang disimpan di Library.');
+      setStatus({ tone: 'busy', text: 'Menyimpan versi asli ke Library…' });
+
+      let library: { hd: boolean; warning: string | null } | null = null;
+      let libraryFailed = false;
+      try {
+        library = await saveToLibrary(file, blob);
+      } catch {
+        libraryFailed = true;
+      }
+      if (current !== run.current) return;
+
+      const kb = Math.round(blob.size / 1024);
+      if (libraryFailed) {
+        setStatus({
+          tone: 'ok',
+          text: `Siap diunggah (${kb} KB). Versi Library belum tersimpan; unggahan form tetap bisa dilanjutkan.`,
+        });
+      } else if (library?.warning) {
+        setStatus({ tone: 'ok', text: `Siap diunggah (${kb} KB). ${library.warning}` });
+      } else {
+        setStatus({
+          tone: 'ok',
+          text: `Siap diunggah (${kb} KB) · tersimpan di Library${library?.hd ? ' beserta versi HD' : ''}.`,
+        });
+      }
     } catch {
       input.value = '';
       setStatus({ tone: 'error', text: 'Gambar tidak bisa diproses. Coba file lain.' });
-    } finally { input.setCustomValidity(''); }
+    } finally {
+      if (current === run.current) input.setCustomValidity('');
+    }
   }
 
   const icon = status.tone === 'error' ? 'alert-circle' : status.tone === 'ok' ? 'check-circle' : status.tone === 'busy' ? 'loader' : 'info';

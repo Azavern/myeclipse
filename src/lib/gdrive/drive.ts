@@ -345,5 +345,44 @@ export async function createTextFile(parentId: string, name: string, text: strin
   return { id: json.id };
 }
 
+// Mengganti nama file/folder tanpa memindahkan atau menghapus isinya. Dipakai
+// saat username berubah agar folder Library ikut berganti nama.
+export async function renameFile(fileId: string, name: string): Promise<void> {
+  await request(`${API}/files/${encodeURIComponent(fileId)}?supportsAllDrives=true&fields=id,name`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+    body: JSON.stringify({ name }),
+  }, { label: 'rename' });
+}
+
+// Unggahan kecil (gambar asli Library, maks 10 MB) lewat multipart: satu
+// permintaan, tanpa sesi resumable yang hanya berguna untuk file besar.
+export async function uploadBytes(o: {
+  parentId: string; name: string; mimeType: string; bytes: Uint8Array;
+}): Promise<{ id: string; name: string }> {
+  const boundary = `eclipse${crypto.randomUUID().replace(/-/g, '')}`;
+  const encoder = new TextEncoder();
+  const metadata = JSON.stringify({ name: o.name, parents: [o.parentId], mimeType: o.mimeType });
+  const head = encoder.encode(
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`
+    + `--${boundary}\r\nContent-Type: ${o.mimeType}\r\n\r\n`,
+  );
+  const tail = encoder.encode(`\r\n--${boundary}--\r\n`);
+  const body = new Blob([head, new Uint8Array(o.bytes), tail]);
+  const response = await request(
+    `${UPLOAD}?uploadType=multipart&supportsAllDrives=true&fields=id,name`,
+    { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body },
+    { label: 'upload-bytes' },
+  );
+  const json = (await response.json()) as { id?: string; name?: string };
+  if (!json.id) throw new DriveError('server', 'Google Drive tidak memberi ID file.');
+  return { id: json.id, name: json.name ?? o.name };
+}
+
+// Isi file asli untuk unduhan HD. Token tidak pernah keluar dari server.
+export async function fileResponse(fileId: string): Promise<Response> {
+  return request(`${API}/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`,
+    { method: 'GET' }, { label: 'download' });
+}
+
 export const fileLink = (fileId: string) => `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`;
 export const folderLink = (folderId: string) => `https://drive.google.com/drive/folders/${encodeURIComponent(folderId)}`;
