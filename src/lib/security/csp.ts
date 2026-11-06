@@ -1,7 +1,9 @@
 // Content-Security-Policy berbasis nonce (blueprint §23). Fungsi murni agar bisa dites tanpa runtime Next.
-// Tidak ada klien Supabase di browser, jadi connect-src hanya 'self' ditambah asal Google yang memang
-// dipakai (unggahan Drive di semua dokumen, GIS di /login). Asal luar untuk <img> adalah host Storage
-// Supabase, ditambah https: pada rute yang menampilkan gambar pihak ketiga (allowsHttpsImages).
+// Tidak ada klien Supabase di browser, jadi connect-src hanya 'self', asal Storage Supabase, dan asal Google
+// yang memang dipakai (unggahan Drive di semua dokumen, GIS di /login). Asal Storage juga dibutuhkan
+// connect-src karena memilih gambar dari Library berarti mengambil URL bertanda tangan sebagai File untuk
+// form (fetch lintas asal), bukan sekadar menampilkannya lewat <img>. Asal luar untuk <img> adalah host
+// Storage Supabase, ditambah https: pada rute yang menampilkan gambar pihak ketiga (allowsHttpsImages).
 
 // Rute yang menampilkan gambar dari host https mana pun: entri Knowledge (gambar di Markdown) dan pratinjau
 // tautan portofolio (gambar Open Graph dari situs sumber, lihat src/lib/preview/server.ts).
@@ -52,7 +54,7 @@ export function buildCsp({ nonce, supabaseUrl, dev = false, allowHttpsImages = f
     ['style-src', ["'self'", `'nonce-${nonce}'`]],
     ['img-src', ["'self'", 'data:', 'blob:', ...(media ? [media] : []), ...(allowHttpsImages ? ['https:'] : [])]],
     ['font-src', ["'self'"]],
-    ['connect-src', ["'self'", ...(googleSignIn ? [GOOGLE_GSI] : []), GOOGLE_DRIVE_UPLOAD, ...(dev ? ['ws:', 'wss:'] : [])]], // ws: hanya untuk HMR di dev
+    ['connect-src', ["'self'", ...(media ? [media] : []), ...(googleSignIn ? [GOOGLE_GSI] : []), GOOGLE_DRIVE_UPLOAD, ...(dev ? ['ws:', 'wss:'] : [])]], // ws: hanya untuk HMR di dev
     ['object-src', ["'none'"]],
     ['base-uri', ["'self'"]],
     ['form-action', ["'self'"]],

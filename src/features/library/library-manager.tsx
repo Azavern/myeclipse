@@ -8,15 +8,15 @@ import { formatBytes } from '@/lib/gdrive/files';
 import { compressImage } from '@/lib/image-client';
 import {
   LIBRARY_MAX_ORIGINAL_BYTES, LIBRARY_MAX_PREVIEW_BYTES,
-  LIBRARY_VISIBILITY_LABEL, libraryTitle, type LibraryVisibility,
+  LIBRARY_VISIBILITY_LABEL, libraryTitle, type LibraryBucket, type LibraryVisibility,
 } from '@/lib/library/shared';
 import { formatWhen } from '@/lib/time';
 import { deleteLibraryItems, renameLibraryItem, setLibraryVisibility } from './actions';
 
 export type LibraryItemView = {
   id: string; title: string; url: string | null; ownerId: string; ownerName: string;
-  size: number; hd: boolean; visibility: LibraryVisibility; createdAt: string;
-  sharedWith: string[];
+  size: number; hd: boolean; visibility: LibraryVisibility; bucket: LibraryBucket;
+  createdAt: string; sharedWith: string[];
 };
 export type LibraryMember = { id: string; name: string };
 
@@ -350,6 +350,9 @@ export function LibraryManager({ items, members, meId, tz }: {
                       <Chip tone={VIS_TONE[item.visibility]} icon={VIS_ICON[item.visibility]}>
                         {isOwn ? LIBRARY_VISIBILITY_LABEL[item.visibility] : `Dari ${item.ownerName}`}
                       </Chip>
+                      {item.bucket === 'class-media' && (
+                        <Chip tone="outline" icon="users">Media kelas</Chip>
+                      )}
                       {isOwn && item.visibility === 'specific' && (
                         <span className="muted">{item.sharedWith.length} anggota</span>
                       )}
@@ -489,8 +492,9 @@ export function LibraryManager({ items, members, meId, tz }: {
             <span className="tile tile--error" aria-hidden="true"><Icon name="alert-triangle" size={22} /></span>
             <h2 id="library-delete-title">Hapus {selected.length} gambar?</h2>
             <p className="muted">
-              Versi kompresi dan file asli di Google Drive dihapus dari Library. Salinan yang sudah
-              dipakai di profil atau portofolio tidak terpengaruh. Tindakan ini tidak dapat dibatalkan.
+              Baris Library dan versi kompresinya dihapus, begitu juga file asli di Drive bila ada.
+              Media kelas yang masih dipakai halaman kelas atau event tetap disimpan, dan salinan yang
+              sudah dipakai di form lain tidak terpengaruh. Tindakan ini tidak dapat dibatalkan.
             </p>
           </div>
           <div className="dialog__actions">

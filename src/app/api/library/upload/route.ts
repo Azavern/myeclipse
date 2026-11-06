@@ -102,6 +102,7 @@ export async function POST(request: Request) {
   }
 
   const { data, error } = await ctx.supabase.from('library_items').insert({
+    bucket: 'member-media',
     class_id: ctx.classId,
     owner_id: ctx.user.id,
     title,

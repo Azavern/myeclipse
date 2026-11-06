@@ -383,9 +383,9 @@ describe('CSP bernonce', () => {
     expect(dir(prod, 'style-src')).toBe("style-src 'self' 'nonce-abc123'");
     expect(prod).not.toMatch(/unsafe-inline|unsafe-eval/);
   });
-  it('img-src memuat asal Supabase saja (tanpa path); connect-src self + Google Drive', () => {
+  it('img-src dan connect-src memuat asal Supabase saja (tanpa path); connect-src tetap memuat Google Drive', () => {
     expect(dir(prod, 'img-src')).toBe("img-src 'self' data: blob: https://proj.supabase.co");
-    expect(dir(prod, 'connect-src')).toBe("connect-src 'self' https://www.googleapis.com");
+    expect(dir(prod, 'connect-src')).toBe("connect-src 'self' https://proj.supabase.co https://www.googleapis.com");
   });
   it('menutup framing, plugin, dan form ke luar', () => {
     expect(dir(prod, 'frame-ancestors')).toBe("frame-ancestors 'none'");
@@ -407,6 +407,7 @@ describe('CSP bernonce', () => {
   it('URL Supabase tidak valid atau bukan http(s) tidak membuka asal tambahan', () => {
     for (const bad of [undefined, '', 'bukan url', 'javascript:alert(1)', 'ftp://x.example']) {
       expect(dir(buildCsp({ nonce: 'n', supabaseUrl: bad }), 'img-src')).toBe("img-src 'self' data: blob:");
+      expect(dir(buildCsp({ nonce: 'n', supabaseUrl: bad }), 'connect-src')).toBe("connect-src 'self' https://www.googleapis.com");
     }
     expect(originOf('http://127.0.0.1:54321')).toBe('http://127.0.0.1:54321');
   });

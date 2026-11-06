@@ -7,6 +7,7 @@ import { contentDisposition, libraryDownloadName } from '@/lib/library/shared';
 type Row = {
   title: string;
   storage_path: string;
+  bucket: string;
   original_name: string | null;
   original_ext: string | null;
   original_mime: string | null;
@@ -27,7 +28,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!ctx) return fail(401, 'unauthenticated', 'Masuk sebagai anggota aktif untuk mengunduh.');
 
   const { data } = await ctx.supabase.from('library_items')
-    .select('title,storage_path,original_name,original_ext,original_mime,drive_file_id')
+    .select('title,storage_path,bucket,original_name,original_ext,original_mime,drive_file_id')
     .eq('id', id.data).maybeSingle();
   if (!data) return fail(404, 'not_found', 'Gambar tidak ditemukan atau tidak dibagikan kepadamu.');
   const row = data as Row;
@@ -57,7 +58,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     }
   }
 
-  const signed = await ctx.supabase.storage.from('member-media')
+  const signed = await ctx.supabase.storage.from(row.bucket)
     .createSignedUrl(row.storage_path, 60, { download: fileName });
   if (signed.error || !signed.data?.signedUrl) {
     console.error('library download: URL bertanda tangan gagal');

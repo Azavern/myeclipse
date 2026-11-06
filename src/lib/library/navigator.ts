@@ -1,11 +1,11 @@
 import 'server-only';
 import { DriveError, getMeta, listFolders, listImagesInFolder, type DriveMeta } from '@/lib/gdrive/drive';
-import { LIBRARY_CATEGORY, libraryDownloadName } from '@/lib/library/shared';
-import { signMany } from '@/lib/storage/sign';
+import { LIBRARY_CATEGORY, isLibraryVisibility, libraryDownloadName } from '@/lib/library/shared';
+import { signByBucket, signedKey } from '@/lib/storage/sign';
 import type { createClient } from '@/lib/supabase/server';
 import {
   LIBRARY_DRIVE_ID, LIBRARY_FOLDER_MAX, LIBRARY_FOLDER_STEP, LIBRARY_PAGE_MAX, LIBRARY_PAGE_SIZE,
-  type LibraryBrowseView, type LibraryEntryView, type LibraryPickView,
+  type LibraryBrowseView, type LibraryEntryView, type LibraryPickView, type LibraryStorageView,
 } from './view';
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
@@ -61,16 +61,18 @@ async function previews(supabase: Supabase, userId: string, driveIds: string[]) 
   if (driveIds.length === 0) return map;
 
   const { data, error } = await supabase.from('library_items')
-    .select('id,drive_file_id,storage_path')
+    .select('id,drive_file_id,storage_path,bucket')
     .eq('owner_id', userId).in('drive_file_id', driveIds);
   if (error) {
     console.error('library nav: item Library gagal dibaca', error.code);
     return map;
   }
 
-  const rows = (data ?? []) as { id: string; drive_file_id: string; storage_path: string }[];
-  const urls = await signMany(supabase, 'member-media', rows.map((row) => row.storage_path));
-  for (const row of rows) map.set(row.drive_file_id, { id: row.id, url: urls.get(row.storage_path) ?? null });
+  const rows = (data ?? []) as { id: string; drive_file_id: string; storage_path: string; bucket: string }[];
+  const urls = await signByBucket(supabase, rows);
+  for (const row of rows) {
+    map.set(row.drive_file_id, { id: row.id, url: urls.get(signedKey(row.bucket, row.storage_path)) ?? null });
+  }
   return map;
 }
 
@@ -134,28 +136,82 @@ export async function browseLibrary(o: {
 }
 
 // URL bertanda tangan singkat untuk memakai ulang satu gambar Library di form
-// gambar lain. Hanya pemilik item yang bisa memintanya.
+// gambar lain. Tidak ada filter pemilik di sini: RLS `library_items` sudah
+// menentukan item mana yang boleh dibaca (milik sendiri, `all`, atau `specific`),
+// dan policy Storage mengikuti baris katalognya.
 export async function pickLibraryItem(
-  supabase: Supabase, userId: string, id: string,
+  supabase: Supabase, id: string,
 ): Promise<LibraryPickView | null> {
   const { data, error } = await supabase.from('library_items')
-    .select('title,storage_path,original_name,original_ext,mime_type')
-    .eq('id', id).eq('owner_id', userId).maybeSingle();
+    .select('title,storage_path,bucket,original_name,original_ext,mime_type')
+    .eq('id', id).maybeSingle();
   if (error) {
     console.error('library pick: item gagal dibaca', error.code);
     throw new LibraryNavError('drive', 'Gambar tidak dapat diambil. Coba lagi.');
   }
 
   const row = data as {
-    title: string; storage_path: string; original_name: string | null;
+    title: string; storage_path: string; bucket: string; original_name: string | null;
     original_ext: string | null; mime_type: string | null;
   } | null;
   if (!row) return null;
 
-  const urls = await signMany(supabase, 'member-media', [row.storage_path]);
-  const url = urls.get(row.storage_path);
+  const urls = await signByBucket(supabase, [row]);
+  const url = urls.get(signedKey(row.bucket, row.storage_path));
   if (!url) return null;
 
   const ext = (row.mime_type ?? '').split('/')[1]?.toLowerCase() || row.original_ext || 'webp';
   return { url, name: libraryDownloadName(row.original_name, row.title, ext) };
+}
+
+type StorageRow = {
+  id: string; owner_id: string; title: string; storage_path: string; bucket: string;
+  size_bytes: number; visibility: string; drive_file_id: string | null; created_at: string;
+};
+type OwnerRow = { user_id: string; full_name: string | null; username: string };
+
+// Sumber "Dari Storage": baris katalog Supabase (bucket `member-media` dan
+// `class-media`), bukan isi folder Drive. RLS menentukan item mana yang boleh
+// dibaca; halaman dibatasi 10 gambar seperti penjelajah Drive. Hanya query
+// database dan tanda tangan Storage, jadi tidak memakai jatah pembatas Drive.
+export async function browseStorage(supabase: Supabase, page: number): Promise<LibraryStorageView> {
+  const current = clamp(page, 1, LIBRARY_PAGE_MAX);
+  const from = (current - 1) * LIBRARY_PAGE_SIZE;
+  const { data, error, count } = await supabase.from('library_items')
+    .select('id,owner_id,title,storage_path,bucket,size_bytes,visibility,drive_file_id,created_at', { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(from, from + LIBRARY_PAGE_SIZE - 1);
+  if (error) {
+    console.error('library storage: katalog gagal dibaca', error.code);
+    throw new LibraryNavError('drive', 'Daftar gambar Storage belum bisa dibaca. Coba lagi.');
+  }
+
+  const rows = (data ?? []) as StorageRow[];
+  const urls = await signByBucket(supabase, rows);
+
+  const ownerIds = [...new Set(rows.map((row) => row.owner_id))];
+  const ownerResult = ownerIds.length > 0
+    ? await supabase.from('member_profile_v').select('user_id,full_name,username').in('user_id', ownerIds)
+    : { data: [] as OwnerRow[] };
+  const names = new Map<string, string>();
+  for (const owner of (ownerResult.data ?? []) as OwnerRow[]) {
+    names.set(owner.user_id, owner.full_name?.trim() || owner.username);
+  }
+
+  const total = count ?? rows.length;
+  return {
+    items: rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      ownerName: names.get(row.owner_id) ?? 'Anggota',
+      size: row.size_bytes,
+      visibility: isLibraryVisibility(row.visibility) ? row.visibility : 'private',
+      hd: row.drive_file_id !== null,
+      createdAt: row.created_at,
+      thumbUrl: urls.get(signedKey(row.bucket, row.storage_path)) ?? null,
+    })),
+    page: current,
+    hasMore: from + rows.length < total,
+    total,
+  };
 }

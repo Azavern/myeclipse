@@ -1,5 +1,6 @@
 // Tipe dan batas tampilan penjelajah Library. Tanpa 'server-only' supaya
 // dipakai halaman server, dialog klien, dan aksi server sekaligus.
+import type { LibraryVisibility } from './shared';
 
 export const LIBRARY_PAGE_SIZE = 10;
 export const LIBRARY_PAGE_MAX = 5;
@@ -30,3 +31,24 @@ export type LibraryBrowseView = {
 };
 
 export type LibraryPickView = { url: string; name: string };
+
+// Sumber kedua penjelajah: baris katalog di Supabase Storage (bucket
+// `member-media` dan `class-media`), bukan folder Drive. Ini yang membuat
+// gambar bersama dan media kelas bisa dipakai ulang dari form gambar mana pun.
+export type LibraryStorageItemView = {
+  id: string;
+  title: string;
+  ownerName: string;
+  size: number | null;
+  visibility: LibraryVisibility;
+  hd: boolean;
+  createdAt: string | null;
+  thumbUrl: string | null;
+};
+
+export type LibraryStorageView = {
+  items: LibraryStorageItemView[];
+  page: number;
+  hasMore: boolean;
+  total: number;
+};

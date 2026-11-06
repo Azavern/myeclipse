@@ -4,11 +4,11 @@ import { requireActionContext } from '@/lib/action-context';
 import { DriveError, gdriveStatus } from '@/lib/gdrive/drive';
 import { gateLibraryFetch } from '@/lib/library/guard';
 import {
-  browseLibrary, libraryRoot, LibraryNavError, pickLibraryItem,
+  browseLibrary, browseStorage, libraryRoot, LibraryNavError, pickLibraryItem,
 } from '@/lib/library/navigator';
 import {
   LIBRARY_DRIVE_ID, LIBRARY_FOLDER_MAX, LIBRARY_FOLDER_STEP, LIBRARY_PAGE_MAX,
-  type LibraryBrowseView, type LibraryPickView,
+  type LibraryBrowseView, type LibraryPickView, type LibraryStorageView,
 } from '@/lib/library/view';
 
 export type LibraryBrowseResult =
@@ -17,6 +17,10 @@ export type LibraryBrowseResult =
   | { ok: false; code: 'config' | 'forbidden' | 'folder' | 'drive' | 'unknown'; message: string };
 
 export type LibraryPickResult = { ok: true; data: LibraryPickView } | { ok: false; message: string };
+
+export type LibraryStorageResult =
+  | { ok: true; data: LibraryStorageView }
+  | { ok: false; code: 'forbidden' | 'unknown'; message: string };
 
 const browseSchema = z.object({
   folderId: z.string().regex(LIBRARY_DRIVE_ID).nullish(),
@@ -78,13 +82,37 @@ export async function pickLibraryImage(id: string): Promise<LibraryPickResult> {
   if (!ctx) return { ok: false, message: 'Sesi berakhir. Masuk kembali lalu coba lagi.' };
 
   try {
-    const data = await pickLibraryItem(ctx.supabase, ctx.user.id, parsed.data);
+    const data = await pickLibraryItem(ctx.supabase, parsed.data);
     if (!data) return { ok: false, message: 'Gambar itu tidak ada di Library-mu.' };
     return { ok: true, data };
   } catch (error) {
     return {
       ok: false,
       message: error instanceof LibraryNavError ? error.message : 'Gambar belum bisa dipakai. Coba lagi.',
+    };
+  }
+}
+
+const storageSchema = z.object({ page: z.number().int().min(1).max(LIBRARY_PAGE_MAX).optional() });
+
+// Sumber "Dari Storage" di pemilih gambar: katalog Supabase milik sendiri dan
+// yang dibagikan ke pemanggil. RLS yang menyaring, jadi tidak ada pengambilan
+// Drive dan tidak ada jatah pembatas yang terpakai.
+export async function browseLibraryStorage(input: unknown): Promise<LibraryStorageResult> {
+  const parsed = storageSchema.safeParse(input ?? {});
+  if (!parsed.success) return { ok: false, code: 'unknown', message: 'Halaman tidak valid.' };
+
+  const ctx = await requireActionContext();
+  if (!ctx) return { ok: false, code: 'forbidden', message: 'Sesi berakhir. Masuk kembali lalu coba lagi.' };
+
+  try {
+    return { ok: true, data: await browseStorage(ctx.supabase, parsed.data.page ?? 1) };
+  } catch (error) {
+    if (!(error instanceof LibraryNavError)) console.error('library storage', error);
+    return {
+      ok: false,
+      code: 'unknown',
+      message: error instanceof LibraryNavError ? error.message : 'Daftar gambar Storage belum bisa dibaca. Coba lagi.',
     };
   }
 }

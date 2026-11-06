@@ -11,23 +11,29 @@ import { gdriveStatus } from '@/lib/gdrive/drive';
 import { formatBytes } from '@/lib/gdrive/files';
 import { gateLibraryFetch } from '@/lib/library/guard';
 import { browseLibrary, libraryRoot, LibraryNavError } from '@/lib/library/navigator';
-import { isLibraryVisibility } from '@/lib/library/shared';
+import { isLibraryBucket, isLibraryVisibility } from '@/lib/library/shared';
 import {
   LIBRARY_FOLDER_MAX, LIBRARY_FOLDER_STEP, LIBRARY_PAGE_MAX, type LibraryBrowseView,
 } from '@/lib/library/view';
-import { signMany } from '@/lib/storage/sign';
+import { signByBucket, signedKey } from '@/lib/storage/sign';
 import { createClient } from '@/lib/supabase/server';
 import { getViewer } from '@/lib/visibility/server';
 
 export const metadata: Metadata = { title: 'Library' };
 
 type Row = {
-  id: string; owner_id: string; title: string; storage_path: string; size_bytes: number;
+  id: string; owner_id: string; title: string; storage_path: string; bucket: string; size_bytes: number;
   drive_file_id: string | null; visibility: string; created_at: string;
 };
 type ProfileRow = { user_id: string; full_name: string; username: string };
 type GrantRow = { item_id: string; user_id: string };
-type Params = { folder?: string; page?: string; folders?: string };
+type Params = { src?: string; folder?: string; page?: string; folders?: string };
+
+// Halaman Library punya dua sumber isi, jadi keduanya dipisah dan sumber aktif
+// disimpan di URL agar bisa ditautkan dan tahan muat ulang. Drive hanya
+// diambil saat tab Drive aktif supaya membuka Library untuk Storage tidak
+// memakai jatah pembatas Drive.
+type Source = 'drive' | 'storage';
 
 const wholeNumber = (value: string | undefined, fallback: number) => {
   const parsed = Number(value ?? '');
@@ -57,6 +63,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
   const userId = viewer.user.id;
 
   const params = await searchParams;
+  const source: Source = params.src === 'storage' ? 'storage' : 'drive';
   const pageRequested = Math.min(LIBRARY_PAGE_MAX, Math.max(1, wholeNumber(params.page, 1)));
   const foldersRequested = Math.min(LIBRARY_FOLDER_MAX, Math.max(LIBRARY_FOLDER_STEP, wholeNumber(params.folders, LIBRARY_FOLDER_STEP)));
 
@@ -67,7 +74,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
   // Folder yang belum ada atau pengambilan yang masih dijeda tidak memanggil
   // Drive sama sekali; halaman menampilkan alasannya.
   const navTask = (async (): Promise<{ browse: LibraryBrowseView | null; error: string | null; cooldownMs: number }> => {
-    if (!drive.ready || !cls) return { browse: null, error: null, cooldownMs: 0 };
+    if (source !== 'drive' || !drive.ready || !cls) return { browse: null, error: null, cooldownMs: 0 };
     try {
       const root = await libraryRoot(supabase, cls.id, userId);
       if (!root) {
@@ -96,7 +103,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
 
   const [itemsResult, membersResult, nav] = await Promise.all([
     supabase.from('library_items')
-      .select('id,owner_id,title,storage_path,size_bytes,drive_file_id,visibility,created_at')
+      .select('id,owner_id,title,storage_path,bucket,size_bytes,drive_file_id,visibility,created_at')
       .order('created_at', { ascending: false }).limit(200),
     supabase.from('member_profile_v').select('user_id,full_name,username')
       .order('full_name').limit(300),
@@ -122,16 +129,18 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
     grants.set(grant.item_id, list);
   }
 
-  const urls = await signMany(supabase, 'member-media', rows.map((row) => row.storage_path));
+  // Katalog kini mencakup dua bucket; tanda tangan Storage selalu per bucket.
+  const urls = await signByBucket(supabase, rows);
   const items: LibraryItemView[] = rows.map((row) => ({
     id: row.id,
     title: row.title,
-    url: urls.get(row.storage_path) ?? null,
+    url: urls.get(signedKey(row.bucket, row.storage_path)) ?? null,
     ownerId: row.owner_id,
     ownerName: names.get(row.owner_id) ?? 'Anggota',
     size: row.size_bytes,
     hd: !!row.drive_file_id,
     visibility: isLibraryVisibility(row.visibility) ? row.visibility : 'private',
+    bucket: isLibraryBucket(row.bucket) ? row.bucket : 'member-media',
     createdAt: row.created_at,
     sharedWith: grants.get(row.id) ?? [],
   }));
@@ -140,12 +149,26 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
     .map((profile) => ({ id: profile.user_id, name: profile.full_name?.trim() || profile.username }));
 
   const { browse, error: browseError, cooldownMs } = nav;
+  const memberCount = items.filter((item) => item.bucket === 'member-media').length;
+  const classCount = items.length - memberCount;
 
   return (
     <>
       <PageHeader icon="image" title="Library"
-        description="Telusuri isi folder Drive Library-mu, kelola gambar yang pernah diunggah, atur siapa yang boleh melihat, dan pakai ulang di form lain." />
+        description="Dua sumber gambar: isi folder Google Drive-mu dan katalog Supabase Storage. Kelola visibilitas tiap gambar, lalu pakai ulang di form lain." />
 
+      <div className="library-toolbar">
+        <nav className="segmented" aria-label="Sumber gambar Library">
+          <Link href="/library?src=drive" aria-current={source === 'drive' ? 'page' : undefined}>
+            <Icon name="folder" size={16} />Google Drive
+          </Link>
+          <Link href="/library?src=storage" aria-current={source === 'storage' ? 'page' : undefined}>
+            <Icon name="image" size={16} />Storage
+          </Link>
+        </nav>
+      </div>
+
+      {source === 'drive' && (
       <section className="card" aria-labelledby="lib-drive">
         <div className="card__head">
           <div>
@@ -269,8 +292,28 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
           </div>
         )}
       </section>
+      )}
 
-      <LibraryManager items={items} members={members} meId={userId} tz={cls?.timezone ?? 'Asia/Jakarta'} />
+      {source === 'storage' && (
+        <>
+          <section className="card" aria-labelledby="lib-storage">
+            <div className="card__head">
+              <div>
+                <h2 id="lib-storage" className="card__title"><Icon name="image" size={20} />Gambar di Supabase Storage</h2>
+                <p className="card__desc">
+                  Versi ringan dari setiap gambar yang pernah diunggah, termasuk media kelas. Visibilitas
+                  ditentukan pemiliknya; unduhan HD memakai file asli di Drive bila ada.
+                </p>
+              </div>
+              <Chip tone="outline">
+                {memberCount} anggota · {classCount} media kelas
+              </Chip>
+            </div>
+          </section>
+
+          <LibraryManager items={items} members={members} meId={userId} tz={cls?.timezone ?? 'Asia/Jakarta'} />
+        </>
+      )}
     </>
   );
 }

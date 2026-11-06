@@ -10,6 +10,17 @@ export const LIBRARY_VISIBILITY_LABEL: Record<LibraryVisibility, string> = {
   specific: 'Anggota tertentu',
 };
 
+// Bucket tempat objek katalog disimpan. `member-media` untuk gambar Library
+// anggota, `class-media` untuk media kelas yang diunggah lewat pengaturan kelas
+// atau event.
+export const LIBRARY_BUCKETS = ['member-media', 'class-media'] as const;
+export type LibraryBucket = (typeof LIBRARY_BUCKETS)[number];
+
+// Baris `library_items` hanya menyimpan path, jadi bucket ikut menentukan URL
+// bertanda tangan dan objek mana yang dihapus.
+export const isLibraryBucket = (value: unknown): value is LibraryBucket =>
+  typeof value === 'string' && (LIBRARY_BUCKETS as readonly string[]).includes(value);
+
 export const LIBRARY_MAX_ORIGINAL_BYTES = 10 * 1024 * 1024;
 export const LIBRARY_MAX_PREVIEW_BYTES = 2 * 1024 * 1024;
 export const LIBRARY_MAX_TITLE = 120;

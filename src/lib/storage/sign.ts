@@ -10,3 +10,26 @@ export async function signMany(supabase: Awaited<ReturnType<typeof createClient>
   data?.forEach((d: { path: string | null; signedUrl: string | null }) => { if (d.path && d.signedUrl) out.set(d.path, d.signedUrl); }); // signedUrl bisa null: hanya simpan yang valid
   return out;
 }
+
+// Katalog Library menyimpan path tanpa bucket, sedangkan tanda tangan Storage
+// selalu per bucket. Kunci hasilnya `${bucket}:${path}` supaya path yang sama di
+// bucket berbeda tidak saling menimpa.
+export const signedKey = (bucket: string, path: string) => `${bucket}:${path}`;
+
+export async function signByBucket(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  rows: { bucket: string; storage_path: string }[],
+) {
+  const perBucket = new Map<string, string[]>();
+  for (const row of rows) {
+    const list = perBucket.get(row.bucket) ?? [];
+    list.push(row.storage_path);
+    perBucket.set(row.bucket, list);
+  }
+  const out = new Map<string, string>();
+  await Promise.all([...perBucket].map(async ([bucket, paths]) => {
+    const urls = await signMany(supabase, bucket, paths);
+    for (const [path, url] of urls) out.set(signedKey(bucket, path), url);
+  }));
+  return out;
+}

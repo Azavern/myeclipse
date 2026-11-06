@@ -6,7 +6,10 @@ import { deleteFile } from '@/lib/gdrive/drive';
 import { dbMessage, FORBIDDEN } from '@/lib/form-state';
 import { LIBRARY_MAX_TITLE, LIBRARY_VISIBILITIES } from '@/lib/library/shared';
 import { fail, type ActionResult } from '@/lib/result';
+import type { createClient } from '@/lib/supabase/server';
 import { removeObject } from '@/lib/storage/upload';
+
+type Supabase = Awaited<ReturnType<typeof createClient>>;
 
 const idsSchema = z.array(z.string().uuid()).min(1).max(100);
 const visibilitySchema = z.object({
@@ -18,6 +21,32 @@ const renameSchema = z.object({
   id: z.string().uuid(),
   title: z.string().trim().min(1, 'Judul wajib diisi.').max(LIBRARY_MAX_TITLE),
 });
+
+// Objek `class-media` bisa dipakai logo/sampul kelas, sampul event, atau foto
+// event. Menghapus baris katalog tidak boleh memutus halaman itu, jadi objeknya
+// hanya dibuang bila tidak ada rujukan yang tersisa. Saat pemeriksaan gagal,
+// anggap masih dipakai (lebih aman menyisakan objek daripada merusak halaman).
+async function usedClassMedia(supabase: Supabase, paths: string[]): Promise<Set<string>> {
+  const used = new Set<string>();
+  if (paths.length === 0) return used;
+  const results = await Promise.all([
+    supabase.from('classes').select('logo_path').in('logo_path', paths),
+    supabase.from('classes').select('cover_path').in('cover_path', paths),
+    supabase.from('events').select('cover_path').in('cover_path', paths),
+    supabase.from('event_photos').select('path').in('path', paths),
+  ]);
+  if (results.some((result) => result.error)) {
+    console.error('deleteLibraryItems: rujukan class-media gagal diperiksa');
+    for (const path of paths) used.add(path);
+    return used;
+  }
+  for (const result of results) {
+    for (const row of (result.data ?? []) as Record<string, string | null>[]) {
+      for (const value of Object.values(row)) if (value) used.add(value);
+    }
+  }
+  return used;
+}
 
 const notify = () => {
   revalidatePath('/library');
@@ -76,7 +105,7 @@ export async function deleteLibraryItems(input: string[]): Promise<ActionResult<
   if (!ctx) return fail('forbidden', FORBIDDEN);
 
   const { data: rows, error: readError } = await ctx.supabase.from('library_items')
-    .select('storage_path,drive_file_id')
+    .select('storage_path,bucket,drive_file_id')
     .in('id', parsed.data).eq('owner_id', ctx.user.id);
   if (readError) {
     console.error('deleteLibraryItems: baca', readError.code);
@@ -90,8 +119,14 @@ export async function deleteLibraryItems(input: string[]): Promise<ActionResult<
     return fail('unknown', dbMessage(error));
   }
 
-  for (const row of (rows ?? []) as { storage_path: string; drive_file_id: string | null }[]) {
-    await removeObject(ctx.supabase, 'member-media', row.storage_path);
+  const owned = (rows ?? []) as { storage_path: string; bucket: string; drive_file_id: string | null }[];
+  const classPaths = owned.filter((row) => row.bucket === 'class-media').map((row) => row.storage_path);
+  const used = await usedClassMedia(ctx.supabase, classPaths);
+
+  for (const row of owned) {
+    if (row.bucket !== 'class-media' || !used.has(row.storage_path)) {
+      await removeObject(ctx.supabase, row.bucket, row.storage_path);
+    }
     if (row.drive_file_id) {
       await deleteFile(row.drive_file_id).catch(() => console.error('deleteLibraryItems: file Drive gagal dihapus'));
     }
