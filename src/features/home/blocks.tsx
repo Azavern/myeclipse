@@ -1,31 +1,17 @@
 import Link from 'next/link';
-import type { ReactNode } from 'react';
 import { ExtLink } from '@/components/states';
 import { Icon, type IconName } from '@/components/ui/icon';
-import { Avatar, DateBadge, EmptyState, StatTile, Tile, type Tone } from '@/components/ui/primitives';
+import { Avatar, Chip, DateBadge, EmptyState, SectionCard, Tile, type Tone } from '@/components/ui/primitives';
+import { activitySummary, deadlineBadge, DUE_SOON_DAYS, homeTaskGroups, memberRoleLabel, nextClass, sessionState, summaryTiles, type SessionState } from '@/features/home/derive';
 import { MemberCard, type MemberItem } from '@/features/members/member-card';
-import { TaskRow, type TaskItem } from '@/features/tasks/task-row';
+import type { TaskItem } from '@/features/tasks/task-row';
 import { cx } from '@/lib/cx';
-import { formatClock, formatShortDate, hm, zoneLabel } from '@/lib/time';
+import { formatClock, formatShortDate, formatWeekdayDate, formatWhen, hm, relativeTime, zoneLabel } from '@/lib/time';
 
-export type ScheduleItem = { id: string; title: string; start_time: string; end_time: string; location: string | null; type: 'class' | 'activity' };
+export type ScheduleItem = { id: string; title: string; start_time: string; end_time: string; location: string | null; type: 'class' | 'activity'; day_of_week: number };
 export type EventItem = { id: string; title: string; start_at: string; location: string | null };
 export type Overview = { members_count: number | null; upcoming_events_count: number | null; active_tasks_count: number | null; due_soon_tasks_count: number | null };
 export type ActivityWeek = { week_start: string; activity_count: number };
-
-function BlockCard({ id, title, icon, href, linkLabel, flush, children }: {
-  id: string; title: ReactNode; icon: IconName; href?: string; linkLabel?: string; flush?: boolean; children: ReactNode;
-}) {
-  return (
-    <section className={cx('card', flush && 'card--flush')} aria-labelledby={id}>
-      <div className={cx('card__head', flush && 'card__head--pad')}>
-        <h2 id={id} className="card__title"><Icon name={icon} size={20} />{title}</h2>
-        {href && <Link href={href} className="btn btn--ghost btn--sm">{linkLabel}<Icon name="arrow-right" size={16} /></Link>}
-      </div>
-      {children}
-    </section>
-  );
-}
 
 export type OverviewTile = { icon: IconName; value: number; label: string; tone: Tone };
 
@@ -35,34 +21,43 @@ export function overviewTiles(ov: Overview): OverviewTile[] {
   if (ov.members_count !== null) tiles.push({ icon: 'users', value: ov.members_count, label: 'Anggota aktif', tone: 'brand' });
   if (ov.upcoming_events_count !== null) tiles.push({ icon: 'calendar-days', value: ov.upcoming_events_count, label: 'Event mendatang', tone: 'accent' });
   if (ov.active_tasks_count !== null) tiles.push({ icon: 'tasks', value: ov.active_tasks_count, label: 'Tugas aktif', tone: 'brand' });
-  if (ov.due_soon_tasks_count !== null) tiles.push({ icon: 'hourglass', value: ov.due_soon_tasks_count, label: 'Tenggat dalam 3 hari', tone: ov.due_soon_tasks_count > 0 ? 'warning' : 'success' });
+  if (ov.due_soon_tasks_count !== null) tiles.push({
+    icon: ov.due_soon_tasks_count > 0 ? 'alert-triangle' : 'check-circle', value: ov.due_soon_tasks_count,
+    label: 'Perlu tindakan', tone: ov.due_soon_tasks_count > 0 ? 'warning' : 'neutral',
+  });
   return tiles;
 }
 
-export function Hero({ name, tagline, description, highlight, highlightUrl, coverUrl, todayLabel, guest, stats, secondary }: {
-  name: string; tagline: string | null; description?: string | null; highlight: string | null; highlightUrl: string | null;
+export function Hero({ name, code, tagline, description, highlight, highlightUrl, coverUrl, todayLabel, guest, stats, secondary }: {
+  name: string; code?: string | null; tagline: string | null; description?: string | null; highlight: string | null; highlightUrl: string | null;
   coverUrl?: string; todayLabel: string; guest: boolean; stats?: OverviewTile[];
   secondary?: { href: string; label: string; icon: IconName } | null;
 }) {
+  const hasCover = !!coverUrl;
+  const highlightLink = highlightUrl?.startsWith('https://') ? highlightUrl : null;
   return (
-    <section className={cx('hero', coverUrl && 'hero--cover', guest && 'hero--guest')} aria-labelledby="class-name">
-      {coverUrl && <img className="hero__img" src={coverUrl} alt="" width={1600} height={900} decoding="async" fetchPriority="high" />}
+    <section data-ui="hero" className={cx('hero', hasCover && 'hero--cover', guest && 'hero--guest')} aria-labelledby="class-name">
+      {coverUrl && (
+        <div className="hero__cover">
+          <img className="hero__img" src={coverUrl} alt={`Sampul kelas ${name}`} width={1600} height={500} decoding="async" fetchPriority="high" />
+        </div>)}
       <div className="hero__body">
-        <div className="hero__meta">
-          <span className="chip chip--onhero"><Icon name="calendar" size={14} />{todayLabel}</span>
-          {highlight && (highlightUrl
-            ? <ExtLink href={highlightUrl} className="chip chip--onhero"><Icon name="sparkles" size={14} />{highlight}</ExtLink>
-            : <span className="chip chip--onhero"><Icon name="sparkles" size={14} />{highlight}</span>)}
-        </div>
+        <p className="hero__meta">
+          {code && <><span className="hero__code">{code}</span><span aria-hidden="true">·</span></>}
+          <span>{todayLabel}</span>
+        </p>
         <h1 id="class-name" className="hero__title">{name}</h1>
         {tagline && <p className="hero__tagline">{tagline}</p>}
         {guest && description && <p className="hero__desc">{description}</p>}
+        {highlight && (highlightLink
+          ? <ExtLink href={highlightLink} className="hero__highlight"><Icon name="pin" size={18} /><span>{highlight}</span></ExtLink>
+          : <p className="hero__highlight"><Icon name="pin" size={18} /><span>{highlight}</span></p>)}
         {guest && (
           <div className="hero__actions">
-            <Link href="/login" className="btn btn--onhero-solid btn--lg"><Icon name="log-in" size={18} />Masuk ke kelas</Link>
-            {secondary && <Link href={secondary.href} className="btn btn--onhero btn--lg"><Icon name={secondary.icon} size={18} />{secondary.label}</Link>}
-            <Link href="/qr" className="btn btn--onhero btn--lg"><Icon name="qr" size={18} />Buat QR</Link>
-            <Link href="/inventory/access" className="btn btn--onhero btn--lg"><Icon name="key" size={18} />Akses inventory</Link>
+            <Link data-ui="button" href="/login" className={cx('btn btn--lg', !hasCover && 'btn--onhero-solid')}><Icon name="log-in" size={18} />Masuk ke kelas</Link>
+            {secondary && <Link data-ui="button" href={secondary.href} className={cx('btn btn--lg', hasCover ? 'btn--secondary' : 'btn--onhero')}><Icon name={secondary.icon} size={18} />{secondary.label}</Link>}
+            <Link data-ui="button" href="/qr" className={cx('btn btn--lg', hasCover ? 'btn--secondary' : 'btn--onhero')}><Icon name="qr" size={18} />Buat QR</Link>
+            <Link data-ui="button" href="/inventory/access" className={cx('btn btn--lg', hasCover ? 'btn--secondary' : 'btn--onhero')}><Icon name="key" size={18} />Akses inventory</Link>
           </div>)}
       </div>
       {guest && stats && stats.length > 0 && (
@@ -90,7 +85,7 @@ export function ExploreBlock({ items }: { items: ExploreItem[] }) {
       <ul className="explore__grid">
         {items.map((i) => (
           <li key={i.href}>
-            <Link href={i.href} className="card card--link explore__card">
+            <Link data-ui="panel" href={i.href} className="card card--link explore__card">
               <Tile icon={i.icon} />
               <span className="explore__text">
                 <span className="explore__label">{i.label}</span>
@@ -104,59 +99,138 @@ export function ExploreBlock({ items }: { items: ExploreItem[] }) {
   );
 }
 
+// Ringkasan member: tile kecil yang seluruhnya dapat diklik, dengan nada semantik hanya untuk tindakan.
 export function OverviewTiles({ ov }: { ov: Overview }) {
-  const tiles = overviewTiles(ov);
+  const tiles = summaryTiles(ov);
   if (tiles.length === 0) return null;
   return (
-    <section aria-label="Ringkasan kelas"><div className="stat-grid">{tiles.map((t) => <StatTile key={t.label} {...t} />)}</div></section>
+    <section aria-labelledby="h-summary">
+      <h2 id="h-summary" className="sr-only">Ringkasan kelas</h2>
+      <ul className="sum">
+        {tiles.map((t) => (
+          <li key={t.key}>
+            <Link href={t.href} className={cx('sum__item', t.tone === 'warning' && 'sum__item--warning')}>
+              <span className="sum__icon"><Icon name={t.icon} size={20} /></span>
+              <span className="sum__body">
+                {t.value === 0
+                  ? <span className="sum__empty">{t.empty}</span>
+                  : <>
+                    <span className="sum__value">{t.value}</span>
+                    <span className="sum__label">{t.label}</span>
+                    {t.note && <span className="sum__note">{t.note}</span>}
+                  </>}
+              </span>
+            </Link>
+          </li>))}
+      </ul>
+    </section>
   );
 }
 
-export function ScheduleBlock({ rows, tz, now, dayName }: { rows: ScheduleItem[]; tz: string; now: Date; dayName: string }) {
-  const clock = formatClock(now.toISOString(), tz);
+const SESSION_UI: Record<SessionState, { label: string; icon: IconName }> = {
+  done: { label: 'Selesai', icon: 'check-circle' },
+  live: { label: 'Berlangsung', icon: 'activity' },
+  next: { label: 'Berikutnya', icon: 'clock' },
+};
+
+export function ScheduleBlock({ rows, all, tz, now, dayName, day }: {
+  rows: ScheduleItem[]; all: ScheduleItem[]; tz: string; now: Date; dayName: string; day: number;
+}) {
+  const states = rows.map((row) => sessionState(row.start_time, row.end_time, now, tz));
+  const hasUpcoming = states.some((state) => state !== 'done');
+  const upcoming = hasUpcoming ? null : nextClass(all, day, now);
   return (
-    <BlockCard id="h-sched" icon="calendar" title={<>Kuliah hari ini<span className="muted"> · {dayName} ({zoneLabel(tz)})</span></>} href="/schedule" linkLabel="Semua jadwal">
-      {rows.length === 0
-        ? <EmptyState slim icon="calendar" title="Tidak ada jadwal hari ini">Waktunya istirahat atau mengejar tugas.</EmptyState>
-        : (
-          <ol className="tl">
-            {rows.slice(0, 6).map((r) => {
-              const live = hm(r.start_time) <= clock && clock < hm(r.end_time);
+    <SectionCard id="h-sched" icon="calendar-clock" title="Kuliah hari ini" meta={`${dayName} (${zoneLabel(tz)})`} flush
+      action={<Link data-ui="button" href="/schedule" className="btn btn--ghost btn--sm">Semua jadwal<Icon name="arrow-right" size={16} /></Link>}>
+      {hasUpcoming
+        ? (
+          <ol className="sched">
+            {rows.slice(0, 6).map((row, i) => {
+              const state = states[i] ?? 'next';
+              const ui = SESSION_UI[state];
               return (
-                <li key={r.id} className="tl__item">
-                  <div className="tl__time">{hm(r.start_time)}<span>{hm(r.end_time)}</span></div>
-                  <div className={cx('tl__body', r.type === 'activity' && 'tl__body--activity')}>
-                    <span className="tl__title">{r.title}</span>
+                <li key={row.id} className={cx('sched__item', state !== 'done' && `sched__item--${state}`)}>
+                  <div className="sched__time">{hm(row.start_time)}<span>{hm(row.end_time)}</span></div>
+                  <div className="sched__body">
+                    <span className="sched__title">{row.title}</span>
                     <div className="meta">
-                      {r.location && <span><Icon name="map-pin" size={14} />{r.location}</span>}
-                      {live && <span className="chip chip--brand">Berlangsung</span>}
+                      {row.location && <span><Icon name="map-pin" size={14} />{row.location}</span>}
+                      <span className={cx('sched__status', `sched__status--${state}`)}><Icon name={ui.icon} size={14} />{ui.label}</span>
                     </div>
                   </div>
                 </li>);
             })}
-          </ol>)}
-    </BlockCard>
+          </ol>)
+        : upcoming
+          ? (
+            <p className="nextclass">
+              <Icon name="calendar-clock" size={18} />
+              <span><span className="nextclass__label">Kuliah berikutnya:</span> {formatWeekdayDate(upcoming.at.toISOString(), tz)} · {hm(upcoming.row.start_time)} — <strong>{upcoming.row.title}</strong></span>
+            </p>)
+          : <EmptyState slim icon="calendar" title="Tidak ada jadwal">Jadwal kuliah semester ini belum diisi.</EmptyState>}
+    </SectionCard>
+  );
+}
+
+function HomeTaskGroup({ id, title, tone, items, tz, now }: {
+  id: string; title: string; tone: 'warning' | 'danger'; items: TaskItem[]; tz: string; now: Date;
+}) {
+  return (
+    <section className={cx('tgroup', `tgroup--${tone}`)} aria-labelledby={id}>
+      <h3 id={id} className="tgroup__head">
+        <Icon name={tone === 'danger' ? 'alert-triangle' : 'hourglass'} size={16} />
+        <span>{title}</span>
+        <span className="tgroup__count">· {items.length}</span>
+      </h3>
+      <ul className="tgroup__list">
+        {items.map((t) => (
+          <li key={t.id} className="htask">
+            <Link href={`/tasks/${t.id}`} className="htask__row">
+              <span className="htask__main">
+                <span className="htask__title">{t.title}</span>
+                <span className="meta">
+                  <span><Icon name="book" size={14} />{t.course ?? 'Tanpa mata kuliah'}</span>
+                  <span><Icon name="clock" size={14} />{formatWhen(t.deadline, tz)}</span>
+                </span>
+              </span>
+              <Chip tone={tone === 'danger' ? 'error' : 'warning'} icon={tone === 'danger' ? 'alert-triangle' : 'hourglass'}>{deadlineBadge(t.deadline, now)}</Chip>
+            </Link>
+          </li>))}
+      </ul>
+    </section>
   );
 }
 
 export function TasksBlock({ rows, tz, now }: { rows: TaskItem[]; tz: string; now: Date }) {
+  const { soon, overdue, hidden } = homeTaskGroups(rows, now);
+  const urgent = soon.length + overdue.length;
   return (
-    <BlockCard id="h-tasks" icon="tasks" title="Tugas" href="/tasks" linkLabel="Semua tugas" flush>
-      {rows.length === 0
-        ? <EmptyState slim icon="check-circle" title="Tidak ada tugas aktif">Semua tugas sudah beres.</EmptyState>
-        : <ul className="rows">{rows.map((t) => <TaskRow key={t.id} t={t} tz={tz} now={now} />)}</ul>}
-    </BlockCard>
+    <SectionCard id="h-tasks" icon="tasks" title="Tugas" flush
+      action={<Link data-ui="button" href="/tasks" className="btn btn--ghost btn--sm">Semua tugas<Icon name="arrow-right" size={16} /></Link>}>
+      {urgent === 0
+        ? (
+          <EmptyState slim icon="check-circle" title={rows.length === 0 ? 'Tidak ada tugas aktif' : 'Tidak ada tugas mendesak'}>
+            {rows.length === 0 ? 'Semua tugas sudah beres.' : `Tenggat terdekat masih lebih dari ${DUE_SOON_DAYS} hari.`}
+          </EmptyState>)
+        : (
+          <>
+            {soon.length > 0 && <HomeTaskGroup id="h-tasks-warning" title="Segera berakhir" tone="warning" items={soon} tz={tz} now={now} />}
+            {overdue.length > 0 && <HomeTaskGroup id="h-tasks-overdue" title="Lewat tenggat" tone="danger" items={overdue} tz={tz} now={now} />}
+            {hidden > 0 && <Link href="/tasks" className="tmore">+{hidden} lainnya<Icon name="arrow-right" size={16} /></Link>}
+          </>)}
+    </SectionCard>
   );
 }
 
-export function EventsBlock({ rows, tz }: { rows: EventItem[]; tz: string }) {
+export function EventsBlock({ rows, tz, now }: { rows: EventItem[]; tz: string; now: Date }) {
   return (
-    <BlockCard id="h-events" icon="calendar-days" title="Event mendatang" href="/events" linkLabel="Semua event" flush>
+    <SectionCard id="h-events" icon="calendar-days" title="Event mendatang" flush
+      action={<Link data-ui="button" href="/events" className="btn btn--ghost btn--sm">Semua event<Icon name="arrow-right" size={16} /></Link>}>
       {rows.length === 0
         ? <EmptyState slim icon="calendar-days" title="Belum ada event mendatang">Kegiatan kelas akan muncul di sini.</EmptyState>
         : (
           <ul className="rows">
-            {rows.map((e) => (
+            {rows.slice(0, 3).map((e) => (
               <li key={e.id} className="row">
                 <DateBadge iso={e.start_at} tz={tz} />
                 <div className="row__body">
@@ -164,11 +238,12 @@ export function EventsBlock({ rows, tz }: { rows: EventItem[]; tz: string }) {
                   <div className="meta">
                     <span><Icon name="clock" size={14} />{formatClock(e.start_at, tz)} {zoneLabel(tz)}</span>
                     {e.location && <span><Icon name="map-pin" size={14} />{e.location}</span>}
+                    <span>{new Date(e.start_at) <= now ? 'Sedang berlangsung' : relativeTime(e.start_at, now)}</span>
                   </div>
                 </div>
               </li>))}
           </ul>)}
-    </BlockCard>
+    </SectionCard>
   );
 }
 
@@ -178,24 +253,27 @@ export function ActivityBlock({ rows }: { rows: ActivityWeek[] }) {
   const total = rows.reduce((a, r) => a + r.activity_count, 0);
   const max = Math.max(1, ...rows.map((r) => r.activity_count));
   return (
-    <BlockCard id="h-act" icon="activity" title={`Aktivitas ${rows.length} pekan terakhir`}>
+    <SectionCard id="h-act" icon="activity" title={`Aktivitas ${rows.length} pekan terakhir`}>
       {total === 0
-        ? <EmptyState slim icon="activity" title="Belum ada aktivitas">Perubahan jadwal, tugas, dan event akan tercatat di sini.</EmptyState>
+        ? <EmptyState slim icon="activity" title="Belum ada aktivitas">Aktivitas jadwal, tugas, dan event akan tercatat di sini.</EmptyState>
         : (
           <>
-            <ol className="bars" aria-labelledby="h-act">
-              {rows.map((r, i) => (
-                <li key={r.week_start}>
-                  <span className="bars__val">{r.activity_count}</span>
-                  <span className="bars__track" aria-hidden="true">
-                    <span className={cx('bars__bar', `pct-${Math.round((r.activity_count / max) * 20) * 5}`, i === rows.length - 1 && 'bars__bar--now')} />
-                  </span>
-                  <span className="bars__lab"><span className="sr-only">Pekan </span>{formatShortDate(r.week_start)}</span>
-                </li>))}
-            </ol>
-            <p className="muted">{total} perubahan tercatat dalam {rows.length} pekan.</p>
-          </>)}
-    </BlockCard>
+            <div role="img" aria-label={activitySummary(rows)}>
+              <ol className="bars" aria-hidden="true">
+                {rows.map((r, i) => (
+                  <li key={r.week_start}>
+                    <span className="bars__val">{r.activity_count}</span>
+                    <span className="bars__track" aria-hidden="true">
+                      <span className={cx('bars__bar', `pct-${Math.round((r.activity_count / max) * 20) * 5}`, i === rows.length - 1 && 'bars__bar--now')} />
+                    </span>
+                    <span className={cx('bars__lab', i === rows.length - 1 && 'bars__lab--now')}>{i === rows.length - 1 ? 'Pekan ini' : formatShortDate(r.week_start)}</span>
+                  </li>))}
+              </ol>
+            </div>
+            <p className="muted">{total} aktivitas tercatat dalam {rows.length} pekan.</p>
+            <p className="chart__note">Pekan dimulai Senin.</p>
+          </>) }
+    </SectionCard>
   );
 }
 
@@ -206,24 +284,28 @@ export function MembersBlock({ rows, avatars, large }: { rows: MemberItem[]; ava
       <section aria-labelledby="h-members">
         <div className="section__head">
           <h2 id="h-members" className="section__title"><Icon name="users" size={20} />Anggota terbaru</h2>
-          <Link href="/members" className="btn btn--ghost btn--sm">Semua anggota<Icon name="arrow-right" size={16} /></Link>
+          <Link data-ui="button" href="/members" className="btn btn--ghost btn--sm">Semua anggota<Icon name="arrow-right" size={16} /></Link>
         </div>
-        <ul className="member-grid">{rows.map((m) => <MemberCard key={m.username} m={m} avatar={m.avatar_path ? avatars.get(m.avatar_path) : undefined} />)}</ul>
+        <ul className="member-grid">{rows.map((m) => <MemberCard key={m.username} m={m} avatar={m.avatar_path ? avatars.get(m.avatar_path) : undefined} hideDefaultRole />)}</ul>
       </section>
     );
   }
   return (
-    <BlockCard id="h-members" icon="users" title="Anggota terbaru" href="/members" linkLabel="Semua anggota" flush>
-      <ul className="rows">
-        {rows.slice(0, 5).map((m) => (
-          <li key={m.username} className="row">
-            <Avatar name={m.full_name} src={m.avatar_path ? avatars.get(m.avatar_path) : undefined} />
-            <div className="row__body">
-              <Link href={`/members/${m.username}`} className="row__title stretch">{m.full_name}</Link>
-              <span className="muted">{m.role_name}</span>
-            </div>
-          </li>))}
+    <SectionCard id="h-members" icon="users" title="Anggota terbaru" flush
+      action={<Link data-ui="button" href="/members" className="btn btn--ghost btn--sm">Semua anggota<Icon name="arrow-right" size={16} /></Link>}>
+      <ul className="mgrid">
+        {rows.slice(0, 12).map((m) => {
+          const role = memberRoleLabel(m.role_name);
+          return (
+            <li key={m.username}>
+              <Link href={`/members/${m.username}`} className="mgrid__item" title={m.full_name}>
+                <Avatar name={m.full_name} seed={m.username} src={m.avatar_path ? avatars.get(m.avatar_path) : undefined} />
+                <span className="mgrid__name">{m.full_name}</span>
+                {role && <span className="mgrid__role">{role}</span>}
+              </Link>
+            </li>);
+        })}
       </ul>
-    </BlockCard>
+    </SectionCard>
   );
 }

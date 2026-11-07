@@ -8,10 +8,13 @@ export function contrastRatio(a: string, b: string): number {
   const [x, y] = [luminance(a), luminance(b)];
   return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
 }
-// Warna teks di atas `bg`: yang kontrasnya tertinggi di antara putih dan kandidat lain (text_primary, background).
-// Kandidat `background` membuat tema gelap dengan primary terang bisa memakai teks gelap di atas tombol.
+// Warna teks di atas `bg`: putih atau `text_primary` (kandidat pertama), mana yang lebih kontras.
+// Hanya bila keduanya di bawah 4,5:1, pakai `background` (kandidat kedua) — mis. aksen terang pada tema
+// gelap yang butuh teks gelap. Tema terang yang sudah ada tetap memakai putih karena selalu lulus.
 export function onColor(bg: string, ...alts: string[]): string {
-  return ['#FFFFFF', ...alts].reduce((best, c) => (contrastRatio(c, bg) > contrastRatio(best, bg) ? c : best));
+  const text = alts[0] ?? '#FFFFFF';
+  const pick = contrastRatio('#FFFFFF', bg) >= contrastRatio(text, bg) ? '#FFFFFF' : text;
+  return contrastRatio(pick, bg) >= 4.5 ? pick : alts[1] ?? pick;
 }
 // Campuran linear sRGB a→b (t=0 → a, t=1 → b); dipakai untuk ujung gradien dan turunan token tema.
 export function mixHex(a: string, b: string, t: number): string {
@@ -35,9 +38,11 @@ export function contrastReport(p: Record<string, string>): ContrastRow[] {
       const ratio = contrastRatio(p[fg] ?? '#000000', p[bg] ?? '#FFFFFF');
       rows.push({ fg, bg, ratio, min: 4.5, ok: ratio >= 4.5 });
     }
-  for (const k of ['primary', 'secondary']) { // tombol: teks putih, text_primary, atau background; ambil yang tertinggi
+  // Tombol: teks memakai hasil turunan yang sebenarnya (onColor), bukan kandidat terbaik yang mungkin tidak dipakai.
+  for (const k of ['primary', 'secondary']) {
     const bg = p[k] ?? '#000000';
-    const ratio = Math.max(contrastRatio('#FFFFFF', bg), contrastRatio(p.text_primary ?? '#000000', bg), contrastRatio(p.background ?? '#FFFFFF', bg));
+    const fg = onColor(bg, p.text_primary ?? '#000000', p.background ?? '#FFFFFF');
+    const ratio = contrastRatio(fg, bg);
     rows.push({ fg: `on_${k}`, bg: k, ratio, min: 4.5, ok: ratio >= 4.5 });
   }
   return rows;

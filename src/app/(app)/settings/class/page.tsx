@@ -33,8 +33,8 @@ export default async function Page() {
           <ImageForm id="logo" title="Logo" description="Tampil di menu dan layar masuk. Gambar persegi paling pas." variant="logo" url={logo}
             uploadAction={uploadClassImage} removeAction={removeClassImage} hidden={{ kind: 'logo' }} spec={{ maxSide: 512 }}
             removeConsequence="Logo diganti dengan ikon bawaan." />
-          <ImageForm id="cover" title="Sampul" description="Gambar lebar di bagian atas Beranda dan halaman Kelas." variant="wide" url={cover}
-            uploadAction={uploadClassImage} removeAction={removeClassImage} hidden={{ kind: 'cover' }} spec={{ crop: [1600, 900] }}
+          <ImageForm id="cover" title="Sampul" description="Gambar sampul di Beranda. Disarankan 1600×500 (16:5); sampul lama tetap dipotong di tengah." variant="cover" url={cover}
+            uploadAction={uploadClassImage} removeAction={removeClassImage} hidden={{ kind: 'cover' }} spec={{ crop: [1600, 500] }}
             removeConsequence="Beranda memakai latar warna tema." />
         </>
       )} />

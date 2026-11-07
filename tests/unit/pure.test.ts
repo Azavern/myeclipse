@@ -2,14 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { pickUsername, slugifyUsername } from '../../src/lib/username';
 import { safeRedirect } from '../../src/lib/safe-redirect';
-import { dateParts, formatClock, formatRange, formatShortDate, formatWhen, isoWeekday, localToUtc, relativeTime, utcToLocal } from '../../src/lib/time';
+import { dateParts, formatClock, formatRange, formatShortDate, formatWeekdayDate, formatWhen, isoWeekday, localToUtc, relativeTime, utcToLocal } from '../../src/lib/time';
+import { activitySummary, DUE_SOON_DAYS, deadlineBadge, homeTaskGroups, memberRoleLabel, nextClass, sessionState, summaryTiles } from '../../src/features/home/derive';
 import { isFlashKey, withFlash } from '../../src/lib/flash';
-import { taskDisplayStatus } from '../../src/lib/tasks';
-import { contrastRatio, contrastReport, mixHex, onColor } from '../../src/lib/theme/contrast';
-import { buildThemeCss } from '../../src/lib/theme/css';
+import { DUE_SOON_HOURS, taskDisplayStatus } from '../../src/lib/tasks';
+import { contrastRatio, contrastReport, luminance, mixHex, onColor } from '../../src/lib/theme/contrast';
+import { buildThemeCss, themeVars } from '../../src/lib/theme/css';
 import { DEFAULT_THEME, LEGACY_THEME_V1 } from '../../src/lib/theme/defaults';
-import { THEME_PRESETS } from '../../src/lib/theme/presets';
-import { ThemeSchema } from '../../src/lib/theme/schema';
+import { TEMPLATE_PRESETS, THEME_PRESETS } from '../../src/lib/theme/presets';
+import { resolveStoredTheme } from '../../src/lib/theme/resolve';
+import { THEME_TEMPLATES, ThemeSchema, themeTemplate } from '../../src/lib/theme/schema';
 import { detectImage } from '../../src/lib/storage/magic-bytes';
 import { allowsHttpsImages, buildCsp, makeNonce, originOf } from '../../src/lib/security/csp';
 import { blockedHost, decodeEntities, displayOrigin, parsePreview, previewUrl, safeImage } from '../../src/lib/preview/meta';
@@ -22,6 +24,9 @@ import { normalizeTag, normalizeTags, parseTagsJson } from '../../src/lib/knowle
 const sql = readFileSync(new URL('../../supabase/migrations/20261005120700_reference_data.sql', import.meta.url), 'utf8');
 const sqlV2 = readFileSync(new URL('../../supabase/migrations/20261012120000_theme_default_v2.sql', import.meta.url), 'utf8');
 const sqlKnowledge = readFileSync(new URL('../../supabase/migrations/20261023120000_knowledge.sql', import.meta.url), 'utf8');
+const neoCss = readFileSync(new URL('../../src/styles/templates/neobrutalism.css', import.meta.url), 'utf8');
+const archiveCss = readFileSync(new URL('../../src/styles/templates/archive.css', import.meta.url), 'utf8');
+const cssVar = (css: string, name: string) => css.match(new RegExp(`--${name}:\\s*(#[0-9A-Fa-f]{6})`))?.[1] ?? '';
 
 describe('username', () => {
   it('menghilangkan diakritik dan simbol', () => {
@@ -101,6 +106,82 @@ describe('flash', () => {
   });
 });
 
+describe('Beranda: kuliah dan prioritas tugas', () => {
+  it('status kuliah memakai zona kelas yang berbeda', () => {
+    const state = (tz: string, iso: string) => sessionState('08:00', '10:00', new Date(iso), tz);
+    // Jakarta (UTC+7): 06:30, 08:00, 10:00.
+    expect(state('Asia/Jakarta', '2026-10-04T23:30:00Z')).toBe('next');
+    expect(state('Asia/Jakarta', '2026-10-05T01:00:00Z')).toBe('live');
+    expect(state('Asia/Jakarta', '2026-10-05T03:00:00Z')).toBe('done');
+    // Makassar (UTC+8): 06:30, 08:00, 10:00.
+    expect(state('Asia/Makassar', '2026-10-04T22:30:00Z')).toBe('next');
+    expect(state('Asia/Makassar', '2026-10-05T00:00:00Z')).toBe('live');
+    expect(state('Asia/Makassar', '2026-10-05T02:00:00Z')).toBe('done');
+    // Jayapura (UTC+9): 06:30, 08:00, 10:00.
+    expect(state('Asia/Jayapura', '2026-10-04T21:30:00Z')).toBe('next');
+    expect(state('Asia/Jayapura', '2026-10-04T23:00:00Z')).toBe('live');
+    expect(state('Asia/Jayapura', '2026-10-05T01:00:00Z')).toBe('done');
+  });
+  it('kuliah berikutnya melewati hari tanpa kelas dan memformat tanggal kelas', () => {
+    const rows = [
+      { id: 'wed', day_of_week: 3, start_time: '08:00:00', end_time: '10:00:00', type: 'class' as const },
+      { id: 'wed-late', day_of_week: 3, start_time: '13:00:00', end_time: '15:00:00', type: 'class' as const },
+    ];
+    const next = nextClass(rows, 1, new Date('2026-10-05T00:00:00Z'));
+    expect(next?.row.id).toBe('wed');
+    expect(next?.at.toISOString()).toBe('2026-10-07T00:00:00.000Z');
+    expect(formatWeekdayDate(next?.at.toISOString() ?? '', 'Asia/Makassar')).toBe('Rabu, 7 Okt');
+  });
+  it('tugas Home: segera berakhir menaik, lewat tenggat terbaru dulu, maksimal lima', () => {
+    const now = new Date('2026-10-05T00:00:00Z');
+    const rows = [
+      { id: 'old', deadline: '2026-10-01T00:00:00Z' },
+      { id: 'new', deadline: '2026-10-04T23:00:00Z' },
+      { id: 'soon2', deadline: '2026-10-07T00:00:00Z' },
+      { id: 'soon1', deadline: '2026-10-05T01:00:00Z' },
+      { id: 'far', deadline: '2026-10-20T00:00:00Z' },
+    ];
+    const groups = homeTaskGroups(rows, now);
+    expect(groups.soon.map((t) => t.id)).toEqual(['soon1', 'soon2']);
+    expect(groups.overdue.map((t) => t.id)).toEqual(['new', 'old']);
+    expect(groups.hidden).toBe(0);
+    const boundary = new Date(now.getTime() + DUE_SOON_HOURS * 3_600_000).toISOString();
+    const after = new Date(now.getTime() + DUE_SOON_HOURS * 3_600_000 + 1).toISOString();
+    expect(homeTaskGroups([{ id: 'edge', deadline: boundary }], now).soon).toHaveLength(1);
+    expect(homeTaskGroups([{ id: 'later', deadline: after }], now).soon).toHaveLength(0);
+    const many = Array.from({ length: 7 }, (_, i) => ({ id: `t${i}`, deadline: new Date(now.getTime() - (i + 1) * 86_400_000).toISOString() }));
+    const capped = homeTaskGroups(many, now);
+    expect(capped.overdue.map((t) => t.id)).toEqual(['t0', 't1', 't2', 't3', 't4']);
+    expect(capped.hidden).toBe(2);
+  });
+  it('ringkasan memakai label tindakan, URL asal, dan nol sebagai kalimat', () => {
+    const items = summaryTiles({ members_count: 19, upcoming_events_count: 0, active_tasks_count: null, due_soon_tasks_count: 2 });
+    expect(items.map((i) => i.key)).toEqual(['members', 'events', 'due']);
+    expect(items[0]).toMatchObject({ href: '/members', label: 'Anggota aktif' });
+    expect(items[1]).toMatchObject({ empty: 'Tidak ada event mendatang', value: 0 });
+    expect(items[2]).toMatchObject({ href: '/tasks', label: 'Perlu tindakan', tone: 'warning', note: `lewat tenggat atau ≤${DUE_SOON_DAYS} hari` });
+    expect(DUE_SOON_DAYS).toBe(DUE_SOON_HOURS / 24);
+    const zero = summaryTiles({ members_count: 0, upcoming_events_count: null, active_tasks_count: null, due_soon_tasks_count: 0 });
+    expect(zero[0]).toMatchObject({ value: 0, empty: 'Tidak ada anggota aktif' });
+    expect(zero[1]).toMatchObject({ value: 0, empty: 'Tidak ada tindakan mendesak', tone: 'neutral' });
+  });
+  it('peran bawaan tidak mendapat label dan aktivitas memakai kata aktivitas', () => {
+    expect(memberRoleLabel('Member')).toBeNull();
+    expect(memberRoleLabel(' member ')).toBeNull();
+    expect(memberRoleLabel(null)).toBeNull();
+    expect(memberRoleLabel('')).toBeNull();
+    expect(memberRoleLabel('Wakil Ketua')).toBe('Wakil Ketua');
+    expect(activitySummary([{ week_start: '2026-10-12', activity_count: 14 }, { week_start: '2026-11-02', activity_count: 3 }]))
+      .toBe('Aktivitas 2 pekan terakhir: pekan mulai 12 Okt 14 aktivitas; pekan ini 3 aktivitas.');
+  });
+  it('badge memakai satu ekspresi waktu relatif', () => {
+    const now = new Date('2026-10-05T00:00:00Z');
+    expect(deadlineBadge('2026-10-04T00:00:00Z', now)).toBe('Lewat 1 hari');
+    expect(deadlineBadge('2026-10-01T00:00:00Z', now)).toBe('Lewat 4 hari');
+    expect(deadlineBadge('2026-10-07T00:00:00Z', now)).toBe('2 hari lagi');
+  });
+});
+
 describe('taskDisplayStatus', () => {
   const now = new Date('2026-10-05T00:00:00Z');
   const at = (ms: number) => ({ status: 'active' as const, deadline: new Date(now.getTime() + ms) });
@@ -137,15 +218,92 @@ describe('tema', () => {
   });
   it('preset palet lolos ThemeSchema dan unik', () => {
     for (const p of THEME_PRESETS) {
-      expect(ThemeSchema.safeParse({ layout: 'standard', font_preset: 'rounded', palette: p.palette }).success, p.id).toBe(true);
+      expect(ThemeSchema.safeParse({ layout: p.layout ?? 'standard', font_preset: p.font_preset ?? 'rounded', palette: p.palette }).success, p.id).toBe(true);
     }
     expect(new Set(THEME_PRESETS.map((p) => p.id)).size).toBe(THEME_PRESETS.length);
   });
-  it('onColor memilih kandidat berkontras tertinggi; mixHex bekerja di sRGB', () => {
-    expect(onColor('#F59E0B', '#EAF0FB', '#0B1220')).toBe('#0B1220');
-    expect(onColor('#0F766E', '#0E1F1D')).toBe('#FFFFFF');
+  it('template opsional: tema lama tetap default, nilai enum valid, dan nilai asing ditolak', () => {
+    expect('template' in DEFAULT_THEME).toBe(false);
+    expect(ThemeSchema.safeParse(DEFAULT_THEME).success).toBe(true);
+    expect(themeTemplate(DEFAULT_THEME)).toBe('default');
+    for (const template of THEME_TEMPLATES) {
+      expect(ThemeSchema.safeParse({ ...DEFAULT_THEME, template }).success, template).toBe(true);
+    }
+    expect(ThemeSchema.safeParse({ ...DEFAULT_THEME, template: 'masa-depan' }).success).toBe(false);
+  });
+  it('resolver mempertahankan palet saat hanya template yang rusak', () => {
+    const resolved = resolveStoredTheme({ ...DEFAULT_THEME, template: 'masa-depan' });
+    expect(resolved.invalid).toBe(false);
+    expect(resolved.invalidTemplate).toBe(true);
+    expect(resolved.template).toBe('default');
+    expect(resolved.theme.palette).toEqual(DEFAULT_THEME.palette);
+    expect(resolveStoredTheme(null).theme).toEqual(DEFAULT_THEME);
+  });
+  it('preset template lolos semua pasangan kontras dan unik', () => {
+    for (const p of TEMPLATE_PRESETS) {
+      const parsed = ThemeSchema.safeParse({ layout: p.layout, font_preset: p.font_preset, palette: p.palette, template: p.id });
+      expect(parsed.success, p.id).toBe(true);
+      expect(contrastReport(p.palette).filter((r) => !r.ok), p.id).toEqual([]);
+    }
+    expect(new Set(TEMPLATE_PRESETS.map((p) => p.id)).size).toBe(TEMPLATE_PRESETS.length);
+    expect(TEMPLATE_PRESETS.map((p) => p.id)).toEqual(['default', 'neobrutalism', 'archive']);
+  });
+  it('isian blok template hadir dan memenuhi 4,5:1', () => {
+    const groups = [
+      [neoCss, [
+        ['coral', '#FF5E5B', '#000000'],
+        ['marigold', '#FFBE0B', '#000000'],
+        ['mint', '#00F5D4', '#000000'],
+        ['sky', '#3A86FF', '#000000'],
+        ['violet', '#8338EC', '#FFFFFF'],
+      ]],
+      [archiveCss, [
+        ['rust', '#A03E27', '#E6DEC8'],
+        ['olive', '#4A5D4E', '#E6DEC8'],
+      ]],
+    ] as const;
+    for (const [css, rows] of groups) for (const [name, fill, text] of rows) {
+      expect(cssVar(css, `fill-${name}`), name).toBe(fill);
+      expect(cssVar(css, `fill-${name}-text`), name).toBe(text);
+      expect(contrastRatio(text, fill), name).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+  it('Eclipse Gelap memakai teks latar, color-scheme gelap, dan tema terang tidak berubah', () => {
+    const eclipse = THEME_PRESETS.find((p) => p.id === 'eclipse_gelap');
+    expect(eclipse?.font_preset).toBe('editorial');
+    if (!eclipse) return;
+    const vars = themeVars(eclipse.palette);
+    expect(vars['--theme-on-primary']).toBe(eclipse.palette.background);
+    expect(vars['--theme-on-secondary']).toBe(eclipse.palette.background);
+    expect(vars['color-scheme']).toBe('dark');
+    expect(contrastRatio(eclipse.palette.background, eclipse.palette.primary)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(eclipse.palette.background, eclipse.palette.secondary)).toBeGreaterThanOrEqual(4.5);
+    // Tema terang yang sekarang tersimpan tetap memakai putih di atas tombol.
+    const light = themeVars(DEFAULT_THEME.palette);
+    expect(light['--theme-on-primary']).toBe('#FFFFFF');
+    expect(light['--theme-on-secondary']).toBe('#FFFFFF');
+    expect(light['color-scheme']).toBe('light');
+  });
+  it('onColor jatuh ke background hanya bila putih dan text_primary sama-sama di bawah 4,5:1; mixHex bekerja di sRGB', () => {
+    expect(onColor('#FFCC00', '#EEEEEE', '#101010')).toBe('#101010');
+    expect(onColor('#0F766E', '#0E1F1D', '#F2F7F6')).toBe('#FFFFFF');
     expect(mixHex('#000000', '#FFFFFF', 0.5)).toBe('#808080');
     expect(mixHex('#336699', '#336699', 0.7)).toBe('#336699');
+  });
+  it('lima pasangan avatar bertoken memenuhi 4,5:1 di semua preset', () => {
+    for (const preset of THEME_PRESETS) {
+      const p = preset.palette;
+      const pairs: [string, string, string][] = [
+        ['brand', mixHex(p.surface, p.primary, 0.15), mixHex(p.text_primary, p.primary, 0.72)],
+        ['accent', mixHex(p.surface, p.secondary, 0.16), mixHex(p.text_primary, p.secondary, 0.72)],
+        ['success', mixHex(p.surface, p.success, 0.13), mixHex(p.text_primary, p.success, 0.70)],
+        ['warning', mixHex(p.surface, p.warning, 0.14), mixHex(p.text_primary, p.warning, 0.70)],
+        ['error', mixHex(p.surface, p.error, 0.11), mixHex(p.text_primary, p.error, 0.72)],
+      ];
+      for (const [name, bg, fg] of pairs) {
+        expect(contrastRatio(fg, bg), `${preset.id}/${name}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
   });
   it('CSS tema: variabel dan gradien menjaga kontras teks', () => {
     for (const p of THEME_PRESETS) {
@@ -153,7 +311,7 @@ describe('tema', () => {
       const get = (k: string) => css.match(new RegExp(`--${k}:(#[0-9A-F]{6})`))?.[1] ?? '';
       expect(contrastRatio(get('theme-on-primary'), p.palette.primary), p.id).toBeGreaterThanOrEqual(4.5);
       expect(contrastRatio(get('theme-on-primary'), get('theme-primary-deep')), p.id).toBeGreaterThanOrEqual(4.5);
-      expect(css).toContain(`color-scheme:${p.id === 'gerhana' ? 'dark' : 'light'}`);
+      expect(css).toContain(`color-scheme:${luminance(p.palette.background) < 0.35 ? 'dark' : 'light'}`);
     }
   });
 });

@@ -9,13 +9,13 @@ export type Tone = 'brand' | 'accent' | 'success' | 'warning' | 'error' | 'neutr
 
 // ---- Avatar: foto bila ada, selain itu inisial dengan warna stabil dari nama ----
 const initials = (name: string) => name.trim().split(/\s+/).slice(0, 2).map((w) => w[0] ?? '').join('').toUpperCase() || '?';
-const hue = (name: string) => [...name].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 5;
+const hue = (seed: string) => [...seed].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 5;
 const AV_PX = { xs: 24, sm: 32, md: 40, lg: 56, xl: 96 } as const;
 
-export function Avatar({ name, src, size = 'md', className }: { name: string; src?: string | null; size?: keyof typeof AV_PX; className?: string }) {
+export function Avatar({ name, src, size = 'md', className, seed }: { name: string; src?: string | null; size?: keyof typeof AV_PX; className?: string; seed?: string }) {
   const px = AV_PX[size];
   return (
-    <span className={cx('avatar', size !== 'md' && `avatar--${size}`, !src && hue(name) > 0 && `av-${hue(name)}`, className)} aria-hidden="true">
+    <span data-ui="avatar" className={cx('avatar', size !== 'md' && `avatar--${size}`, !src && `av-${hue(seed ?? name)}`, className)} aria-hidden="true">
       {src ? <img src={src} alt="" width={px} height={px} loading="lazy" decoding="async" /> : initials(name)}
     </span>
   );
@@ -23,9 +23,9 @@ export function Avatar({ name, src, size = 'md', className }: { name: string; sr
 
 // ---- Gambar dari Storage (URL bertanda tangan) dengan fallback bertema ----
 export function StorageImage({ src, alt, width, height, ratio = 'media', icon = 'image', priority = false, className }: {
-  src?: string | null; alt: string; width: number; height: number; ratio?: 'media' | 'wide' | 'sq'; icon?: IconName; priority?: boolean; className?: string;
+  src?: string | null; alt: string; width: number; height: number; ratio?: 'media' | 'wide' | 'hero' | 'sq'; icon?: IconName; priority?: boolean; className?: string;
 }) {
-  const cls = cx('media', ratio === 'wide' && 'media--wide', ratio === 'sq' && 'media--sq', className);
+  const cls = cx('media', ratio === 'wide' && 'media--wide', ratio === 'hero' && 'media--hero', ratio === 'sq' && 'media--sq', className);
   if (!src) return <div className={cx(cls, 'media--ph')} aria-hidden="true"><Icon name={icon} size={32} /></div>; // pengganti dekoratif
   return (
     <div className={cls}>
@@ -37,7 +37,7 @@ export function StorageImage({ src, alt, width, height, ratio = 'media', icon = 
 // ---- Chip, tile ikon, notice ----
 export function Chip({ tone = 'neutral', icon, children, className }: { tone?: Tone | 'outline'; icon?: IconName; children: ReactNode; className?: string }) {
   return (
-    <span className={cx('chip', tone !== 'neutral' && `chip--${tone}`, className)}>
+    <span data-ui="badge" className={cx('chip', tone !== 'neutral' && `chip--${tone}`, className)}>
       {icon && <Icon name={icon} size={14} />}{children}
     </span>
   );
@@ -83,6 +83,26 @@ export function PageHeader({ icon, title, description, actions, crumbs, id = 'pa
     </>
   );
 }
+// Kartu berjudul dengan satu resep kepala: tinggi minimal 3.5rem, ikon + judul + meta opsional,
+// aksi di kanan, dan garis pemisah yang selalu ada. Judul yang dipotong, bukan tautan aksinya.
+export function SectionCard({ id, title, icon, meta, action, flush, children, className }: {
+  id: string; title: ReactNode; icon: IconName; meta?: ReactNode; action?: ReactNode;
+  flush?: boolean; children: ReactNode; className?: string;
+}) {
+  return (
+    <section data-ui="panel" className={cx('card', 'scard', flush && 'card--flush', className)} aria-labelledby={id}>
+      <div className="scard__head" data-ui="section-head">
+        <h2 id={id} className="scard__title" data-ui="section-title">
+          <Icon name={icon} size={20} />
+          <span className="scard__label">{title}</span>
+          {meta && <span className="scard__meta">{meta}</span>}
+        </h2>
+        {action && <div className="scard__action" data-ui="section-action">{action}</div>}
+      </div>
+      <div className={cx('scard__body', flush && 'scard__body--flush')}>{children}</div>
+    </section>
+  );
+}
 export function Section({ id, title, icon, action, children, className }: { id: string; title: string; icon?: IconName; action?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <section className={cx('section', className)} aria-labelledby={id}>
@@ -96,7 +116,7 @@ export function Section({ id, title, icon, action, children, className }: { id: 
 }
 export function StatTile({ icon, value, label, tone = 'brand' }: { icon: IconName; value: number | string; label: string; tone?: Tone }) {
   return (
-    <div className="card stat">
+    <div data-ui="panel" className="card stat">
       <Tile icon={icon} tone={tone} />
       <div><div className="stat__value">{value}</div><div className="stat__label">{label}</div></div>
     </div>
@@ -108,7 +128,7 @@ type BtnProps = { variant?: 'primary' | 'secondary' | 'ghost' | 'accent' | 'dang
 export const btnClass = ({ variant = 'primary', size, className }: BtnProps) =>
   cx('btn', variant !== 'primary' && `btn--${variant}`, size && `btn--${size}`, className);
 export function LinkButton({ href, children, icon, ...rest }: BtnProps & { href: string; children: ReactNode }) {
-  return <Link href={href} className={btnClass(rest)}>{icon && <Icon name={icon} size={18} />}{children}</Link>;
+  return <Link data-ui="button" href={href} className={btnClass(rest)}>{icon && <Icon name={icon} size={18} />}{children}</Link>;
 }
 export function Segmented({ label, items }: { label: string; items: { href: string; label: string; active: boolean; icon?: IconName }[] }) {
   return (

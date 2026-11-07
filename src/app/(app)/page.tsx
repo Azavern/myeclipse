@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { NoAccess } from '@/components/states';
 import { ActivityBlock, EventsBlock, ExploreBlock, Hero, MembersBlock, OverviewTiles, ScheduleBlock, TasksBlock,
   overviewTiles, type ActivityWeek, type EventItem, type ExploreItem, type Overview, type ScheduleItem } from '@/features/home/blocks';
-import { HOME_LAYOUTS, type HomeBlock } from '@/features/home/layouts';
+import { HOME_REGIONS, type HomeBlock } from '@/features/home/layouts';
 import type { MemberItem } from '@/features/members/member-card';
 import type { TaskItem } from '@/features/tasks/task-row';
 import { getClass } from '@/lib/class';
@@ -32,12 +32,12 @@ export default async function Home() {
   const dow = isoWeekday(tz, now);
   const [sched, events, tasks, members, overview, activity] = await Promise.all([
     run<(ScheduleItem & { semester: string })[]>(show('section.home.schedule', 'page.schedule'), () => supabase.from('schedules')
-      .select('id,title,start_time,end_time,location,semester,type').eq('day_of_week', dow)
-      .order('semester', { ascending: false }).order('start_time').limit(30)),
+      .select('id,title,start_time,end_time,location,semester,type,day_of_week')
+      .order('semester', { ascending: false }).order('day_of_week').order('start_time').limit(200)),
     run<EventItem[]>(show('section.home.events', 'page.events'), () => supabase.from('events').select('id,title,start_at,location')
-      .gte('end_at', now.toISOString()).order('start_at').limit(4)),
+      .gte('end_at', now.toISOString()).order('start_at').limit(3)),
     run<TaskItem[]>(show('section.home.tasks', 'page.tasks'), () => supabase.from('tasks').select('id,title,deadline,course')
-      .eq('status', 'active').order('deadline').limit(5)),
+      .eq('status', 'active').order('deadline').limit(100)),
     run<MemberItem[]>(show('section.home.members', 'page.members'), () => supabase.from('member_profile_v')
       .select('username,full_name,nickname,role_name,avatar_path').eq('status', 'active').order('joined_at', { ascending: false }).limit(12)),
     run<Overview[]>(show('section.home.overview'), () => supabase.rpc('get_home_overview')),
@@ -47,7 +47,8 @@ export default async function Home() {
     signMany(supabase, 'class-media', [id.cover_path]),
     signMany(supabase, 'member-media', (members ?? []).map((m) => m.avatar_path)),
   ]);
-  const today = (sched ?? []).filter((r, _i, all) => r.semester === all[0]?.semester); // hanya semester terbaru
+  const semesterRows = (sched ?? []).filter((r, _i, all) => r.semester === all[0]?.semester); // hanya semester terbaru
+  const todayRows = semesterRows.filter((r) => r.day_of_week === dow);
   const ov = overview?.[0];
   const guest = !viewer.user;
   // Tamu mendapat panel ringkasan di dalam hero, jadi kartu statistik terpisah tidak dirender lagi.
@@ -71,36 +72,45 @@ export default async function Home() {
     ]
     : [];
 
-  // Tiap blok dirender hanya bila datanya ada; urutan dari preset tema (features/home/layouts.ts).
-  const blocks: Record<HomeBlock, { node: ReactNode; span: 12 | 5 | 7 } | null> = {
+  // Tiap blok dirender hanya bila datanya ada; pembagian kolom mengikuti preset tema
+  // (features/home/layouts.ts). Kerangka main + rail membuat tinggi kartu mengikuti isinya.
+  const blocks: Record<HomeBlock, ReactNode | null> = {
     identity: show('section.home.identity')
-      ? { span: 12, node: (
+      ? (
         <div className="stack">
-          <Hero name={id.name} tagline={id.tagline} description={id.description} highlight={id.highlight_text}
+          <Hero name={id.name} code={cls?.code ?? null} tagline={id.tagline} description={id.description} highlight={id.highlight_text}
             highlightUrl={id.highlight_url} coverUrl={id.cover_path ? cover.get(id.cover_path) : undefined}
             todayLabel={formatDay(now.toISOString(), tz)} guest={guest} stats={heroStats} secondary={secondary} />
           {guestLinks.length > 0 && <ExploreBlock items={guestLinks} />}
-        </div>) }
+        </div>)
       : null,
-    overview: ov && heroStats.length === 0 ? { span: 12, node: <OverviewTiles ov={ov} /> } : null,
-    upcoming: sched !== null || tasks !== null || events !== null
-      ? { span: 12, node: (
-        <div className="dash">
-          <div className="stack">
-            {sched !== null && <ScheduleBlock rows={today} tz={tz} now={now} dayName={DAYS[dow - 1] ?? ''} />}
-            {tasks !== null && <TasksBlock rows={tasks} tz={tz} now={now} />}
-          </div>
-          <div className="stack">{events !== null && <EventsBlock rows={events} tz={tz} />}</div>
-        </div>) }
-      : null,
-    activity: activity !== null ? { span: layout === 'standard' ? 5 : 12, node: <ActivityBlock rows={activity} /> } : null,
+    overview: ov && heroStats.length === 0 ? <OverviewTiles ov={ov} /> : null,
+    schedule: sched !== null ? <ScheduleBlock rows={todayRows} all={semesterRows} day={dow} tz={tz} now={now} dayName={DAYS[dow - 1] ?? ''} /> : null,
+    tasks: tasks !== null ? <TasksBlock rows={tasks} tz={tz} now={now} /> : null,
+    events: events !== null ? <EventsBlock rows={events} tz={tz} now={now} /> : null,
+    activity: activity !== null ? <ActivityBlock rows={activity} /> : null,
     members: members !== null && members.length > 0
-      ? { span: layout === 'standard' ? 7 : 12, node: <MembersBlock rows={members} avatars={avatars} large={layout === 'profile_focused'} /> }
+      ? <MembersBlock rows={members} avatars={avatars} large={layout === 'profile_focused'} />
       : null,
   };
+  const region = HOME_REGIONS[layout];
+  const renderRegion = (keys: HomeBlock[], className?: string) => keys.map((key) => {
+    const node = blocks[key];
+    return node ? <div key={key} className={className}>{node}</div> : null;
+  });
+  const hasMain = region.main.some((key) => blocks[key] !== null);
+  const hasRail = region.rail.some((key) => blocks[key] !== null) || region.wide.some((key) => blocks[key] !== null);
+
   return (
     <div className="home">
-      {HOME_LAYOUTS[layout].map((key) => { const b = blocks[key]; return b && <div key={key} className={`span-${b.span}`}>{b.node}</div>; })}
+      {renderRegion(region.full, 'home__full')}
+      {hasMain && <div className="home__main">{renderRegion(region.main)}</div>}
+      {hasRail && (
+        <div className="home__rail">
+          {renderRegion(region.rail)}
+          {renderRegion(region.wide, 'home__wide')}
+        </div>
+      )}
     </div>
   );
 }

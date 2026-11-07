@@ -7,8 +7,8 @@ import type { FormState } from '@/lib/form-state';
 import { PALETTE_LABEL, contrastReport } from '@/lib/theme/contrast';
 import { themeVars } from '@/lib/theme/css';
 import { DEFAULT_THEME } from '@/lib/theme/defaults';
-import { THEME_PRESETS } from '@/lib/theme/presets';
-import { PALETTE_KEYS, ThemeSchema, type Theme } from '@/lib/theme/schema';
+import { TEMPLATE_PRESETS, THEME_PRESETS } from '@/lib/theme/presets';
+import { PALETTE_KEYS, ThemeSchema, themeTemplate, type Theme, type ThemeTemplate } from '@/lib/theme/schema';
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const norm = (v: string) => { const s = v.trim(); return /^[0-9a-fA-F]{6}$/.test(s) ? `#${s.toUpperCase()}` : HEX.test(s) ? s.toUpperCase() : s; };
@@ -26,6 +26,7 @@ const LAYOUTS: { id: Theme['layout']; name: string; note: string }[] = [
   { id: 'standard', name: 'Standar', note: 'Ringkasan kelas lebih dulu, lalu jadwal dan aktivitas.' },
   { id: 'profile_focused', name: 'Berfokus anggota', note: 'Daftar anggota tampil lebih awal di Beranda.' },
 ];
+type TemplateFont = Exclude<ThemeTemplate, 'default'>;
 
 // Titik warna preset: SVG dengan atribut fill (bukan atribut style) agar tetap sesuai CSP.
 function Dots({ palette }: { palette: Theme['palette'] }) {
@@ -37,15 +38,18 @@ function Dots({ palette }: { palette: Theme['palette'] }) {
   );
 }
 
-export function ThemeEditor({ initial, action, fontClasses }: {
+export function ThemeEditor({ initial, action, fontClasses, templateFontClasses }: {
   initial: Theme;
   action: (p: FormState, fd: FormData) => Promise<FormState>;
   fontClasses: Record<Theme['font_preset'], string>;
+  templateFontClasses: Record<TemplateFont, string>;
 }) {
-  const [t, setT] = useState<Theme>(initial); // pratinjau = state lokal, belum disimpan (A-12)
+  const [t, setT] = useState<Theme>(() => ({ ...initial, template: themeTemplate(initial) })); // pratinjau = state lokal, belum disimpan (A-12)
   const [state, act, pending] = useActionState(action, null);
   const previewRef = useRef<HTMLDivElement>(null);
 
+  const template = themeTemplate(t);
+  const previewFont = template === 'default' ? fontClasses[t.font_preset] : templateFontClasses[template];
   const hexOk = PALETTE_KEYS.every((k) => HEX.test(t.palette[k]));
   const report = hexOk ? contrastReport(t.palette) : [];
   const failing = report.filter((r) => !r.ok);
@@ -59,12 +63,20 @@ export function ThemeEditor({ initial, action, fontClasses }: {
   }, [t.palette, hexOk]);
 
   const setColor = (k: (typeof PALETTE_KEYS)[number], v: string) => setT((cur) => ({ ...cur, palette: { ...cur.palette, [k]: v } }));
+  const chooseTemplate = (id: ThemeTemplate) => {
+    const p = TEMPLATE_PRESETS.find((item) => item.id === id);
+    if (!p) return;
+    setT((cur) => ({ ...cur, template: id, layout: p.layout, font_preset: p.font_preset, palette: { ...p.palette } }));
+  };
 
   return (
     <form action={act} aria-busy={pending} className="theme-form">
+      {/* Radio font dinonaktifkan saat template aktif, jadi nilainya tetap dikirim lewat hidden input. */}
+      {template !== 'default' && <input type="hidden" name="font_preset" value={t.font_preset} />}
       {/* Pratinjau menempel di atas saat menggulir (layar ≥768px) supaya perubahan warna langsung terlihat. */}
       <section className="theme-preview" aria-label="Pratinjau tema, belum dipublikasikan">
-        <div ref={previewRef} className={cx('preview theme-scope', fontClasses[t.font_preset])} aria-hidden="true" inert>
+        {/* data-preview menahan grain global agar tidak menutupi halaman editor. */}
+        <div data-ui="panel" data-template={template} data-preview ref={previewRef} className={cx('preview theme-scope', previewFont)} aria-hidden="true" inert>
           <div className="preview__bar"><Tile icon="cap" size="sm" />Kelas contoh<Chip tone="outline">Pratinjau</Chip></div>
           <div className="preview__body preview__body--row">
             <div className="stack stack--sm">
@@ -75,8 +87,8 @@ export function ThemeEditor({ initial, action, fontClasses }: {
               <Chip tone="success" icon="check-circle">Selesai</Chip>
               <Chip tone="warning" icon="hourglass">Segera</Chip>
               <Chip tone="error" icon="alert-triangle">Terlambat</Chip>
-              <span className="btn btn--sm">Utama</span>
-              <span className="btn btn--accent btn--sm">Aksen</span>
+              <span data-ui="button" className="btn btn--sm">Utama</span>
+              <span data-ui="button" className="btn btn--accent btn--sm">Aksen</span>
             </div>
           </div>
         </div>
@@ -84,7 +96,26 @@ export function ThemeEditor({ initial, action, fontClasses }: {
 
       {state?.error && <Notice tone="error" role="alert">{state.error}</Notice>}
 
-      <section className="card" aria-labelledby="presets-title">
+      <section data-ui="panel" className="card" aria-labelledby="template-title">
+        <div className="card__head">
+          <div>
+            <h2 id="template-title" className="card__title"><Icon name="layout" size={20} />Template</h2>
+            <p className="card__desc">Pilih paket tampilan. Palet template dimuat ke pratinjau; susunan halaman tidak berubah.</p>
+          </div>
+        </div>
+        <fieldset className="choices">
+          <legend>Template tampilan</legend>
+          {TEMPLATE_PRESETS.map((p) => (
+            <label key={p.id} className="choice">
+              <input type="radio" name="template" value={p.id} checked={template === p.id} onChange={() => chooseTemplate(p.id)} />
+              <span className="choice__name">{p.name}</span>
+              <span className="choice__note">{p.note}</span>
+            </label>
+          ))}
+        </fieldset>
+      </section>
+
+      <section data-ui="panel" className="card" aria-labelledby="presets-title">
         <div className="card__head">
           <div>
             <h2 id="presets-title" className="card__title"><Icon name="sparkles" size={20} />Palet siap pakai</h2>
@@ -93,15 +124,25 @@ export function ThemeEditor({ initial, action, fontClasses }: {
         </div>
         <div className="swatch-grid">
           {THEME_PRESETS.map((p) => (
-            <button key={p.id} type="button" className="preset" aria-pressed={same(p.palette, t.palette)} onClick={() => setT((cur) => ({ ...cur, palette: { ...p.palette } }))}>
+            <button key={p.id} type="button" className="preset"
+              aria-pressed={same(p.palette, t.palette)
+                && (p.layout ?? t.layout) === t.layout
+                && (p.font_preset ?? t.font_preset) === t.font_preset}
+              onClick={() => setT((cur) => ({
+                ...cur,
+                layout: p.layout ?? cur.layout,
+                font_preset: p.font_preset ?? cur.font_preset,
+                palette: { ...p.palette },
+              }))}>
               <Dots palette={p.palette} />
               <span><b>{p.name}</b><span className="muted"> · {p.note}</span></span>
             </button>
           ))}
         </div>
+        <p className="field__hint">Pratinjau belum tersimpan. Tekan Publikasikan untuk menerapkan ke seluruh kelas.</p>
       </section>
 
-      <section className="card" aria-labelledby="colors-title">
+      <section data-ui="panel" className="card" aria-labelledby="colors-title">
         <div className="card__head">
           <div>
             <h2 id="colors-title" className="card__title"><Icon name="palette" size={20} />Warna</h2>
@@ -127,13 +168,14 @@ export function ThemeEditor({ initial, action, fontClasses }: {
         </div>
       </section>
 
-      <section className="card" aria-labelledby="type-title">
+      <section data-ui="panel" className="card" aria-labelledby="type-title">
         <div className="card__head">
           <h2 id="type-title" className="card__title"><Icon name="layout" size={20} />Huruf dan tata letak</h2>
         </div>
         <div className="stack">
-          <fieldset className="choices">
+          <fieldset className="choices" disabled={template !== 'default'} aria-describedby={template !== 'default' ? 'font-template-note' : undefined}>
             <legend>Gaya huruf</legend>
+            {template !== 'default' && <p id="font-template-note" className="field__hint">Font mengikuti template.</p>}
             {FONTS.map((f) => (
               <label key={f.id} className="choice">
                 <input type="radio" name="font_preset" value={f.id} checked={t.font_preset === f.id} onChange={() => setT((cur) => ({ ...cur, font_preset: f.id }))} />
@@ -156,7 +198,7 @@ export function ThemeEditor({ initial, action, fontClasses }: {
         </div>
       </section>
 
-      <section className="card" aria-labelledby="contrast-title">
+      <section data-ui="panel" className="card" aria-labelledby="contrast-title">
         <div className="card__head">
           <h2 id="contrast-title" className="card__title"><Icon name="shield" size={20} />Laporan kontras</h2>
           <Chip tone="outline">Minimal 4,5:1</Chip>
@@ -182,11 +224,11 @@ export function ThemeEditor({ initial, action, fontClasses }: {
         )}
       </section>
 
-      <div className="form__actions form__actions--sticky">
-        <button type="button" className="btn btn--secondary" onClick={() => setT(DEFAULT_THEME)}>
+      <div data-ui="action-bar" className="form__actions form__actions--sticky">
+        <button data-ui="button" type="button" className="btn btn--secondary" onClick={() => setT({ ...DEFAULT_THEME, template: 'default' })}>
           <Icon name="archive" size={18} />Kembalikan ke bawaan
         </button>
-        <button type="submit" className="btn" disabled={!canSave} aria-busy={pending}>
+        <button data-ui="button" type="submit" className="btn" disabled={!canSave} aria-busy={pending}>
           {pending ? <Icon name="loader" size={18} className="spin" /> : <Icon name="check" size={18} />}
           {pending ? 'Menyimpan…' : 'Publikasikan'}
         </button>

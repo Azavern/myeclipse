@@ -10,7 +10,7 @@ export function LegalPage({ icon, title, description, updated, children }: {
   return (
     <>
       <PageHeader icon={icon} title={title} description={description} />
-      <article className="card legal">
+      <article data-ui="panel" className="card legal">
         <p className="legal__meta">Berlaku sejak {updated}</p>
         <div className="legal__body prose">{children}</div>
         <footer className="legal__foot">

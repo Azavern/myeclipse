@@ -44,13 +44,13 @@ export function PortfolioText({ title, text, href }: { title: string; text: stri
           onClick={() => dialogRef.current?.showModal()}>
           <Icon name="arrow-right" size={14} />Baca selengkapnya<span className="sr-only"> tentang {title}</span>
         </button>)}
-      <dialog ref={dialogRef} className="dialog--read" aria-labelledby={`${id}-title`}>
+      <dialog data-ui="dialog" ref={dialogRef} className="dialog--read" aria-labelledby={`${id}-title`}>
         <div className="dialog__body">
           <h2 id={`${id}-title`}>{title}</h2>
           {text && <p className="pre">{text}</p>}
         </div>
         <div className="dialog__actions">
-          <button type="button" className="btn" onClick={() => dialogRef.current?.close()}>Tutup</button>
+          <button data-ui="button" type="button" className="btn" onClick={() => dialogRef.current?.close()}>Tutup</button>
         </div>
       </dialog>
     </>

@@ -1,15 +1,13 @@
 import type { MetadataRoute } from 'next';
 import { getClass } from '@/lib/class';
-import { DEFAULT_THEME } from '@/lib/theme/defaults';
-import { ThemeSchema } from '@/lib/theme/schema';
+import { resolveStoredTheme } from '@/lib/theme/resolve';
 
 // Manifest dibaca browser saat memasang aplikasi. Nama kelas diambil dari DB agar
 // yang terpasang di beranda memakai identitas kelas, bukan nama bawaan.
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const cls = await getClass().catch(() => null);
   const name = cls?.name ?? 'Eclipse';
-  const parsed = ThemeSchema.safeParse(cls?.theme);
-  const theme = parsed.success ? parsed.data : DEFAULT_THEME;
+  const theme = resolveStoredTheme(cls?.theme).theme;
   return {
     id: '/',
     name,

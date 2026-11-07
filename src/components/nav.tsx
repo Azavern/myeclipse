@@ -25,12 +25,12 @@ export function NavLink({ item, variant = 'side' }: { item: NavItem; variant?: '
   const current = active ? ('page' as const) : undefined;
   const badge = badgeText(item.badge);
   return variant === 'tab' ? (
-    <Link href={item.href} className="tab" aria-current={current}>
+    <Link data-ui="nav-item" href={item.href} className="tab" aria-current={current}>
       <span className="tab__icon"><Icon name={item.icon} size={22} /><NavBadge count={item.badge ?? 0} /></span>
       <span>{item.label}</span>{badge && <span className="sr-only">, {item.badge} menunggu tindakan</span>}
     </Link>
   ) : (
-    <Link href={item.href} className="nav-link" aria-current={current} title={item.label}>
+    <Link data-ui="nav-item" href={item.href} className="nav-link" aria-current={current} title={item.label}>
       <Icon name={item.icon} size={20} /><span className="nav-link__text">{item.label}</span>
       <NavBadge count={item.badge ?? 0} />{badge && <span className="sr-only">, {item.badge} menunggu tindakan</span>}
     </Link>
@@ -40,7 +40,7 @@ export function NavLink({ item, variant = 'side' }: { item: NavItem; variant?: '
 export function SubNavLink({ item }: { item: NavItem }) {
   const active = isActive(usePathname(), item);
   return (
-    <Link href={item.href} className="nav-link" aria-current={active ? 'page' : undefined}>
+    <Link data-ui="nav-item" href={item.href} className="nav-link" aria-current={active ? 'page' : undefined}>
       <Icon name={item.icon} size={18} /><span className="nav-link__text">{item.label}</span>
     </Link>
   );
@@ -123,10 +123,10 @@ export function MoreSheet({ items, children }: { items: NavItem[]; children?: Re
   const anyActive = items.some((i) => isActive(pathname, i));
   return (
     <>
-      <button type="button" className="tab" aria-haspopup="dialog" aria-current={anyActive ? 'page' : undefined} onClick={openSheet}>
+      <button data-ui="nav-item" type="button" className="tab" aria-haspopup="dialog" aria-current={anyActive ? 'page' : undefined} onClick={openSheet}>
         <Icon name="menu" size={22} /><span>Lainnya</span>
       </button>
-      <dialog ref={ref} className="sheet" aria-labelledby="more-title" aria-describedby="more-hint"
+      <dialog data-ui="dialog" data-presentation="sheet" ref={ref} className="sheet" aria-labelledby="more-title" aria-describedby="more-hint"
         onClose={reset}
         onClick={(e) => { if (e.target === e.currentTarget) closeSheet(); }}>
         <div className="sheet__drag"
@@ -142,7 +142,7 @@ export function MoreSheet({ items, children }: { items: NavItem[]; children?: Re
         <div className="sheet__body">
           <div className="nav__group">
             {items.map((i) => (
-              <Link key={i.href} href={i.href} className="nav-link" aria-current={isActive(pathname, i) ? 'page' : undefined}>
+              <Link data-ui="nav-item" key={i.href} href={i.href} className="nav-link" aria-current={isActive(pathname, i) ? 'page' : undefined}>
                 <Icon name={i.icon} size={20} /><span className="nav-link__text">{i.label}</span>
                 <NavBadge count={i.badge ?? 0} />{badgeText(i.badge) && <span className="sr-only">, {i.badge} menunggu tindakan</span>}
               </Link>))}

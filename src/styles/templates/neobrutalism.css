@@ -1,0 +1,213 @@
+/* Template Neo-Brutalism. Nilai dekoratif mentah (hex, offset bayangan, durasi)
+   hanya boleh tinggal di berkas template; komponen memakai token dan data-ui. */
+
+[data-template="neobrutalism"] {
+  /* Isian blok untuk stiker, badge, dan aksen. Bukan slot palet. */
+  --fill-coral: #FF5E5B;
+  --fill-coral-text: #000000;
+  --fill-marigold: #FFBE0B;
+  --fill-marigold-text: #000000;
+  --fill-mint: #00F5D4;
+  --fill-mint-text: #000000;
+  --fill-sky: #3A86FF;
+  --fill-sky-text: #000000;
+  --fill-violet: #8338EC;
+  --fill-violet-text: #FFFFFF;
+
+  /* Geometri: sudut siku dengan bingkai tebal. */
+  --radius-panel: 0;
+  --radius-control: 0;
+  --radius-chip: 0;
+  --radius-avatar: 0;
+  --radius-overlay: 0;
+  --border-w-panel: 3px;
+  --border-w-control: 2px;
+
+  /* Bayangan keras tanpa blur. Offset diturunkan di layar sempit agar tidak
+     menabrak gutter 16 px. */
+  --shadow-panel: 4px 4px 0 #000000;
+  --shadow-raised: 6px 6px 0 #000000;
+  --shadow-overlay: 8px 8px 0 #000000;
+  --shadow-press: 4px 4px 0 #000000;
+
+  /* Gerak mekanis singkat; ornamen tidak pernah melewati 150 ms. */
+  --motion-fast: 100ms;
+  --motion-base: 150ms;
+  --motion-ornament: 150ms;
+  --ease-standard: cubic-bezier(.22, 1, .36, 1);
+  --ease-emphasized: cubic-bezier(.22, 1, .36, 1);
+
+  /* Tipografi: heading geometris, tombol dan label data memakai mono. */
+  --font-button: var(--font-mono);
+  --section-title-transform: uppercase;
+
+  /* Permukaan cetak: krem hangat, bukan putih murni. */
+  --surface-2: #F4F0EA;
+  --surface-3: var(--fill-marigold);
+  --border-strong: var(--theme-border);
+  --border-input: var(--theme-border);
+  --grad-brand: var(--theme-primary);
+  --grad-soft: var(--theme-background);
+  --shadow-rgb: 0 0 0;
+  --focus: var(--theme-text-primary);
+
+  /* Tombol: bingkai hitam, angkat saat hover, tekan saat aktif. */
+  --btn-border: var(--theme-border);
+  --btn-hover-y: -2px;
+  --btn-active-y: 2px;
+  --btn-hover-shadow: 6px 6px 0 #000000;
+  --btn-active-shadow: 1px 1px 0 #000000;
+}
+
+/* Panel --------------------------------------------------------------- */
+[data-template="neobrutalism"] [data-ui="panel"] {
+  border-color: var(--theme-border);
+  border-width: var(--border-w-panel);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
+}
+
+[data-template="neobrutalism"] [data-ui="section-head"] {
+  flex-wrap: wrap;
+}
+
+[data-template="neobrutalism"] [data-ui="section-action"] {
+  margin-left: auto;
+}
+
+[data-template="neobrutalism"] [data-ui="section-title"] {
+  font-size: 1rem;
+  letter-spacing: -.01em;
+}
+
+@media (hover: hover) {
+  [data-template="neobrutalism"] a[data-ui="panel"]:hover {
+    border-color: var(--theme-border);
+    box-shadow: var(--shadow-raised);
+    transform: translate(-2px, -2px);
+  }
+}
+
+/* Tombol -------------------------------------------------------------- */
+[data-template="neobrutalism"] [data-ui="button"] {
+  border-color: var(--theme-border);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+
+[data-template="neobrutalism"] [data-ui="button"]:disabled,
+[data-template="neobrutalism"] [data-ui="button"][aria-disabled="true"] {
+  border-style: dashed;
+  box-shadow: none;
+  transform: none;
+}
+
+/* Chip, avatar, navigasi ---------------------------------------------- */
+[data-template="neobrutalism"] [data-ui="badge"] {
+  border-color: var(--theme-border);
+  border-radius: var(--radius-chip);
+  box-shadow: 2px 2px 0 var(--theme-border);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: .01em;
+  text-transform: uppercase;
+}
+
+[data-template="neobrutalism"] [data-ui="avatar"] {
+  border: var(--border-w-control) solid var(--theme-border);
+  border-radius: var(--radius-avatar);
+}
+
+[data-template="neobrutalism"] [data-ui="nav-item"] {
+  border: var(--border-w-control) solid transparent;
+  border-radius: var(--radius-control);
+}
+
+[data-template="neobrutalism"] [data-ui="nav-item"][aria-current="page"] {
+  border-color: var(--theme-border);
+  background: var(--theme-primary);
+  color: var(--theme-on-primary);
+  box-shadow: 2px 2px 0 var(--theme-border);
+}
+
+[data-template="neobrutalism"] [data-ui="nav-item"][aria-current="page"]::before {
+  display: none;
+}
+
+@media (hover: hover) {
+  [data-template="neobrutalism"] [data-ui="nav-item"]:not([aria-current="page"]):hover {
+    border-color: var(--theme-border);
+    background: var(--surface-3);
+    color: var(--theme-text-primary);
+  }
+}
+
+/* Chrome aplikasi ------------------------------------------------------ */
+[data-template="neobrutalism"] [data-ui="topbar"],
+[data-template="neobrutalism"] [data-ui="bottom-nav"],
+[data-template="neobrutalism"] [data-ui="action-bar"] {
+  background: var(--theme-surface);
+  border-color: var(--theme-border);
+}
+
+[data-template="neobrutalism"] [data-ui="bottom-nav"] {
+  border-top-width: var(--border-w-panel);
+}
+
+[data-template="neobrutalism"] [data-ui="action-bar"] {
+  border-top-width: var(--border-w-panel);
+}
+
+/* Tidak ada kaca di template ini. Ini juga mematikan blur pada hero dan sheet. */
+[data-template="neobrutalism"] * {
+  backdrop-filter: none;
+}
+
+/* Dialog dan sheet ---------------------------------------------------- */
+[data-template="neobrutalism"] dialog {
+  border: var(--border-w-panel) solid var(--theme-border);
+  border-radius: var(--radius-overlay);
+  box-shadow: var(--shadow-overlay);
+}
+
+[data-template="neobrutalism"] dialog::backdrop {
+  background: rgb(0 0 0 / .55);
+  backdrop-filter: none;
+}
+
+[data-template="neobrutalism"] dialog[data-presentation="sheet"] {
+  border-width: var(--border-w-panel) 0 0;
+  box-shadow: none;
+}
+
+/* Fokus tetap terlihat di atas kertas krem maupun isian biru. */
+[data-template="neobrutalism"] :focus-visible {
+  outline-color: var(--theme-text-primary);
+  outline-width: 3px;
+  outline-offset: 3px;
+}
+
+@media (max-width: 767px) {
+  [data-template="neobrutalism"] {
+    --shadow-panel: 3px 3px 0 #000000;
+    --shadow-raised: 4px 4px 0 #000000;
+    --shadow-overlay: 4px 4px 0 #000000;
+    --shadow-press: 3px 3px 0 #000000;
+    --btn-hover-shadow: 4px 4px 0 #000000;
+    --btn-active-shadow: 1px 1px 0 #000000;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-template="neobrutalism"] [data-ui="button"],
+  [data-template="neobrutalism"] a[data-ui="panel"] {
+    transition: none;
+  }
+
+  [data-template="neobrutalism"] [data-ui="button"]:hover,
+  [data-template="neobrutalism"] [data-ui="button"]:active,
+  [data-template="neobrutalism"] a[data-ui="panel"]:hover {
+    transform: none;
+  }
+}

@@ -13,9 +13,9 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
   const name = cls?.name ?? 'Eclipse';
   return (
     <div className="auth">
-      <div className="auth__brand">
+      <div className="auth__brand" data-ui="auth-brand">
         <Link href="/" className="brand" aria-label={`${name}, ke beranda`}>
-          <span className="brand__mark">{logo ? <img src={logo} alt="" width={40} height={40} /> : <Icon name="cap" size={22} />}</span>
+          <span className="brand__mark" data-ui="brand-mark">{logo ? <img src={logo} alt="" width={40} height={40} /> : <Icon name="cap" size={22} />}</span>
           <span className="brand__text"><span className="brand__name">{name}</span>{cls?.code && <span className="brand__sub">{cls.code}</span>}</span>
         </Link>
         <div className="auth__lead">

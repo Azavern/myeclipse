@@ -114,7 +114,7 @@ export function EmailChange({ current, verified, pending }: {
   const mainLabel = sending ? 'Mengirim…' : pendingValid ? 'Buka verifikasi' : 'Verifikasi';
 
   return (
-    <section className="card" aria-labelledby="email-title">
+    <section data-ui="panel" className="card" aria-labelledby="email-title">
       <div className="card__head">
         <div>
           <h2 id="email-title" className="card__title"><Icon name="at" size={20} />Email akun</h2>
@@ -155,7 +155,7 @@ export function EmailChange({ current, verified, pending }: {
             <input id="new-email" name="email" type="email" required maxLength={254} autoComplete="email"
               placeholder="nama@email.com" value={email} disabled={sending || verifying}
               onChange={(e) => { setEmail(e.target.value); setError(null); setDone(null); }} />
-            <button type="button" className="btn" disabled={sending || verifying || blockedByCooldown}
+            <button data-ui="button" type="button" className="btn" disabled={sending || verifying || blockedByCooldown}
               aria-busy={sending} onClick={() => (pendingValid && target === pendingEmail ? openDialog() : void send())}>
               {sending ? <Icon name="loader" size={18} className="spin" /> : <Icon name="mail" size={18} />}
               {mainLabel}
@@ -171,7 +171,7 @@ export function EmailChange({ current, verified, pending }: {
         </div>
       </div>
 
-      <dialog ref={dialogRef} aria-labelledby="otp-title" onClose={() => { setOpen(false); setError(null); }} onCancel={(e) => { if (verifying) e.preventDefault(); }}>
+      <dialog data-ui="dialog" ref={dialogRef} aria-labelledby="otp-title" onClose={() => { setOpen(false); setError(null); }} onCancel={(e) => { if (verifying) e.preventDefault(); }}>
         <form onSubmit={verify} aria-busy={verifying}>
           <div className="dialog__body">
             <span className="tile" aria-hidden="true"><Icon name="mail" size={22} /></span>
@@ -191,12 +191,12 @@ export function EmailChange({ current, verified, pending }: {
             {error && <Notice tone="error" role="alert">{error}</Notice>}
           </div>
           <div className="dialog__actions">
-            <button type="button" className="btn btn--ghost" disabled={verifying || cooldown > 0} onClick={() => void send()}>
+            <button data-ui="button" type="button" className="btn btn--ghost" disabled={verifying || cooldown > 0} onClick={() => void send()}>
               <Icon name="loader" size={16} className={sending ? 'spin' : undefined} />
               {cooldown > 0 ? `Kirim ulang (${cooldown} dtk)` : sending ? 'Mengirim…' : 'Kirim ulang kode'}
             </button>
-            <button type="button" className="btn btn--secondary" disabled={verifying} onClick={closeDialog}>Batal</button>
-            <button type="submit" className="btn" disabled={verifying || expiresIn === 0} aria-busy={verifying}>
+            <button data-ui="button" type="button" className="btn btn--secondary" disabled={verifying} onClick={closeDialog}>Batal</button>
+            <button data-ui="button" type="submit" className="btn" disabled={verifying || expiresIn === 0} aria-busy={verifying}>
               {verifying && <Icon name="loader" size={18} className="spin" />}{verifying ? 'Memeriksa…' : 'Verifikasi'}
             </button>
           </div>

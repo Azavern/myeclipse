@@ -12,8 +12,8 @@ import { getViewer, getVisibilityMap } from '@/lib/visibility/server';
 // [href, label, ikon, kunci visibility]; urutan = urutan di sidebar. Empat pertama yang terlihat menjadi tab bawah di layar sempit.
 const PAGES: [string, string, NavItem['icon'], string][] = [
   ['/', 'Beranda', 'home', 'page.home'], ['/schedule', 'Jadwal', 'calendar', 'page.schedule'],
-  ['/tasks', 'Tugas', 'tasks', 'page.tasks'], ['/events', 'Event', 'calendar-days', 'page.events'],
-  ['/members', 'Anggota', 'users', 'page.members'], ['/class', 'Kelas', 'book', 'page.class_about'],
+  ['/tasks', 'Tugas', 'tasks', 'page.tasks'], ['/members', 'Anggota', 'users', 'page.members'],
+  ['/events', 'Event', 'calendar-days', 'page.events'], ['/class', 'Kelas', 'book', 'page.class_about'],
   ['/knowledge', 'Pengetahuan', 'book-open', 'page.knowledge'],
 ];
 
@@ -50,27 +50,32 @@ export async function AppFrame({ children }: { children: ReactNode }) {
   const avatar = me?.avatar_path ? memberSigned.get(me.avatar_path) : undefined;
   const className = cls?.name ?? 'Eclipse';
 
-  const main: NavItem[] = PAGES.filter(([, , , key]) => map.get(key) === true)
+  const active = !!viewer.user && viewer.status === 'active';
+  const pages: NavItem[] = PAGES.filter(([, , , key]) => map.get(key) === true)
     .map(([href, label, icon]) => ({ href, label, icon,
       ...(href === '/knowledge' ? { except: ['/knowledge/manage', '/knowledge/new'] } : {}) }));
+  // Grup "Utama" dan "Sumber daya" dipisah; empat destinasi pertama `main` tetap menjadi tab bawah.
+  const primary = pages.filter((item) => item.href !== '/knowledge');
+  const utilities: NavItem[] = pages.filter((item) => item.href === '/knowledge');
   // QR Studio selalu tampil: halaman publik, tidak terikat visibility maupun status login.
-  main.push({ href: '/qr', label: 'QR Studio', icon: 'qr' });
+  // Library, Cloud, dan Inventory hanya untuk anggota aktif.
+  if (active) {
+    utilities.push(
+      { href: '/library', label: 'Library', icon: 'images' },
+      { href: '/cloud', label: 'Cloud', icon: 'cloud' },
+      { href: '/inventory', label: 'Inventory', icon: 'package', except: ['/inventory/access'] },
+    );
+  }
+  utilities.push({ href: '/qr', label: 'QR Studio', icon: 'qr' });
   // Pintu masuk editor, terpisah dari halaman publik /knowledge. Badge permintaan
   // edit menempel di sini, bukan di tautan penjelajah publik.
-  if (viewer.user && viewer.status === 'active' && map.get('page.knowledge') === true) {
-    const at = main.findIndex((i) => i.href === '/knowledge');
-    main.splice(at + 1, 0, {
+  const knowledgeManage: NavItem[] = active && map.get('page.knowledge') === true
+    ? [{
       href: '/knowledge/manage', label: 'Kelola pengetahuan', icon: 'pencil',
       match: ['/knowledge/manage', '/knowledge/new'],
       ...(pendingKnowledge > 0 ? { badge: pendingKnowledge } : {}),
-    });
-  }
-  // Inventory pribadi: hanya untuk anggota aktif dan bukan halaman ber-visibility.
-  if (viewer.user && viewer.status === 'active') {
-    main.push({ href: '/inventory', label: 'Inventory', icon: 'link', except: ['/inventory/access'] });
-    main.push({ href: '/cloud', label: 'Cloud', icon: 'upload' });
-    main.push({ href: '/library', label: 'Library', icon: 'image' });
-  }
+    }]
+    : [];
   const account: NavItem[] = viewer.user ? [
     { href: '/settings/profile', label: 'Profil saya', icon: 'user', match: ['/settings/profile', '/settings/social', '/settings/account'] },
     { href: '/settings/portfolio', label: 'Portofolio saya', icon: 'briefcase' },
@@ -83,11 +88,15 @@ export async function AppFrame({ children }: { children: ReactNode }) {
       ? [{ href: '/settings/members', label: 'Anggota', icon: 'users' }]
       : [];
 
+  // Sidebar: tiga grup berlabel. Grup akun dan pengelolaan disematkan di bawah bersama blok akun.
+  const main = [...primary, ...utilities];
+  const management = [...account, ...knowledgeManage, ...manage];
+
   // Layar sempit: anggota = 4 tab + "Lainnya". Tamu = semua halaman (maks. 4) + "Masuk"; bila lebih dari 4, 3 tab + "Lainnya".
   const loggedIn = !!viewer.user;
   const guestFits = !loggedIn && main.length <= 4;
   const tabs = loggedIn ? main.slice(0, 4) : guestFits ? main : main.slice(0, 3);
-  const overflow = [...main.slice(tabs.length), ...account, ...manage];
+  const overflow = [...main.slice(tabs.length), ...management];
   const showMore = !guestFits;
   const userName = me?.full_name ?? viewer.user?.email ?? '';
 
@@ -98,10 +107,10 @@ export async function AppFrame({ children }: { children: ReactNode }) {
     </Link>
   );
   const signOutForm = (
-    <form action={signOut}><button type="submit" className="nav-link nav-link--danger"><Icon name="log-out" size={20} /><span className="nav-link__text">Keluar</span></button></form>
+    <form action={signOut}><button data-ui="nav-item" type="submit" className="nav-link nav-link--danger"><Icon name="log-out" size={20} /><span className="nav-link__text">Keluar</span></button></form>
   );
   const userCard = loggedIn && (
-    <div className="user-card">
+    <div data-ui="panel" className="user-card">
       <Avatar name={userName || '?'} src={avatar} size="md" />
       <span className="user-card__text"><span className="user-card__name">{userName}</span><span className="user-card__role">{me?.role_name ?? 'Belum jadi anggota'}</span></span>
     </div>
@@ -112,26 +121,33 @@ export async function AppFrame({ children }: { children: ReactNode }) {
       <aside className="sidebar" aria-label="Menu samping">
         {brand}
         <nav className="nav" aria-label="Navigasi utama">
-          <div className="nav__group">{main.map((i) => <NavLink key={i.href} item={i} />)}</div>
-          {(account.length > 0 || manage.length > 0) && (
-            <div className="nav__group"><span className="nav__label">Akun dan pengelolaan</span>{[...account, ...manage].map((i) => <NavLink key={i.href} item={i} />)}</div>)}
+          {primary.length > 0 && (
+            <div className="nav__group"><span className="nav__label">Utama</span>{primary.map((i) => <NavLink key={i.href} item={i} />)}</div>)}
+          {utilities.length > 0 && (
+            <div className="nav__group"><span className="nav__label">Sumber daya</span>{utilities.map((i) => <NavLink key={i.href} item={i} />)}</div>)}
         </nav>
         <div className="sidebar__foot">
+          {management.length > 0 && (
+            <div className="nav__group">
+              <span className="nav__label">Akun dan pengelolaan</span>
+              {management.map((i) => <NavLink key={i.href} item={i} />)}
+              {signOutForm}
+            </div>)}
           {userCard}
-          {loggedIn ? signOutForm : <Link href="/login" className="btn"><Icon name="log-in" size={18} /><span className="nav-link__text">Masuk</span></Link>}
+          {!loggedIn && <Link data-ui="button" href="/login" className="btn" aria-label="Masuk"><Icon name="log-in" size={18} /><span className="nav-link__text">Masuk</span></Link>}
         </div>
       </aside>
       <div>
-        <header className="topbar">{brand}</header>
+        <header data-ui="topbar" className="topbar">{brand}</header>
         <main id="main" className="app-main" tabIndex={-1}><div className="container page-enter">{children}</div></main>
       </div>
-      <nav className="bottom-nav" aria-label="Navigasi bawah">
+      <nav data-ui="bottom-nav" className="bottom-nav" aria-label="Navigasi bawah">
         {tabs.map((i) => <NavLink key={i.href} item={i} variant="tab" />)}
-        {guestFits && <Link href="/login" className="tab"><Icon name="log-in" size={22} /><span>Masuk</span></Link>}
+        {guestFits && <Link data-ui="nav-item" href="/login" className="tab"><Icon name="log-in" size={22} /><span>Masuk</span></Link>}
         {showMore && (
           <MoreSheet items={overflow}>
             {userCard}
-            {loggedIn ? signOutForm : <Link href="/login" className="btn"><Icon name="log-in" size={18} />Masuk</Link>}
+            {loggedIn ? signOutForm : <Link data-ui="button" href="/login" className="btn"><Icon name="log-in" size={18} />Masuk</Link>}
           </MoreSheet>)}
       </nav>
     </div>

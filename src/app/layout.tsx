@@ -6,11 +6,12 @@ import '../styles/base.css';
 import '../styles/components.css';
 import '../styles/developer.css';
 import '../styles/shell.css';
+import '../styles/templates/neobrutalism.css';
+import '../styles/templates/archive.css';
 import { getClass } from '@/lib/class';
-import { DEFAULT_THEME } from '@/lib/theme/defaults';
 import { buildThemeCss } from '@/lib/theme/css';
-import { fontClass } from '@/lib/theme/fonts';
-import { ThemeSchema } from '@/lib/theme/schema';
+import { themeFontClass } from '@/lib/theme/fonts';
+import { resolveStoredTheme } from '@/lib/theme/resolve';
 
 export const metadata: Metadata = {
   title: { default: 'Eclipse', template: '%s · Eclipse' },
@@ -28,10 +29,11 @@ export const metadata: Metadata = {
 
 export async function generateViewport(): Promise<Viewport> {
   const cls = await getClass().catch(() => null);
-  const parsed = ThemeSchema.safeParse(cls?.theme);
-  const theme = parsed.success ? parsed.data : DEFAULT_THEME;
+  const theme = resolveStoredTheme(cls?.theme).theme;
   return {
-    themeColor: theme.palette.primary,
+    // Warna chrome peramban mengikuti latar tema, bukan aksen, agar tema gelap tidak menyisakan
+    // bilah terang di atas halaman.
+    themeColor: theme.palette.background,
     width: 'device-width',
     initialScale: 1,
     viewportFit: 'cover',
@@ -40,11 +42,13 @@ export async function generateViewport(): Promise<Viewport> {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const [cls, nonce] = await Promise.all([getClass(), headers().then((h) => h.get('x-nonce') ?? undefined)]);
-  const parsed = ThemeSchema.safeParse(cls?.theme);
-  if (cls && !parsed.success) console.error('Theme di DB tidak valid; memakai DEFAULT_THEME'); // jangan crash (blueprint §17.4)
-  const theme = parsed.success ? parsed.data : DEFAULT_THEME;
+  const resolved = resolveStoredTheme(cls?.theme);
+  // Jangan crash (blueprint §17.4); template yang rusak kembali ke default tanpa membuang palet.
+  if (cls && resolved.invalidTemplate) console.error('Template tema di DB tidak dikenal; memakai template default');
+  else if (cls && resolved.invalid) console.error('Theme di DB tidak valid; memakai DEFAULT_THEME');
+  const theme = resolved.theme;
   return (
-    <html lang="id" className={fontClass(theme.font_preset)}>
+    <html lang="id" data-template={resolved.template} className={themeFontClass(theme)}>
       <head><style nonce={nonce}>{buildThemeCss(theme)}</style></head>
       <body>
         <a className="skip" href="#main">Lewati ke konten</a>

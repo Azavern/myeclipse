@@ -46,10 +46,10 @@ export function EntityForm({ action, fields, submit, hidden, cancelHref, sticky,
         ))}
       </div>
       {footer}
-      <div className={cx('form__actions', sticky && 'form__actions--sticky')}>
+      <div data-ui="action-bar" className={cx('form__actions', sticky && 'form__actions--sticky')}>
         {dirty && !pending && <span className="form__legend">Ada perubahan yang belum disimpan.</span>}
-        {cancelHref && <Link href={cancelHref} className="btn btn--secondary">Batal</Link>}
-        <button type="submit" className="btn" disabled={pending} aria-busy={pending}>
+        {cancelHref && <Link data-ui="button" href={cancelHref} className="btn btn--secondary">Batal</Link>}
+        <button data-ui="button" type="submit" className="btn" disabled={pending} aria-busy={pending}>
           {pending ? <Icon name="loader" size={18} className="spin" /> : <Icon name="check" size={18} />}
           {pending ? 'Menyimpan…' : submit}
         </button>
@@ -78,10 +78,10 @@ export function DeleteButton({ action, id, hidden, consequence, title = 'Hapus d
   const titleId = `del-${id ?? label.replace(/\W+/g, '-').toLowerCase()}`;
   return (
     <>
-      <button type="button" className={cx('btn btn--danger-soft', size && `btn--${size}`)} onClick={() => ref.current?.showModal()}>
+      <button data-ui="button" type="button" className={cx('btn btn--danger-soft', size && `btn--${size}`)} onClick={() => ref.current?.showModal()}>
         <Icon name="trash" size={18} />{label}
       </button>
-      <dialog ref={ref} aria-labelledby={titleId} onClick={(e) => { if (e.target === e.currentTarget && !pending) ref.current?.close(); }}>
+      <dialog data-ui="dialog" ref={ref} aria-labelledby={titleId} onClick={(e) => { if (e.target === e.currentTarget && !pending) ref.current?.close(); }}>
         <form action={act} aria-busy={pending}>
           <div className="dialog__body">
             <span className="tile tile--error" aria-hidden="true"><Icon name="alert-triangle" size={22} /></span>
@@ -92,8 +92,8 @@ export function DeleteButton({ action, id, hidden, consequence, title = 'Hapus d
             {state?.error && <Notice tone="error" role="alert">{state.error}</Notice>}
           </div>
           <div className="dialog__actions">
-            <button type="button" className="btn btn--secondary" disabled={pending} onClick={() => ref.current?.close()}>Batal</button>
-            <button type="submit" className="btn btn--danger" disabled={pending} aria-busy={pending}>
+            <button data-ui="button" type="button" className="btn btn--secondary" disabled={pending} onClick={() => ref.current?.close()}>Batal</button>
+            <button data-ui="button" type="submit" className="btn btn--danger" disabled={pending} aria-busy={pending}>
               {pending && <Icon name="loader" size={18} className="spin" />}{pending ? 'Menghapus…' : confirmLabel}
             </button>
           </div>

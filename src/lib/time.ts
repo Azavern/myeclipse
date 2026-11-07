@@ -62,6 +62,7 @@ export function relativeTime(iso: string, now: Date): string {
   return `${mo} bulan ${suffix}`;
 }
 export const formatShortDate = (ymd: string) => idf('UTC', { day: 'numeric', month: 'short' }).format(new Date(`${ymd}T00:00:00Z`));
+export const formatWeekdayDate = (iso: string, tz: string) => idf(tz, { weekday: 'long', day: 'numeric', month: 'short' }).format(new Date(iso));
 // "Senin, 12 Oktober 2026 · 08:00–10:00 WIB" bila satu hari; selain itu dua tanggal lengkap.
 export function formatRange(startIso: string, endIso: string, tz: string) {
   const day = (iso: string) => idf(tz, { year: 'numeric', month: 'numeric', day: 'numeric' }).format(new Date(iso));

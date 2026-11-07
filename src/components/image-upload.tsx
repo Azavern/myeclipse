@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState, type ChangeEvent } from 'react';
 import { Icon } from '@/components/ui/icon';
 import { LibraryImagePicker } from '@/features/library/picker';
 import { compressImage } from '@/lib/image-client';
+import { cx } from '@/lib/cx';
 import { LIBRARY_MAX_ORIGINAL_BYTES, libraryTitle } from '@/lib/library/shared';
 
 type Status = { tone: 'idle' | 'busy' | 'ok' | 'error'; text: string };
@@ -26,7 +27,7 @@ async function saveToLibrary(original: File, preview: Blob): Promise<{ hd: boole
 // asli (sebelum dikompresi) ke Google Drive. Gambar yang dipilih dari Library tidak
 // disalin ulang karena sudah tersimpan di sana. Kegagalan Library tidak memblokir
 // unggahan form.
-export function ImageUploadField({ name, label, maxSide, crop }: { name: string; label: string; maxSide?: number; crop?: [number, number] }) {
+export function ImageUploadField({ name, label, maxSide, crop, previewRatio }: { name: string; label: string; maxSide?: number; crop?: [number, number]; previewRatio?: 'hero' }) {
   const [status, setStatus] = useState<Status>({
     tone: 'idle',
     text: 'JPEG, PNG, atau WebP. Gambar diperkecil otomatis; versi asli ikut disimpan ke Library. Bisa juga memakai gambar dari Library.',
@@ -122,7 +123,7 @@ export function ImageUploadField({ name, label, maxSide, crop }: { name: string;
           id={`${uid}-input`} ref={inputRef} name={name} type="file" accept="image/jpeg,image/png,image/webp" required
           onChange={onChange} aria-describedby={`${uid}-msg`} aria-invalid={status.tone === 'error' ? true : undefined}
         />
-        {preview && <img className="dropzone__preview" src={preview} alt="Pratinjau gambar yang akan diunggah" width={96} height={96} />}
+        {preview && <img className={cx('dropzone__preview', previewRatio && `dropzone__preview--${previewRatio}`)} src={preview} alt="Pratinjau gambar yang akan diunggah" width={96} height={96} />}
       </div>
       <div className="upload-src">
         <span className="field__hint">Atau pakai gambar yang sudah ada:</span>

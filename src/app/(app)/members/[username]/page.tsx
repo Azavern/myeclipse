@@ -48,7 +48,7 @@ export default async function MemberPage({ params }: { params: Promise<{ usernam
       <Crumbs items={[{ label: 'Anggota', href: '/members' }, { label: p.full_name }]} />
       <div className="stack">
         <section className="card profile" aria-labelledby="member-name">
-          <div className="profile__band">
+          <div className="profile__band" data-ui="profile-band">
             <div className="profile__identity">
               <Chip className="chip--onhero" icon="user">{p.role_name}</Chip>
               {p.nickname && <Chip className="chip--onhero" icon="at">{p.nickname}</Chip>}

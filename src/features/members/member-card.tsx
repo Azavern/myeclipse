@@ -16,14 +16,16 @@ export function MemberStatusChip({ status }: { status: string }) {
   return <Chip tone={s.tone} icon={s.icon}>{s.label}</Chip>;
 }
 
-export function MemberCard({ m, avatar }: { m: MemberItem; avatar?: string }) {
+export function MemberCard({ m, avatar, hideDefaultRole }: { m: MemberItem; avatar?: string; hideDefaultRole?: boolean }) {
+  const role = hideDefaultRole && m.role_name.trim().toLowerCase() === 'member' ? null : m.role_name;
+  const detail = m.nickname && role ? `${m.nickname} · ${role}` : m.nickname ?? role;
   return (
     <li>
-      <Link href={`/members/${m.username}`} className="card card--link member-card">
-        <Avatar name={m.full_name} src={avatar} size="lg" />
+      <Link data-ui="panel" href={`/members/${m.username}`} className="card card--link member-card">
+        <Avatar name={m.full_name} seed={m.username} src={avatar} size="lg" />
         <span className="member-card__body">
           <span className="member-card__name">{m.full_name}</span>
-          <span className="muted">{m.nickname ? `${m.nickname} · ${m.role_name}` : m.role_name}</span>
+          {detail && <span className="muted">{detail}</span>}
           {m.status && m.status !== 'active' && <MemberStatusChip status={m.status} />}
         </span>
       </Link>

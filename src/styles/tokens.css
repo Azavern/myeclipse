@@ -47,27 +47,55 @@
   /* Spasi: 4 · 8 · 12 · 16 · 24 · 32 · 48 · 64 · 96 */
   --s-1: .25rem; --s-2: .5rem; --s-3: .75rem; --s-4: 1rem; --s-5: 1.5rem; --s-6: 2rem; --s-7: 3rem; --s-8: 4rem; --s-9: 6rem;
 
+  /* Alias semantik untuk template. Nilai bawaan sama dengan token lama; template hanya
+     mengganti alias ini, sedangkan nama lama tetap tersedia sebagai lapisan kompatibilitas. */
+  --radius-panel: 1rem;
+  --radius-control: .75rem;
+  --radius-chip: 999px;
+  --radius-avatar: 999px;
+  --radius-overlay: 1.5rem;
+  --border-w-panel: 1px;
+  --border-w-control: 1px;
+
   /* Radius berjenjang: input/chip kecil, tombol/kartu sedang, hero/modal besar */
-  --r-sm: .5rem; --r-md: .75rem; --r-lg: 1rem; --r-xl: 1.5rem; --r-full: 999px;
+  --r-sm: .5rem; --r-md: var(--radius-control); --r-lg: var(--radius-panel); --r-xl: var(--radius-overlay); --r-full: 999px;
 
   /* Elevasi: kartu = border + sm, hover/raised = md, modal/menu = lg */
-  --shadow-sm: 0 1px 2px rgb(var(--shadow-rgb) / .06), 0 1px 3px rgb(var(--shadow-rgb) / .08);
-  --shadow-md: 0 4px 14px rgb(var(--shadow-rgb) / .09);
-  --shadow-lg: 0 18px 44px rgb(var(--shadow-rgb) / .16);
+  --shadow-panel: 0 1px 2px rgb(var(--shadow-rgb) / .06), 0 1px 3px rgb(var(--shadow-rgb) / .08);
+  --shadow-raised: 0 4px 14px rgb(var(--shadow-rgb) / .09);
+  --shadow-overlay: 0 18px 44px rgb(var(--shadow-rgb) / .16);
+  --shadow-press: var(--shadow-panel);
+  --shadow-sm: var(--shadow-panel);
+  --shadow-md: var(--shadow-raised);
+  --shadow-lg: var(--shadow-overlay);
 
   /* Tipografi */
   --font-ui: var(--font-body), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-head: var(--font-display), var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-template-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-button: var(--font-ui);
+  --section-title-transform: none;
   --fs-display: clamp(2.25rem, 1.7rem + 2.2vw, 3rem);
   --fs-h1: clamp(1.75rem, 1.5rem + 1vw, 2.25rem);
   --fs-h2: clamp(1.375rem, 1.25rem + .5vw, 1.75rem);
   --fs-h3: clamp(1.0625rem, 1rem + .25vw, 1.25rem);
   --fs-body: 1rem; --fs-sm: .875rem; --fs-xs: .75rem;
 
+  /* Tombol memakai token agar template dapat mengganti bingkai dan hurufnya tanpa
+     menyentuh setiap markup. Bawaan tetap sama dengan tampilan lama. */
+  --btn-border: transparent;
+
   /* Kontrol dan tata letak */
   --ctl: 2.75rem; --ctl-sm: 2.25rem; --ctl-lg: 3rem;
   --topbar-h: 3.5rem; --bottom-h: 4rem; --nav-w: 17rem; --rail-w: 4.75rem; --content-max: 90rem;
 
-  /* Gerak */
-  --t-fast: 120ms ease-out; --t-med: 200ms ease-out;
+  /* Gerak. Alias lama menyusun shorthand dari durasi + easing agar override template
+     ikut berlaku pada seluruh komponen yang belum dipindahkan ke pasangan token baru. */
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-ornament: 450ms;
+  --ease-standard: ease-out;
+  --ease-emphasized: cubic-bezier(.2, .7, .2, 1);
+  --t-fast: var(--motion-fast) var(--ease-standard);
+  --t-med: var(--motion-base) var(--ease-standard);
 }
