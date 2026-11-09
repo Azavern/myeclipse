@@ -1,9 +1,0 @@
-
-> eclipse@0.2.0 start
-> next start
-
-▲ Next.js 16.4.2
-- Local:         http://localhost:3000
-- Network:       http://192.168.1.20:3000
-✓ Ready in 132ms
-✓ Running next.config.ts took 41ms
