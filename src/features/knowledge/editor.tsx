@@ -4,18 +4,32 @@ import Link from 'next/link';
 import { Icon } from '@/components/ui/icon';
 import { Markdown } from '@/components/markdown';
 import { Chip, Notice } from '@/components/ui/primitives';
+import { ShortcutEditor } from './shortcut-editor';
 import { cx } from '@/lib/cx';
 import type { FormState } from '@/lib/form-state';
 import { continueList, runCommand, type CommandId, type EditResult } from '@/lib/knowledge/editor-insert';
-import { KB_VISIBILITY_HINT, KB_VISIBILITY_LABEL, KB_VISIBILITY_OPTIONS, KB_STATUS_LABEL } from '@/lib/knowledge/labels';
+import {
+  KB_CATEGORY_HINT, KB_CATEGORY_OPTIONS, KB_STATUS_LABEL, KB_VISIBILITY_HINT, KB_VISIBILITY_LABEL,
+  KB_VISIBILITY_OPTIONS, isKnowledgeCategory, knowledgeCategory, type KnowledgeCategory,
+} from '@/lib/knowledge/labels';
+import {
+  shortcutDraftsFromRows, shortcutDraftsFromUnknown, shortcutPayload, type ShortcutDraft,
+} from '@/lib/knowledge/shortcuts';
 import { MAX_TAGS, normalizeTag, normalizeTags } from '@/lib/knowledge/tags';
 
 type Action = (p: FormState, fd: FormData) => Promise<FormState>;
+export type EditorShortcut = {
+  keys: string[]; label: string; note: string | null; position: number;
+};
 export type EditorEntry = {
   id: string; slug: string; title: string; tagline: string | null; content_md: string;
   category: string | null; visibility: string; status: string; version: number; tags: string[];
+  shortcuts: EditorShortcut[];
 };
-type Draft = { title: string; tagline: string; content: string; category: string; visibility: string; tags: string[] };
+type Draft = {
+  title: string; tagline: string; content: string; category: KnowledgeCategory;
+  visibility: string; tags: string[]; shortcuts: ShortcutDraft[];
+};
 
 const timeLabel = (iso: string) => {
   try { return new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }); }
@@ -91,13 +105,14 @@ function shortcutFor(e: KeyboardEvent<HTMLTextAreaElement>): CommandId | null {
 // Editor memakai satu state terkontrol agar draf lokal, pratinjau, dan nilai
 // server selalu sama. Penyimpanan ke perangkat memakai debounce; tidak ada
 // permintaan database saat mengetik.
-export function KnowledgeEditor({ action, entry, categories, tagSuggestions, backHref, draftOwner }: {
-  action: Action; entry: EditorEntry | null; categories: string[]; tagSuggestions: string[];
+export function KnowledgeEditor({ action, entry, tagSuggestions, backHref, draftOwner }: {
+  action: Action; entry: EditorEntry | null; tagSuggestions: string[];
   backHref: string; draftOwner: string;
 }) {
   const initial = useRef<Draft>({
     title: entry?.title ?? '', tagline: entry?.tagline ?? '', content: entry?.content_md ?? '',
-    category: entry?.category ?? '', visibility: entry?.visibility ?? 'public', tags: entry?.tags ?? [],
+    category: knowledgeCategory(entry?.category), visibility: entry?.visibility ?? 'public', tags: entry?.tags ?? [],
+    shortcuts: shortcutDraftsFromRows(entry?.shortcuts),
   });
   const [form, setForm] = useState<Draft>(initial.current);
   const [tagInput, setTagInput] = useState('');
@@ -118,6 +133,7 @@ export function KnowledgeEditor({ action, entry, categories, tagSuggestions, bac
   // draf pengguna sebelumnya. Draf tidak dihapus saat keluar akun.
   const storageKey = `eclipse:knowledge:draft:${draftOwner}:${entry?.id ?? 'new'}`;
   const isDraft = !entry || entry.status === 'draft';
+  const isShortcut = form.category === 'shortcut';
   const serialized = JSON.stringify(form);
   const dirty = serialized !== JSON.stringify(initial.current);
 
@@ -130,10 +146,12 @@ export function KnowledgeEditor({ action, entry, categories, tagSuggestions, bac
           title: typeof parsed.title === 'string' ? parsed.title : initial.current.title,
           tagline: typeof parsed.tagline === 'string' ? parsed.tagline : initial.current.tagline,
           content: typeof parsed.content === 'string' ? parsed.content : initial.current.content,
-          category: typeof parsed.category === 'string' ? parsed.category : initial.current.category,
+          category: isKnowledgeCategory(parsed.category) ? parsed.category : initial.current.category,
           visibility: KB_VISIBILITY_OPTIONS.some(([v]) => v === parsed.visibility)
             ? String(parsed.visibility) : initial.current.visibility,
           tags: normalizeTags(parsed.tags),
+          shortcuts: parsed.shortcuts === undefined
+            ? initial.current.shortcuts : shortcutDraftsFromUnknown(parsed.shortcuts),
         };
         if (JSON.stringify(restored) !== JSON.stringify(initial.current)) {
           setForm(restored);
@@ -249,6 +267,9 @@ export function KnowledgeEditor({ action, entry, categories, tagSuggestions, bac
       {entry && <input type="hidden" name="version" value={String(entry.version)} />}
       <input type="hidden" name="tags"
         value={JSON.stringify(tagInput.trim() ? [...form.tags, normalizeTag(tagInput)] : form.tags)} />
+      <input type="hidden" name="content" value={isShortcut ? '' : form.content} />
+      <input type="hidden" name="shortcuts"
+        value={JSON.stringify(isShortcut ? shortcutPayload(form.shortcuts) : [])} />
       <input type="hidden" name="intent" value={isDraft ? 'draft' : 'publish'} />
 
       {!online && (
@@ -294,10 +315,11 @@ export function KnowledgeEditor({ action, entry, categories, tagSuggestions, bac
 
         <div className="field">
           <label className="field__label" htmlFor="kb-category">Kategori</label>
-          <input id="kb-category" name="category" maxLength={40} list="kb-category-options" value={form.category}
-            placeholder="Mis. Pemrograman" onChange={(e) => setField('category', e.currentTarget.value)} />
-          <datalist id="kb-category-options">{categories.map((c) => <option key={c} value={c} />)}</datalist>
-          <p className="field__hint">Satu kategori per entri. Opsional.</p>
+          <select id="kb-category" name="category" value={form.category}
+            onChange={(e) => setField('category', knowledgeCategory(e.currentTarget.value))}>
+            {KB_CATEGORY_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+          <p className="field__hint">{KB_CATEGORY_HINT[form.category]}</p>
           {state?.fieldErrors?.category?.[0] && <p className="field__error"><Icon name="alert-circle" size={16} /><span>{state.fieldErrors.category[0]}</span></p>}
         </div>
 
@@ -357,18 +379,26 @@ export function KnowledgeEditor({ action, entry, categories, tagSuggestions, bac
 
       <div className="kb-edit__head">
         <div className="cluster">
-          <h2 className="card__title"><Icon name="pencil" size={20} />Isi entri</h2>
+          <h2 className="card__title"><Icon name={isShortcut ? 'keyboard' : 'pencil'} size={20} />{isShortcut ? 'Kartu shortcut' : 'Isi entri'}</h2>
           {entry && <Chip tone={entry.status === 'published' ? 'success' : 'warning'}>{KB_STATUS_LABEL[entry.status] ?? entry.status}</Chip>}
         </div>
-        <div className="kb-edit__switch" role="group" aria-label="Tampilan editor">
-          <button type="button" className={cx('filter-chip')} aria-pressed={pane === 'edit'} onClick={() => setPane('edit')}>Editor</button>
-          <button type="button" className={cx('filter-chip')} aria-pressed={pane === 'preview'} onClick={() => setPane('preview')}>Pratinjau</button>
-        </div>
-        <button type="button" className="btn btn--ghost btn--sm kb-edit__toggle" aria-pressed={preview} onClick={() => setPreview((v) => !v)}>
-          <Icon name={preview ? 'eye-off' : 'eye'} size={16} />{preview ? 'Sembunyikan pratinjau' : 'Tampilkan pratinjau'}
-        </button>
+        {!isShortcut && (
+          <>
+            <div className="kb-edit__switch" role="group" aria-label="Tampilan editor">
+              <button type="button" className={cx('filter-chip')} aria-pressed={pane === 'edit'} onClick={() => setPane('edit')}>Editor</button>
+              <button type="button" className={cx('filter-chip')} aria-pressed={pane === 'preview'} onClick={() => setPane('preview')}>Pratinjau</button>
+            </div>
+            <button type="button" className="btn btn--ghost btn--sm kb-edit__toggle" aria-pressed={preview} onClick={() => setPreview((v) => !v)}>
+              <Icon name={preview ? 'eye-off' : 'eye'} size={16} />{preview ? 'Sembunyikan pratinjau' : 'Tampilkan pratinjau'}
+            </button>
+          </>
+        )}
       </div>
 
+      {isShortcut ? (
+        <ShortcutEditor cards={form.shortcuts} onChange={(cards) => setField('shortcuts', cards)}
+          error={state?.fieldErrors?.shortcuts?.[0]} />
+      ) : (
       <div className="kb-edit" data-pane={pane} data-preview={preview ? 'on' : 'off'}>
         <div className="kb-edit__editor">
           <div className="kb-toolbar" role="toolbar" aria-label="Sisipkan Markdown">
@@ -395,7 +425,7 @@ export function KnowledgeEditor({ action, entry, categories, tagSuggestions, bac
           </div>
           {helpOpen && <MarkdownHelp />}
           <label className="sr-only" htmlFor="kb-content">Isi Markdown</label>
-          <textarea id="kb-content" ref={textareaRef} name="content" required value={form.content}
+          <textarea id="kb-content" ref={textareaRef} required value={form.content}
             className="kb-edit__textarea" maxLength={50000}
             aria-invalid={state?.fieldErrors?.content ? true : undefined}
             aria-describedby="kb-content-hint"
@@ -417,6 +447,7 @@ export function KnowledgeEditor({ action, entry, categories, tagSuggestions, bac
           </div>
         </div>
       </div>
+      )}
 
       <div className={cx('form__actions form__actions--sticky kb-editor__actions', !actionsOpen && 'kb-editor__actions--collapsed')}>
         <div id="kb-editor-actions" className="kb-editor__actions-body" hidden={!actionsOpen}>

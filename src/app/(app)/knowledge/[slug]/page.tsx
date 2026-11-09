@@ -14,8 +14,9 @@ import {
   KnowledgeStatusChip, KnowledgeTags, KnowledgeVisibilityChip,
 } from '@/features/knowledge/components';
 import { ArchiveForm, EscalateForm, VisibilityForm } from '@/features/knowledge/forms';
+import { ShortcutCount, ShortcutList } from '@/features/knowledge/shortcut-cards';
 import { parseHighlights } from '@/lib/knowledge/diff';
-import { KB_REQUEST_LABEL, KB_STATUS_LABEL, KB_VISIBILITY_LABEL } from '@/lib/knowledge/labels';
+import { KB_CATEGORY_LABEL, KB_REQUEST_LABEL, KB_STATUS_LABEL, KB_VISIBILITY_LABEL, knowledgeCategory } from '@/lib/knowledge/labels';
 import { signMany } from '@/lib/storage/sign';
 import { createClient } from '@/lib/supabase/server';
 import { formatDay, formatWhen } from '@/lib/time';
@@ -27,6 +28,7 @@ type Entry = {
   category: string | null; status: string; visibility: string; highlights: unknown;
   version: number; published_at: string | null; edited_at: string | null; updated_at: string;
   author_id: string; knowledge_entry_tags: { tag: string }[] | null;
+  knowledge_shortcuts: { keys: string[]; label: string; note: string | null; position: number }[] | null;
 };
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -48,7 +50,8 @@ export default async function KnowledgeEntryPage({ params }: { params: Promise<{
     getViewer(),
     supabase.from('knowledge_entries')
       .select('id,slug,title,tagline,content_md,category,status,visibility,highlights,version,' +
-        'published_at,edited_at,updated_at,author_id,knowledge_entry_tags(tag)')
+        'published_at,edited_at,updated_at,author_id,knowledge_entry_tags(tag),' +
+        'knowledge_shortcuts(keys,label,note,position)')
       .eq('slug', slug).maybeSingle(),
   ]);
   const entry = res.data as Entry | null;
@@ -78,6 +81,8 @@ export default async function KnowledgeEntryPage({ params }: { params: Promise<{
   const canRequest = activeMember && !isAuthor && !isEditor && !pending;
   const highlights = parseHighlights(entry.highlights)?.blocks ?? [];
   const tags = (entry.knowledge_entry_tags ?? []).map((t) => t.tag).sort();
+  const shortcuts = [...(entry.knowledge_shortcuts ?? [])].sort((a, b) => a.position - b.position);
+  const isShortcut = entry.category === 'shortcut';
   const tz = cls?.timezone ?? 'Asia/Jakarta';
   const avatar = profile?.avatar_path
     ? (await signMany(supabase, 'member-media', [profile.avatar_path])).get(profile.avatar_path)
@@ -100,7 +105,7 @@ export default async function KnowledgeEntryPage({ params }: { params: Promise<{
   return (
     <>
       <PageHeader crumbs={[{ label: 'Knowledge', href: '/knowledge' }, { label: entry.title }]}
-        icon="book-open" title={entry.title}
+        icon={isShortcut ? 'keyboard' : 'book-open'} title={entry.title}
         description={entry.tagline ?? undefined}
         actions={
           <>
@@ -132,7 +137,7 @@ export default async function KnowledgeEntryPage({ params }: { params: Promise<{
 
       <div className="kb-entry">
         <article className="card kb-entry__main" aria-labelledby="kb-content-title">
-          <h2 id="kb-content-title" className="sr-only">Isi entri</h2>
+          <h2 id="kb-content-title" className="sr-only">{isShortcut ? 'Daftar shortcut' : 'Isi entri'}</h2>
           <div className="kb-byline">
             {profile ? (
               <Link href={`/members/${profile.username}`} className="kb-byline__author">
@@ -153,18 +158,29 @@ export default async function KnowledgeEntryPage({ params }: { params: Promise<{
 
           {(entry.category || tags.length > 0) && (
             <div className="cluster kb-entry__taxonomy">
-              {entry.category && <Chip tone="accent" icon="folder">{entry.category}</Chip>}
+              {entry.category && (
+                <Chip tone="accent" icon={isShortcut ? 'keyboard' : 'book-open'}>
+                  {KB_CATEGORY_LABEL[knowledgeCategory(entry.category)]}
+                </Chip>
+              )}
               <KnowledgeTags tags={tags} />
             </div>
           )}
 
-          <HighlightToggle count={highlights.length}>
-            <Markdown source={entry.content_md} highlights={highlights} />
-          </HighlightToggle>
+          {isShortcut ? (
+            <div className="kb-entry__shortcuts">
+              <ShortcutCount count={shortcuts.length} />
+              <ShortcutList shortcuts={shortcuts} />
+            </div>
+          ) : (
+            <HighlightToggle count={highlights.length}>
+              <Markdown source={entry.content_md} highlights={highlights} />
+            </HighlightToggle>
+          )}
         </article>
 
         <aside className="stack kb-entry__aside">
-          <MarkdownToc source={entry.content_md} />
+          {!isShortcut && <MarkdownToc source={entry.content_md} />}
 
           {(pending || isEditor) && (
             <section className="card" aria-labelledby="kb-access-title">

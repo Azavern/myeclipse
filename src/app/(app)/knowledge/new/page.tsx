@@ -16,15 +16,14 @@ export default async function NewKnowledgePage() {
   const supabase = await createClient();
   const { data } = await supabase.rpc('get_knowledge_facets');
   const facets = (data ?? []) as { kind: string; value: string }[];
-  const categories = facets.filter((f) => f.kind === 'category').map((f) => f.value).slice(0, 30);
   const tags = facets.filter((f) => f.kind === 'tag').map((f) => f.value).slice(0, 20);
 
   return (
     <>
       <PageHeader crumbs={[{ label: 'Knowledge', href: '/knowledge' }, { label: 'Entri baru' }]}
         icon="pencil" title="Tulis pengetahuan"
-        description="Bagikan catatan, tautan, atau panduan. Draf lokal disimpan di perangkat ini sampai kamu menerbitkan atau membuangnya." />
-      <KnowledgeEditor action={saveKnowledge} entry={null} categories={categories}
+        description="Bagikan artikel Markdown atau halaman shortcut. Draf lokal disimpan di perangkat ini sampai kamu menerbitkan atau membuangnya." />
+      <KnowledgeEditor action={saveKnowledge} entry={null}
         tagSuggestions={tags} backHref="/knowledge" draftOwner={viewer.user.id} />
     </>
   );

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Icon } from '@/components/ui/icon';
 import { Chip } from '@/components/ui/primitives';
 import { formatDay } from '@/lib/time';
-import { KB_STATUS_LABEL, KB_VISIBILITY_LABEL } from '@/lib/knowledge/labels';
+import { KB_CATEGORY_LABEL, KB_STATUS_LABEL, KB_VISIBILITY_LABEL, knowledgeCategory } from '@/lib/knowledge/labels';
 
 export type KnowledgeCardRow = {
   id: string; slug: string; title: string; tagline: string | null; category: string | null;
@@ -42,7 +42,11 @@ export function KnowledgeCard({ row, tz, activeTags = [] }: { row: KnowledgeCard
   return (
     <article className="card kb-card">
       <div className="kb-card__top">
-        {row.category && <Chip tone="accent" icon="folder">{row.category}</Chip>}
+        {row.category && (
+          <Chip tone="accent" icon={row.category === 'shortcut' ? 'keyboard' : 'book-open'}>
+            {KB_CATEGORY_LABEL[knowledgeCategory(row.category)]}
+          </Chip>
+        )}
         {row.edited && <Chip tone="warning" icon="pencil">Diedit</Chip>}
       </div>
       <h2 className="kb-card__title"><Link href={`/knowledge/${row.slug}`} className="row__title stretch">{row.title}</Link></h2>

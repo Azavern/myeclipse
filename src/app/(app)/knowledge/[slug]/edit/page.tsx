@@ -5,7 +5,7 @@ import { NoAccess } from '@/components/states';
 import { Icon } from '@/components/ui/icon';
 import { PageHeader } from '@/components/ui/primitives';
 import { deleteKnowledge, saveKnowledge } from '@/features/knowledge/actions';
-import { KnowledgeEditor, type EditorEntry } from '@/features/knowledge/editor';
+import { KnowledgeEditor, type EditorEntry, type EditorShortcut } from '@/features/knowledge/editor';
 import { createClient } from '@/lib/supabase/server';
 import { getViewer } from '@/lib/visibility/server';
 
@@ -19,9 +19,12 @@ export default async function EditKnowledgePage({ params }: { params: Promise<{ 
 
   const supabase = await createClient();
   const { data, error } = await supabase.from('knowledge_entries')
-    .select('id,slug,title,tagline,content_md,category,status,visibility,version,author_id,knowledge_entry_tags(tag)')
+    .select('id,slug,title,tagline,content_md,category,status,visibility,version,author_id,knowledge_entry_tags(tag),knowledge_shortcuts(keys,label,note,position)')
     .eq('slug', slug).maybeSingle();
-  const row = data as (Omit<EditorEntry, 'tags'> & { author_id: string; knowledge_entry_tags: { tag: string }[] | null }) | null;
+  const row = data as (Omit<EditorEntry, 'tags' | 'shortcuts'> & {
+    author_id: string; knowledge_entry_tags: { tag: string }[] | null;
+    knowledge_shortcuts: EditorShortcut[] | null;
+  }) | null;
   if (error || !row) notFound();
 
   const isAuthor = row.author_id === viewer.user.id;
@@ -36,9 +39,12 @@ export default async function EditKnowledgePage({ params }: { params: Promise<{ 
 
   const facetsRes = await supabase.rpc('get_knowledge_facets');
   const facets = (facetsRes.data ?? []) as { kind: string; value: string }[];
-  const categories = facets.filter((f) => f.kind === 'category').map((f) => f.value).slice(0, 30);
   const tags = facets.filter((f) => f.kind === 'tag').map((f) => f.value).slice(0, 20);
-  const entry: EditorEntry = { ...row, tags: (row.knowledge_entry_tags ?? []).map((t) => t.tag).sort() };
+  const entry: EditorEntry = {
+    ...row,
+    tags: (row.knowledge_entry_tags ?? []).map((t) => t.tag).sort(),
+    shortcuts: row.knowledge_shortcuts ?? [],
+  };
   const back = `/knowledge/${entry.slug}`;
 
   return (
@@ -47,7 +53,7 @@ export default async function EditKnowledgePage({ params }: { params: Promise<{ 
         icon="pencil" title="Ubah entri"
         description="Menyimpan akan memperbarui versi saat ini. Penanda perubahan hanya berlaku untuk suntingan terakhir; tidak ada arsip revisi." />
       <div className="stack">
-        <KnowledgeEditor action={saveKnowledge} entry={entry} categories={categories}
+        <KnowledgeEditor action={saveKnowledge} entry={entry}
           tagSuggestions={tags} backHref={back} draftOwner={viewer.user.id} />
         {isAuthor && (
           <section className="card danger-zone" aria-labelledby="kb-danger-title">

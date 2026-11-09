@@ -731,6 +731,58 @@ dialog[open] { animation: rise var(--t-med); }
 .kb-audit__reason { display: block; color: var(--text); }
 .kb-visibility { max-width: 26rem; }
 
+/* Shortcut Knowledge: kartu editor, tampilan publik, dan pemilih keyboard ----- */
+.kb-shortcuts-edit { display: grid; gap: var(--s-4); }
+.kb-shortcuts-edit__intro { display: grid; gap: var(--s-1); }
+.kb-shortcuts-edit__intro p { max-width: 68ch; }
+.kb-shortcuts-edit__list { display: grid; gap: var(--s-4); }
+.kb-shortcut-edit { display: grid; gap: var(--s-4); padding: var(--s-4); border: var(--border-w-panel) solid var(--border); border-radius: var(--radius-panel); background: var(--surface); }
+.kb-shortcut-edit__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-2); }
+.kb-shortcut-edit__title { margin: 0; font-size: var(--fs-h3); }
+.kb-shortcut-edit__keys { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.kb-key-slot { display: grid; place-items: center; min-width: var(--ctl); min-height: var(--ctl); padding: var(--s-1) var(--s-2); border: 2px solid var(--border-strong); border-bottom-width: 3px; border-radius: var(--r-sm); background: var(--surface-2); color: var(--text); cursor: pointer; }
+.kb-key-slot:hover { background: var(--surface-3); }
+.kb-key-slot--empty { border-style: dashed; color: var(--text-2); }
+.kb-shortcut-edit__plus { color: var(--text-2); font-weight: 700; }
+.kb-shortcut-edit__add-key { flex: none; }
+.kb-shortcuts-edit__foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); }
+.kb-shortcuts-edit__foot .muted { font-size: var(--fs-xs); }
+.kb-kbd { display: inline-flex; align-items: center; min-height: 1.9rem; padding: .2rem .5rem; border: 1px solid var(--border-strong); border-bottom-width: 3px; border-radius: var(--r-sm); background: var(--surface); color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: var(--fs-sm); font-weight: 700; line-height: 1.1; white-space: nowrap; }
+.kb-shortcut__keys { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.kb-shortcut__plus { color: var(--text-2); font-weight: 700; }
+.kb-shortcuts { display: grid; gap: var(--s-4); }
+@media (min-width: 720px) { .kb-shortcuts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.kb-shortcut { display: grid; gap: var(--s-2); align-content: start; padding: var(--s-4); border: var(--border-w-panel) solid var(--border); border-radius: var(--radius-panel); background: var(--surface-2); }
+.kb-shortcut__number { color: var(--text-2); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: var(--fs-xs); }
+.kb-shortcut__label { margin: 0; font-size: var(--fs-h3); }
+.kb-shortcut__note { margin: 0; color: var(--text-2); font-size: var(--fs-sm); }
+.kb-shortcut-count { display: inline-flex; align-items: center; gap: var(--s-2); color: var(--text-2); font-size: var(--fs-sm); font-weight: 600; }
+.kb-entry__shortcuts { display: grid; gap: var(--s-4); margin-top: var(--s-4); }
+
+.kb-keyboard-dialog { width: min(68rem, calc(100vw - 2rem)); max-height: min(90dvh, 50rem); }
+.kb-keyboard-dialog[open] { display: flex; flex-direction: column; }
+.kb-keyboard__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-3); padding: var(--s-4) var(--s-5) var(--s-3); border-bottom: 1px solid var(--border); }
+.kb-keyboard__head h2 { margin: 0; font-size: var(--fs-h3); }
+.kb-keyboard__head p { margin: var(--s-1) 0 0; font-size: var(--fs-sm); }
+.kb-keyboard__body { min-height: 0; overflow-y: auto; padding: var(--s-4) var(--s-5); }
+.kb-keyboard__rows { display: flex; flex-direction: column; gap: var(--s-2); }
+.kb-keyboard__row { display: flex; gap: var(--s-2); }
+.kb-keyboard__key { flex: 1 1 0; min-width: 2.5rem; min-height: var(--ctl); padding: var(--s-1) var(--s-2); border: 1px solid var(--border-strong); border-bottom-width: 3px; border-radius: var(--r-sm); background: var(--surface); color: var(--text); font: inherit; font-size: var(--fs-sm); font-weight: 600; cursor: pointer; }
+.kb-keyboard__key:hover { background: var(--surface-3); }
+.kb-keyboard__key--wide { flex-grow: 1.8; }
+.kb-keyboard__key--space { flex-grow: 5; }
+.kb-keyboard-dialog .dialog__actions { flex: none; }
+.kb-keyboard-dialog .field__hint { margin-top: var(--s-3); }
+@media (max-width: 767px) {
+  .kb-keyboard-dialog { position: fixed; inset: auto 0 0 0; width: 100%; max-width: none; max-height: 90dvh; margin: 0; border-width: var(--border-w-panel) 0 0; border-radius: var(--radius-overlay) var(--radius-overlay) 0 0; }
+  .kb-keyboard-dialog[open] { animation: rise var(--t-med); }
+  .kb-keyboard__head { padding: var(--s-3) var(--s-4); }
+  .kb-keyboard__body { padding: var(--s-3) var(--s-4); }
+  .kb-keyboard__rows { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); }
+  .kb-keyboard__row { display: contents; }
+  .kb-keyboard__key, .kb-keyboard__key--wide, .kb-keyboard__key--space { width: 100%; min-width: 0; flex: none; }
+}
+
 @media (min-width: 1024px) {
   .kb-edit { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .kb-edit__switch { display: none; }

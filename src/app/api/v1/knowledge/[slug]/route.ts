@@ -17,12 +17,25 @@ export async function GET(request: Request, { params }: Ctx) {
     if (error) dbFailure(error);
     if (!data) throw new ApiFailure(404, 'not_found', 'Entri tidak ditemukan.');
 
+    const id = (data as { id: string }).id;
     const { data: tagRows, error: tagError } = await principal.admin.from('knowledge_entry_tags')
-      .select('tag').eq('entry_id', (data as { id: string }).id).order('tag');
+      .select('tag').eq('entry_id', id).order('tag');
     if (tagError) dbFailure(tagError);
 
+    let shortcuts: { keys: string[]; label: string; note: string | null; position: number }[] = [];
+    if ((data as { category: string }).category === 'shortcut') {
+      const { data: shortcutRows, error: shortcutError } = await principal.admin.from('knowledge_shortcuts')
+        .select('keys,label,note,position').eq('entry_id', id).order('position');
+      if (shortcutError) dbFailure(shortcutError);
+      shortcuts = (shortcutRows ?? []) as typeof shortcuts;
+    }
+
     return apiJson({
-      data: { ...data, tags: (tagRows ?? []).map((row) => (row as { tag: string }).tag) },
+      data: {
+        ...data,
+        tags: (tagRows ?? []).map((row) => (row as { tag: string }).tag),
+        shortcuts,
+      },
     });
   });
 }

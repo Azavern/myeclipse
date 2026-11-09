@@ -4,8 +4,9 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { requireActionContext } from '@/lib/action-context';
 import { withFlash } from '@/lib/flash';
-import { FORBIDDEN, dbMessage, failState, invalid, type FormState } from '@/lib/form-state';
+import { FORBIDDEN, dbMessage, failState, formValues, invalid, type FormState } from '@/lib/form-state';
 import { computeHighlights } from '@/lib/knowledge/diff';
+import { shortcutCardsFromUnknown, validateShortcutCards, type ShortcutCard } from '@/lib/knowledge/shortcuts';
 import { parseTagsJson } from '@/lib/knowledge/tags';
 import { safeRedirect } from '@/lib/safe-redirect';
 import { optText, reqText } from '@/lib/zod-fields';
@@ -14,9 +15,9 @@ const visibility = z.enum(['public', 'unlisted', 'class_only', 'private']);
 const entrySchema = z.object({
   title: reqText(50, 'Judul'),
   tagline: optText(150),
-  content: z.string().max(50000, 'Maksimal 50.000 karakter.')
-    .refine((v) => v.trim().length > 0, 'Isi entri wajib diisi.'),
-  category: optText(40),
+  content: z.string().max(50000, 'Maksimal 50.000 karakter.').optional().default(''),
+  category: z.enum(['knowledge', 'shortcut']),
+  shortcuts: z.string().max(60000).optional(),
   tags: z.string().max(1000).optional(),
   visibility,
   intent: z.enum(['draft', 'publish']).optional(),
@@ -43,15 +44,32 @@ export async function saveKnowledge(_p: FormState, fd: FormData): Promise<FormSt
   const parsed = entrySchema.safeParse(raw);
   if (!parsed.success) return invalid(parsed.error, fd);
   const d = parsed.data;
+  let shortcuts: ShortcutCard[] = [];
+  if (d.category === 'shortcut') {
+    try {
+      shortcuts = shortcutCardsFromUnknown(JSON.parse(d.shortcuts ?? '[]'));
+    } catch {
+      return { error: 'Kartu shortcut tidak valid.', fieldErrors: { shortcuts: ['Kartu shortcut tidak valid.'] }, values: formValues(fd) };
+    }
+    const shortcutError = validateShortcutCards(shortcuts);
+    if (shortcutError) {
+      return { error: shortcutError, fieldErrors: { shortcuts: [shortcutError] }, values: formValues(fd) };
+    }
+  }
+  if (d.category === 'knowledge' && d.content.trim().length === 0) {
+    return { error: 'Isi entri wajib diisi.', fieldErrors: { content: ['Isi entri wajib diisi.'] }, values: formValues(fd) };
+  }
   const ctx = await requireActionContext();
   if (!ctx) return failState(FORBIDDEN, fd);
   const tags = parseTagsJson(d.tags);
   const status = d.intent === 'draft' ? 'draft' : 'published';
+  const content = d.category === 'shortcut' ? '' : d.content;
+  const payloadShortcuts = d.category === 'shortcut' ? shortcuts : [];
 
   if (!d.id) {
     const { data, error } = await ctx.supabase.rpc('create_knowledge_entry', {
-      p_title: d.title, p_tagline: d.tagline, p_content: d.content, p_category: d.category,
-      p_status: status, p_visibility: d.visibility, p_tags: tags,
+      p_title: d.title, p_tagline: d.tagline, p_content: content, p_category: d.category,
+      p_status: status, p_visibility: d.visibility, p_tags: tags, p_shortcuts: payloadShortcuts,
     });
     if (error) { console.error('knowledge', 'create', error.code); return failState(dbMessage(error), fd); }
     const row = ((data ?? []) as { id: string; slug: string }[])[0];
@@ -71,11 +89,11 @@ export async function saveKnowledge(_p: FormState, fd: FormData): Promise<FormSt
   if (readError || !row) return failState('Data tidak ditemukan.', fd);
   if (row.version !== version) return failState('Entri ini sudah diubah di tempat lain. Muat ulang halaman sebelum menyimpan.', fd);
 
-  const highlights = computeHighlights(row.content_md, d.content);
+  const highlights = d.category === 'knowledge' ? computeHighlights(row.content_md, content) : null;
   const { error } = await ctx.supabase.rpc('update_knowledge_entry', {
     p_id: d.id, p_version: version, p_title: d.title, p_tagline: d.tagline,
-    p_content: d.content, p_category: d.category, p_status: status,
-    p_tags: tags, p_highlights: highlights,
+    p_content: content, p_category: d.category, p_status: status,
+    p_tags: tags, p_highlights: highlights, p_shortcuts: payloadShortcuts,
   });
   if (error) { console.error('knowledge', 'update', error.code); return failState(dbMessage(error), fd); }
   paths(row.slug);

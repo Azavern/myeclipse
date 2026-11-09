@@ -6,6 +6,7 @@ import { Icon } from '@/components/ui/icon';
 import { EmptyState, LinkButton, PageHeader } from '@/components/ui/primitives';
 import { KnowledgeCard, type KnowledgeCardRow } from '@/features/knowledge/components';
 import { getClass } from '@/lib/class';
+import { KB_CATEGORY_OPTIONS, isKnowledgeCategory } from '@/lib/knowledge/labels';
 import { normalizeTag } from '@/lib/knowledge/tags';
 import { createClient } from '@/lib/supabase/server';
 import { getViewer, requireView } from '@/lib/visibility/server';
@@ -37,7 +38,8 @@ export default async function KnowledgeExplorer({ searchParams }: { searchParams
   if (!(await requireView('page.knowledge', '/knowledge'))) return <NoAccess />;
   const sp = await searchParams;
   const q = one(sp.q).trim().slice(0, 80);
-  const category = one(sp.category).trim().slice(0, 40);
+  const categoryInput = one(sp.category).trim().slice(0, 40);
+  const category = isKnowledgeCategory(categoryInput) ? categoryInput : '';
   const sort = oneOf(one(sp.sort), SORTS.map(([s]) => s), 'newest');
   const tags = (Array.isArray(sp.tag) ? sp.tag : sp.tag ? [sp.tag] : [])
     .map(normalizeTag).filter(Boolean).slice(0, 5);
@@ -61,7 +63,12 @@ export default async function KnowledgeExplorer({ searchParams }: { searchParams
     redirect(`/knowledge${queryString({ q, category, tags, sort })}`);
   }
   const facetRows = (facets.data ?? []) as { kind: string; value: string; entry_count: number }[];
-  const categories = facetRows.filter((f) => f.kind === 'category');
+  const categoryCounts = new Map(
+    facetRows.filter((f) => f.kind === 'category').map((f) => [f.value, f.entry_count] as const),
+  );
+  const categories = KB_CATEGORY_OPTIONS.map(([value, label]) => ({
+    value, label, entry_count: categoryCounts.get(value) ?? 0,
+  }));
   const allTags = facetRows.filter((f) => f.kind === 'tag').slice(0, 24);
   const tz = cls?.timezone ?? 'Asia/Jakarta';
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -81,20 +88,20 @@ export default async function KnowledgeExplorer({ searchParams }: { searchParams
   return (
     <>
       <PageHeader icon="book-open" title="Eclipse Knowledge" actions={actions}
-        description="Catatan, tautan, dan panduan yang dibagikan anggota kelas. Entri publik bisa dibaca tanpa masuk." />
+        description="Artikel Markdown dan halaman shortcut yang dibagikan anggota kelas. Entri publik bisa dibaca tanpa masuk." />
 
       <form method="get" action="/knowledge" className="toolbar kb-search" role="search">
         <div className="search">
           <Icon name="search" size={18} />
           <label className="sr-only" htmlFor="kb-q">Cari pengetahuan</label>
           <input id="kb-q" type="search" name="q" defaultValue={q} maxLength={80}
-            placeholder="Cari judul, isi, kategori, atau tag…" />
+            placeholder="Cari judul, isi, atau tag…" />
         </div>
         <div className="kb-search__filters">
           <label className="sr-only" htmlFor="kb-category-filter">Kategori</label>
           <select id="kb-category-filter" name="category" defaultValue={category}>
             <option value="">Semua kategori</option>
-            {categories.map((c) => <option key={c.value} value={c.value}>{c.value} ({c.entry_count})</option>)}
+            {categories.map((c) => <option key={c.value} value={c.value}>{c.label} ({c.entry_count})</option>)}
           </select>
           <label className="sr-only" htmlFor="kb-sort">Urutkan</label>
           <select id="kb-sort" name="sort" defaultValue={sort}>
@@ -115,7 +122,7 @@ export default async function KnowledgeExplorer({ searchParams }: { searchParams
                 return (
                   <Link key={c.value} className="filter-chip" aria-current={isOn ? 'true' : undefined}
                     href={href({ q, category: isOn ? '' : c.value, tags, sort })}>
-                    {c.value} <span className="nums">({c.entry_count})</span>
+                    {c.label} <span className="nums">({c.entry_count})</span>
                   </Link>
                 );
               })}
@@ -151,7 +158,7 @@ export default async function KnowledgeExplorer({ searchParams }: { searchParams
           action={canWrite ? <LinkButton href="/knowledge/new" icon="plus">Tulis entri pertama</LinkButton> : undefined}>
           {active
             ? 'Coba kata kunci lain, atau hapus sebagian filter.'
-            : 'Bagikan tautan, catatan kuliah, atau panduan yang berguna untuk kelas.'}
+            : 'Bagikan artikel Markdown atau kumpulan shortcut yang berguna untuk kelas.'}
         </EmptyState>
       ) : (
         <ul className="kb-grid">

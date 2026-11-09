@@ -1,9 +1,9 @@
 -- pgTAP 004: RLS dan alur izin Eclipse Knowledge (migrasi 0014).
 -- Fokus: batas baca publik, langit-langit page.knowledge, permintaan edit,
 -- persetujuan penulis/Ketua, pencabutan, versi, dan audit.
--- Lulus 105/105 pada proyek Supabase asli (PostgreSQL 17.11, pgTAP 1.3.3) dengan data instance dinetralkan di dalam transaksi.
+-- Lulus 119/119 pada proyek Supabase asli (PostgreSQL 17.11, pgTAP 1.3.3) dengan migrasi mode Shortcut dan data instance dinetralkan di dalam transaksi rollback.
 begin;
-select plan(105);
+select plan(119);
 
 create function public.t_rows(q text) returns bigint language plpgsql as $$
 declare n bigint; begin execute q; get diagnostics n = row_count; return n; end $$;
@@ -45,26 +45,26 @@ do $$ begin
 end $$;
 select lives_ok($$ select public.create_knowledge_entry(
   'Catatan Algoritma', 'Ringkasan sorting', '# Algoritma. Isi awal.',
-  'Kuliah', 'published', 'public', array['Algoritma', 'Sorting', 'algoritma']) $$,
+  'knowledge', 'published', 'public', array['Algoritma', 'Sorting', 'algoritma']) $$,
   'A membuat entri publik');
 select lives_ok($$ select public.create_knowledge_entry(
-  'Catatan Kelas', null, 'Materi khusus anggota.', 'Kuliah',
+  'Catatan Kelas', null, 'Materi khusus anggota.', 'knowledge',
   'published', 'class_only', array['Ujian']) $$, 'A membuat entri anggota kelas');
 select lives_ok($$ select public.create_knowledge_entry(
-  'Tautan Saja', 'Hanya lewat tautan', 'Referensi eksternal.', 'Tautan',
+  'Tautan Saja', 'Hanya lewat tautan', 'Referensi eksternal.', 'knowledge',
   'published', 'unlisted', array['Referensi']) $$, 'A membuat entri tautan saja');
 select lives_ok($$ select public.create_knowledge_entry(
   'Draf Pribadi', null, 'Belum siap.', null,
   'draft', 'private', array['Pribadi']) $$, 'A membuat draf privat');
 select lives_ok($$ select public.create_knowledge_entry(
-  'Catatan Algoritma', null, 'Draf kedua.', 'Kuliah',
+  'Catatan Algoritma', null, 'Draf kedua.', 'knowledge',
   'draft', 'private', array['Algoritma']) $$, 'judul sama membuat slug kedua');
 
 do $$ begin
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000d3","role":"authenticated"}', true);
 end $$;
 select lives_ok($$ select public.create_knowledge_entry(
-  'Catatan B', 'Dari anggota lain', 'Isi B.', 'Umum',
+  'Catatan B', 'Dari anggota lain', 'Isi B.', 'knowledge',
   'published', 'public', array['Algoritma']) $$, 'B membuat entri publik');
 
 reset role;
@@ -111,7 +111,7 @@ select is((select total from public.search_knowledge(null, null, '{}', 'newest',
 select ok(not exists (select 1 from public.search_knowledge(null, null, '{}', 'newest', 12, 0)
   where slug = 'tautan-saja'), 'entri tautan saja tidak masuk penjelajah');
 select is((select entry_count from public.get_knowledge_facets()
-  where kind = 'category' and value = 'Kuliah')::int, 1,
+  where kind = 'category' and value = 'knowledge')::int, 2,
   'facet kategori mengikuti visibilitas');
 select is((select author_name from public.search_knowledge(null, null, '{}', 'newest', 12, 0)
   where slug = 'catatan-algoritma'), null,
@@ -185,7 +185,7 @@ select is((select total from public.search_knowledge(null, null, '{}', 'newest',
   'penjelajah anggota memuat public dan class_only');
 select is((select total from public.search_knowledge(null, null, array['algoritma'], 'newest', 12, 0) limit 1)::int, 2,
   'filter tag memakai tag ternormalisasi');
-select is((select total from public.search_knowledge(null, 'Kuliah', '{}', 'newest', 12, 0) limit 1)::int, 2,
+select is((select total from public.search_knowledge(null, 'knowledge', '{}', 'newest', 12, 0) limit 1)::int, 3,
   'filter kategori menghormati visibilitas');
 
 reset role;
@@ -210,7 +210,7 @@ select is(public.t_rows($$ update public.knowledge_entries set title = 'Hack'
   'B tidak bisa mengubah entri A lewat update langsung');
 select throws_ok($$ select public.update_knowledge_entry(
   current_setting('tap.kb_public')::uuid, 1, 'Catatan Algoritma', null,
-  'Isi', 'Kuliah', 'published', '{}') $$, '42501', null,
+  'Isi', 'knowledge', 'published', '{}') $$, '42501', null,
   'B tidak bisa memakai RPC update tanpa izin');
 select throws_ok($$ select public.set_knowledge_visibility(
   current_setting('tap.kb_public')::uuid, 'private', null) $$, '42501', null,
@@ -342,7 +342,7 @@ do $$ begin
 end $$;
 select is((select public.update_knowledge_entry(
   current_setting('tap.kb_public')::uuid, 1, 'Catatan Algoritma', 'Ringkasan sorting',
-  'Isi dari editor.', 'Kuliah', 'published', array['algoritma', 'sorting'],
+  'Isi dari editor.', 'knowledge', 'published', array['algoritma', 'sorting'],
   '{"blocks":[0],"at":"2026-02-01T00:00:00Z"}'::jsonb)), 2,
   'editor memperbarui isi dan versi naik');
 select ok((select edited_at is not null
@@ -354,7 +354,7 @@ select is((select highlights->'blocks' from public.knowledge_entries
   'anotasi sorotan tersimpan');
 select throws_ok($$ select public.update_knowledge_entry(
   current_setting('tap.kb_public')::uuid, 2, 'Catatan Algoritma', 'Ringkasan sorting',
-  'Isi dari editor.', 'Kuliah', 'draft', array['algoritma', 'sorting']) $$,
+  'Isi dari editor.', 'knowledge', 'draft', array['algoritma', 'sorting']) $$,
   'EC051', null, 'editor tidak bisa mengubah status');
 select throws_ok($$ update public.knowledge_entries set visibility = 'private'
   where id = current_setting('tap.kb_public')::uuid $$,
@@ -367,7 +367,7 @@ do $$ begin
 end $$;
 select throws_ok($$ select public.update_knowledge_entry(
   current_setting('tap.kb_public')::uuid, 2, 'Catatan Algoritma', 'Ringkasan sorting',
-  'Isi dari Ketua.', 'Kuliah', 'published', '{}') $$, '42501', null,
+  'Isi dari Ketua.', 'knowledge', 'published', '{}') $$, '42501', null,
   'Ketua tidak otomatis mendapat hak menulis isi');
 select throws_ok($$ update public.knowledge_entries set title = 'Dihack Ketua'
   where id = current_setting('tap.kb_public')::uuid $$, '42501', null,
@@ -422,7 +422,7 @@ select ok((select revoked_at is not null from public.knowledge_editors
   'izin editor dicabut');
 select throws_ok($$ select public.update_knowledge_entry(
   current_setting('tap.kb_public')::uuid, 2, 'Catatan Algoritma', 'Ringkasan sorting',
-  'Isi setelah dicabut.', 'Kuliah', 'published', '{}') $$, '42501', null,
+  'Isi setelah dicabut.', 'knowledge', 'published', '{}') $$, '42501', null,
   'akses edit yang dicabut langsung berlaku');
 
 -- ===== Persetujuan penulis (berkelanjutan) ==================================
@@ -456,7 +456,7 @@ do $$ begin
 end $$;
 select is((select public.update_knowledge_entry(
   current_setting('tap.kb_public')::uuid, 2, 'Catatan Algoritma', 'Ringkasan sorting',
-  'Isi dari editor kedua.', 'Kuliah', 'published', array['algoritma', 'sorting'],
+  'Isi dari editor kedua.', 'knowledge', 'published', array['algoritma', 'sorting'],
   '{"blocks":[1],"at":"2026-03-01T00:00:00Z"}'::jsonb)), 3,
   'editor memperbarui isi setelah persetujuan penulis');
 
@@ -475,7 +475,7 @@ do $$ begin
 end $$;
 select throws_ok($$ select public.update_knowledge_entry(
   current_setting('tap.kb_public')::uuid, 3, 'Catatan Algoritma', 'Ringkasan sorting',
-  'Isi setelah cabut kedua.', 'Kuliah', 'published', '{}') $$, '42501', null,
+  'Isi setelah cabut kedua.', 'knowledge', 'published', '{}') $$, '42501', null,
   'akses B dicabut oleh penulis');
 
 -- ===== Penolakan penulis ====================================================
@@ -509,7 +509,7 @@ do $$ begin
 end $$;
 select throws_ok($$ select public.update_knowledge_entry(
   current_setting('tap.kb_public')::uuid, 3, 'Catatan Algoritma', 'Ringkasan sorting',
-  'Isi dari C.', 'Kuliah', 'published', '{}') $$, '42501', null,
+  'Isi dari C.', 'knowledge', 'published', '{}') $$, '42501', null,
   'C tidak mendapat akses dari penolakan');
 
 -- ===== Versi, guard, dan sorotan ============================================
@@ -523,11 +523,11 @@ select throws_ok($$ select public.request_knowledge_edit(
   'penulis tidak bisa meminta akses ke entrinya sendiri');
 select throws_ok($$ select public.update_knowledge_entry(
   current_setting('tap.kb_public')::uuid, 1, 'Catatan Algoritma', 'Ringkasan sorting',
-  'Versi basi.', 'Kuliah', 'published', '{}') $$, '40001', null,
+  'Versi basi.', 'knowledge', 'published', '{}') $$, '40001', null,
   'versi lama ditolak');
 select is((select public.update_knowledge_entry(
   current_setting('tap.kb_public')::uuid, 3, 'Catatan Algoritma', 'Ringkasan sorting',
-  'Isi final.', 'Kuliah', 'published', array['algoritma', 'sorting'],
+  'Isi final.', 'knowledge', 'published', array['algoritma', 'sorting'],
   '{"blocks":[2],"at":"2026-04-01T00:00:00Z"}'::jsonb)), 4,
   'penulis memperbarui versi saat ini');
 select is((select highlights->'blocks' from public.knowledge_entries
@@ -535,7 +535,7 @@ select is((select highlights->'blocks' from public.knowledge_entries
   'sorotan diganti pada suntingan isi');
 select is((select public.update_knowledge_entry(
   current_setting('tap.kb_public')::uuid, 4, 'Judul Baru', 'Ringkasan sorting',
-  'Isi final.', 'Kuliah', 'published', array['algoritma', 'sorting'],
+  'Isi final.', 'knowledge', 'published', array['algoritma', 'sorting'],
   '{"blocks":[9],"at":"2026-05-01T00:00:00Z"}'::jsonb)), 5,
   'judul saja tetap menaikkan versi');
 select is((select highlights->'blocks' from public.knowledge_entries
@@ -568,7 +568,7 @@ end $$;
 -- ===== Arsip dan hapus ======================================================
 select is((select public.update_knowledge_entry(
   current_setting('tap.kb_public')::uuid, 5, 'Judul Baru', 'Ringkasan sorting',
-  'Isi final.', 'Kuliah', 'archived', array['algoritma', 'sorting'])), 6,
+  'Isi final.', 'knowledge', 'archived', array['algoritma', 'sorting'])), 6,
   'penulis mengarsipkan entri');
 reset role;
 do $$ begin
@@ -588,7 +588,7 @@ select is((select count(*) from public.knowledge_entries
   'penulis tetap dapat membaca entri arsip');
 select lives_ok($$ select public.update_knowledge_entry(
   current_setting('tap.kb_public')::uuid, 6, 'Judul Baru', 'Ringkasan sorting',
-  'Isi final.', 'Kuliah', 'published', array['algoritma', 'sorting']) $$,
+  'Isi final.', 'knowledge', 'published', array['algoritma', 'sorting']) $$,
   'penulis menerbitkan kembali entri');
 reset role;
 do $$ begin
@@ -661,8 +661,62 @@ select is((select count(*) from public.knowledge_entries
   'anggota nonaktif kehilangan entri class_only');
 select throws_ok($$ select public.update_knowledge_entry(
   current_setting('tap.kb_public')::uuid, 7, 'Judul Baru', 'Ringkasan sorting',
-  'Isi setelah nonaktif.', 'Kuliah', 'published', '{}') $$, '42501', null,
+  'Isi setelah nonaktif.', 'knowledge', 'published', '{}') $$, '42501', null,
   'anggota nonaktif kehilangan hak tulis meski grant masih ada');
+
+-- ===== Mode Shortcut: kartu, pencarian, kategori sistem, dan cascade ======
+reset role;
+do $$ begin
+  perform set_config('role', 'authenticated', true);
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000d2","role":"authenticated"}', true);
+end $$;
+select lives_ok($$ select public.create_knowledge_entry(
+  'Shortcut Windows', 'Kumpulan pintasan', '', 'shortcut', 'published', 'public',
+  array['Shortcut'], '[{"keys":["Win","I"],"label":"Buka Settings","note":"Tekan bersamaan."}]'::jsonb) $$,
+  'A membuat entri shortcut dengan kartu');
+select set_config('tap.kb_shortcut', (select id::text from public.knowledge_entries
+  where slug = 'shortcut-windows'), false);
+select is((select category from public.knowledge_entries
+  where id = current_setting('tap.kb_shortcut')::uuid), 'shortcut',
+  'entri shortcut memakai kategori sistem');
+select is((select count(*) from public.knowledge_shortcuts
+  where entry_id = current_setting('tap.kb_shortcut')::uuid)::int, 1,
+  'kartu shortcut tersimpan');
+select is((select keys::text from public.knowledge_shortcuts
+  where entry_id = current_setting('tap.kb_shortcut')::uuid order by position limit 1),
+  '{Win,I}', 'tombol kartu tersimpan berurutan');
+select is((select public.update_knowledge_entry(
+  current_setting('tap.kb_shortcut')::uuid, 1, 'Shortcut Windows', 'Kumpulan pintasan', '',
+  'shortcut', 'published', array['Shortcut'], null,
+  '[{"keys":["Ctrl","Shift","Esc"],"label":"Buka Task Manager","note":"Tekan bersamaan."},{"keys":["Win","I"],"label":"Buka Settings","note":null}]'::jsonb)), 2,
+  'update shortcut mengganti seluruh kartu dan menaikkan versi');
+select is((select count(*) from public.knowledge_shortcuts
+  where entry_id = current_setting('tap.kb_shortcut')::uuid)::int, 2,
+  'kartu pengganti tersimpan');
+select is((select total from public.search_knowledge('Buka Settings', null, '{}', 'newest', 12, 0) limit 1)::int, 1,
+  'pencarian menjangkau label kartu shortcut');
+select is((select entry_count from public.get_knowledge_facets()
+  where kind = 'category' and value = 'shortcut')::int, 1,
+  'facet kategori shortcut tersedia');
+select is((select public.update_knowledge_entry(
+  current_setting('tap.kb_shortcut')::uuid, 2, 'Shortcut Windows', 'Kumpulan pintasan', '',
+  'shortcut', 'archived', array['Shortcut'], null)), 3,
+  'arsip shortcut tidak mengirim p_shortcuts dan tetap valid');
+select is((select count(*) from public.knowledge_shortcuts
+  where entry_id = current_setting('tap.kb_shortcut')::uuid)::int, 2,
+  'arsip mempertahankan kartu shortcut lama');
+select throws_ok($$ select public.create_knowledge_entry(
+  'Kategori Liar', null, 'Isi', 'Everything', 'published', 'public', '{}') $$,
+  '22023', null, 'kategori di luar sistem ditolak RPC');
+select throws_ok($$ insert into public.knowledge_shortcuts (entry_id, position, keys, label)
+  values (current_setting('tap.kb_shortcut')::uuid, 9, array['Alt'], 'Langsung') $$,
+  '42501', null, 'anggota tidak bisa menulis kartu langsung');
+select is(public.t_rows($$ delete from public.knowledge_entries
+  where id = current_setting('tap.kb_shortcut')::uuid $$)::int, 1,
+  'penulis dapat menghapus entri shortcut');
+select is((select count(*) from public.knowledge_shortcuts
+  where entry_id = current_setting('tap.kb_shortcut')::uuid)::int, 0,
+  'menghapus entri menghapus kartu shortcut');
 
 select * from finish();
 rollback;

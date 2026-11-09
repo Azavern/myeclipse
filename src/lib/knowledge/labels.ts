@@ -2,6 +2,31 @@ export const KB_STATUS_LABEL: Record<string, string> = {
   draft: 'Draf', published: 'Terbit', archived: 'Diarsipkan',
 };
 
+export const KB_CATEGORIES = ['knowledge', 'shortcut'] as const;
+export type KnowledgeCategory = (typeof KB_CATEGORIES)[number];
+
+export const KB_CATEGORY_LABEL: Record<KnowledgeCategory, string> = {
+  knowledge: 'Pengetahuan',
+  shortcut: 'Shortcut',
+};
+
+export const KB_CATEGORY_HINT: Record<KnowledgeCategory, string> = {
+  knowledge: 'Artikel Markdown: judul, paragraf, daftar, tabel, tautan, gambar, dan kode.',
+  shortcut: 'Halaman berisi kartu kombinasi tombol beserta label dan keterangannya.',
+};
+
+export const KB_CATEGORY_OPTIONS = KB_CATEGORIES.map((value) => [
+  value, KB_CATEGORY_LABEL[value],
+] as const);
+
+export function isKnowledgeCategory(value: unknown): value is KnowledgeCategory {
+  return typeof value === 'string' && (KB_CATEGORIES as readonly string[]).includes(value);
+}
+
+export function knowledgeCategory(value: unknown): KnowledgeCategory {
+  return value === 'shortcut' ? 'shortcut' : 'knowledge';
+}
+
 export const KB_VISIBILITY_LABEL: Record<string, string> = {
   public: 'Publik', unlisted: 'Tautan saja', class_only: 'Anggota kelas', private: 'Pribadi',
 };

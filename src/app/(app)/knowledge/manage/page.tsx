@@ -7,6 +7,7 @@ import { EmptyState, LinkButton, Notice, PageHeader, Segmented } from '@/compone
 import {
   KnowledgeStatusChip, KnowledgeTags, KnowledgeVisibilityChip,
 } from '@/features/knowledge/components';
+import { KB_CATEGORY_LABEL, knowledgeCategory } from '@/lib/knowledge/labels';
 import { createClient } from '@/lib/supabase/server';
 import { formatDay } from '@/lib/time';
 import { getClass } from '@/lib/class';
@@ -44,7 +45,7 @@ export default async function ManageKnowledgePage() {
   return (
     <>
       <PageHeader icon="book-open" title="Entri pengetahuan saya"
-        description="Kelola draf, entri terbit, dan permintaan akses edit untuk pengetahuanmu."
+        description="Kelola artikel Markdown, halaman shortcut, draf, dan permintaan akses edit untuk pengetahuanmu."
         actions={<><LinkButton href="/knowledge" variant="secondary" icon="search">Jelajahi</LinkButton>
           <LinkButton href="/knowledge/new" icon="plus">Tulis pengetahuan</LinkButton></>} />
       <div className="toolbar">
@@ -86,7 +87,7 @@ export default async function ManageKnowledgePage() {
                   </h2>
                   {r.tagline && <p className="muted clamp-2">{r.tagline}</p>}
                   <div className="meta">
-                    {r.category && <span><Icon name="folder" size={14} />{r.category}</span>}
+                    {r.category && <span><Icon name={r.category === 'shortcut' ? 'keyboard' : 'book-open'} size={14} />{KB_CATEGORY_LABEL[knowledgeCategory(r.category)]}</span>}
                     <span><Icon name="clock" size={14} />Diperbarui {formatDay(r.updated_at, tz)}</span>
                   </div>
                   {tags.length > 0 && <KnowledgeTags tags={tags} />}
