@@ -19,6 +19,9 @@ export function allowsGoogleSignIn(pathname: string): boolean {
 }
 
 const GOOGLE_GSI = 'https://accounts.google.com';
+// Stylesheet resmi GIS (One Tap/picker). Tombol sendiri menyuntikkan <style> dari skrip;
+// nonce halaman diteruskan ke elemen skrip di google-signin.tsx agar style itu juga sah.
+const GOOGLE_GSI_STYLE = 'https://accounts.google.com/gsi/style';
 // Sesi resumable Drive di-PUT langsung oleh peramban. Asal ini harus ada di connect-src pada SETIAP
 // dokumen: header CSP hanya dipasang saat dokumen dimuat, sedangkan navigasi <Link> ke /cloud tidak
 // memuat ulang dokumen, sehingga CSP halaman asal tetap berlaku dan PUT diblokir sebelum byte pertama.
@@ -51,7 +54,7 @@ export function buildCsp({ nonce, supabaseUrl, dev = false, allowHttpsImages = f
     ['default-src', ["'self'"]],
     // React di mode dev memakai eval untuk menyusun call stack; produksi tidak membutuhkannya.
     ['script-src', ["'self'", `'nonce-${nonce}'`, "'strict-dynamic'", ...(googleSignIn ? [GOOGLE_GSI] : []), ...(dev ? ["'unsafe-eval'"] : [])]],
-    ['style-src', ["'self'", `'nonce-${nonce}'`]],
+    ['style-src', ["'self'", `'nonce-${nonce}'`, ...(googleSignIn ? [GOOGLE_GSI_STYLE] : [])]],
     ['img-src', ["'self'", 'data:', 'blob:', ...(media ? [media] : []), ...(allowHttpsImages ? ['https:'] : [])]],
     ['font-src', ["'self'"]],
     ['connect-src', ["'self'", ...(media ? [media] : []), ...(googleSignIn ? [GOOGLE_GSI] : []), GOOGLE_DRIVE_UPLOAD, ...(dev ? ['ws:', 'wss:'] : [])]], // ws: hanya untuk HMR di dev

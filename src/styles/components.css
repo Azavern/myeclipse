@@ -205,6 +205,8 @@ a.chip:hover { filter: brightness(.97); text-decoration: none; }
 .auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 .google-signin { display: grid; gap: var(--s-2); }
 .google-slot { display: grid; justify-items: center; min-height: var(--ctl-lg); }
+/* Pengaman bila CSS GIS belum sempat dimuat: logo tetap kecil, bukan mengikuti max-width reset. */
+.google-slot svg { width: 18px; height: 18px; }
 .google-slot--idle { display: none; }
 .google-status { display: flex; align-items: center; justify-content: center; gap: var(--s-2); min-height: var(--ctl-lg); margin: 0; color: var(--text-2); font-size: var(--fs-sm); }
 /* Checklist akses role ------------------------------------------------------- */

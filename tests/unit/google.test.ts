@@ -65,8 +65,12 @@ describe('CSP halaman masuk Google Identity Services', () => {
   it('rute login menambah accounts.google.com tanpa melepas nonce dan strict-dynamic', () => {
     const csp = buildCsp({ nonce: 'n', googleSignIn: true });
     expect(dir(csp, 'script-src')).toBe("script-src 'self' 'nonce-n' 'strict-dynamic' https://accounts.google.com");
+    expect(dir(csp, 'style-src')).toBe("style-src 'self' 'nonce-n' https://accounts.google.com/gsi/style");
     expect(dir(csp, 'connect-src')).toBe("connect-src 'self' https://accounts.google.com https://www.googleapis.com");
     expect(dir(csp, 'frame-src')).toBe('frame-src https://accounts.google.com');
+  });
+  it('rute lain tidak membuka stylesheet GIS', () => {
+    expect(dir(buildCsp({ nonce: 'n' }), 'style-src')).toBe("style-src 'self' 'nonce-n'");
   });
   it('rute lain tidak memuat accounts.google.com maupun frame-src', () => {
     const csp = buildCsp({ nonce: 'n' });

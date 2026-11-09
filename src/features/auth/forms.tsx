@@ -1,7 +1,7 @@
 'use client';
-import Link from 'next/link';
 import { useActionState, useEffect, useState } from 'react';
 import { FieldControl } from '@/components/field';
+import { LoginLink } from '@/components/login-link';
 import { Icon } from '@/components/ui/icon';
 import { Notice } from '@/components/ui/primitives';
 import type { Field } from '@/features/fields';
@@ -65,7 +65,7 @@ export function ForgotPasswordForm() {
     return (
       <div className="stack">
         <Notice tone="success" role="status">{state.message}</Notice>
-        <Link href="/login" className="btn btn--secondary btn--block"><Icon name="arrow-left" size={18} />Kembali ke halaman masuk</Link>
+        <LoginLink className="btn btn--secondary btn--block"><Icon name="arrow-left" size={18} />Kembali ke halaman masuk</LoginLink>
       </div>
     );
   }

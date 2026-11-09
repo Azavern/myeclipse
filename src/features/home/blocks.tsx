@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { LoginLink } from '@/components/login-link';
 import { ExtLink } from '@/components/states';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { Marquee } from '@/components/ui/marquee';
@@ -58,7 +59,7 @@ export function Hero({ name, code, tagline, description, highlight, highlightUrl
             {guest && description && <p className="hero__desc">{description}</p>}
             {guest && (
               <div className="hero__actions">
-                <Link data-ui="button" href="/login" className={cx('btn btn--lg', !hasCover && 'btn--onhero-solid')}><Icon name="log-in" size={18} />Masuk ke kelas</Link>
+                <LoginLink data-ui="button" className={cx('btn btn--lg', !hasCover && 'btn--onhero-solid')}><Icon name="log-in" size={18} />Masuk ke kelas</LoginLink>
                 {secondary && <Link data-ui="button" href={secondary.href} className={cx('btn btn--lg', hasCover ? 'btn--secondary' : 'btn--onhero')}><Icon name={secondary.icon} size={18} />{secondary.label}</Link>}
                 <Link data-ui="button" href="/qr" className={cx('btn btn--lg', hasCover ? 'btn--secondary' : 'btn--onhero')}><Icon name="qr" size={18} />Buat QR</Link>
                 <Link data-ui="button" href="/inventory/access" className={cx('btn btn--lg', hasCover ? 'btn--secondary' : 'btn--onhero')}><Icon name="key" size={18} />Akses inventory</Link>

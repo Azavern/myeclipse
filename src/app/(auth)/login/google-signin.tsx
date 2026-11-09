@@ -49,6 +49,11 @@ function loadGis(): Promise<GisId> {
     script.async = true;
     script.defer = true;
     script.dataset.gsi = '1';
+    // GIS menyuntikkan <style> untuk tombolnya. Tanpa nonce, CSP memblokir style itu dan
+    // SVG logo mewarisi max-width:100% dari reset aplikasi sehingga tampil raksasa.
+    // Di produksi nonce dapat hanya berada di <script>, bukan <style>.
+    const nonce = document.querySelector<HTMLElement>('[nonce]')?.nonce;
+    if (nonce) script.nonce = nonce;
     script.addEventListener('load', finish, { once: true });
     script.addEventListener('error', () => reject(new Error('gis')), { once: true });
     document.head.appendChild(script);
@@ -59,9 +64,13 @@ export function GoogleSignIn({ clientId, next }: { clientId: string; next: strin
   const router = useRouter();
   const slot = useRef<HTMLDivElement>(null);
   const alive = useRef(true);
+  const runId = useRef(0);
   const submitRef = useRef<(credential: string) => void>(() => {});
   // API GIS yang siap merender; renderButton baru dipanggil setelah wadah terlihat.
   const pending = useRef<GisId | null>(null);
+  // Satu nonce per pemasangan komponen; StrictMode memanggil effect dua kali dan
+  // dua permintaan nonce dapat saling menimpa cookie sebelum tombol dirender.
+  const nonceRequest = useRef<ReturnType<typeof beginGoogleSignIn> | null>(null);
   const [phase, setPhase] = useState<'loading' | 'ready' | 'busy' | 'failed'>('loading');
   const [message, setMessage] = useState<string | null>(null);
 
@@ -71,6 +80,7 @@ export function GoogleSignIn({ clientId, next }: { clientId: string; next: strin
       const result = await completeGoogleSignIn(credential, next);
       if (!alive.current) return;
       if ('error' in result) {
+        nonceRequest.current = null;
         setMessage(result.error);
         setPhase('failed');
         slot.current?.replaceChildren(); // nonce sudah terpakai; tombol lama tidak berlaku
@@ -80,6 +90,7 @@ export function GoogleSignIn({ clientId, next }: { clientId: string; next: strin
       router.refresh();
     } catch {
       if (!alive.current) return;
+      nonceRequest.current = null;
       setMessage(UNAVAILABLE);
       setPhase('failed');
       slot.current?.replaceChildren();
@@ -89,25 +100,29 @@ export function GoogleSignIn({ clientId, next }: { clientId: string; next: strin
   useEffect(() => { submitRef.current = (credential) => void submit(credential); }, [submit]);
 
   const prepare = useCallback(async () => {
+    const run = ++runId.current;
     setPhase('loading');
     setMessage(null);
-    const nonce = await beginGoogleSignIn().catch(() => null);
-    if (!alive.current) return;
+    pending.current = null;
+    slot.current?.replaceChildren();
+    if (!nonceRequest.current) nonceRequest.current = beginGoogleSignIn();
+    const nonce = await nonceRequest.current.catch(() => null);
+    if (run !== runId.current) return;
     if (!nonce || !nonce.ok) {
+      nonceRequest.current = null;
       setMessage(nonce ? nonce.error : UNAVAILABLE);
       setPhase('failed');
       return;
     }
     const api = await loadGis().catch(() => null);
+    if (run !== runId.current) return;
     if (!api) {
-      if (alive.current) {
-        setMessage(UNAVAILABLE);
-        setPhase('failed');
-      }
+      setMessage(UNAVAILABLE);
+      setPhase('failed');
       return;
     }
     const target = slot.current;
-    if (!alive.current || !target) return;
+    if (!target) return;
     target.replaceChildren();
     api.initialize({
       client_id: clientId,
@@ -127,7 +142,11 @@ export function GoogleSignIn({ clientId, next }: { clientId: string; next: strin
   useEffect(() => {
     alive.current = true;
     void prepare();
-    return () => { alive.current = false; };
+    return () => {
+      alive.current = false;
+      // Effect pertama StrictMode tidak boleh menyelesaikan initialize setelah effect kedua.
+      runId.current += 1;
+    };
   }, [prepare]);
 
   // Render setelah wadah benar-benar tampil agar GIS mengukur lebar nyata dan
@@ -136,17 +155,20 @@ export function GoogleSignIn({ clientId, next }: { clientId: string; next: strin
     if (phase !== 'ready') return;
     const target = slot.current;
     const api = pending.current;
-    if (!target || !api || target.childElementCount > 0) return;
-    try {
-      api.renderButton(target, {
-        type: 'standard', theme: 'outline', size: 'large', text: 'continue_with', shape: 'pill', logo_alignment: 'left',
-        width: Math.max(240, Math.min(400, Math.round(target.clientWidth || 320))),
-      });
-    } catch (error) {
-      console.error('renderButton', error);
-      setMessage(UNAVAILABLE);
-      setPhase('failed');
-    }
+    if (!target || !api) return;
+    const frame = requestAnimationFrame(() => {
+      if (target.childElementCount > 0) return;
+      try {
+        api.renderButton(target, {
+          type: 'standard', theme: 'outline', size: 'large', text: 'continue_with', shape: 'pill', logo_alignment: 'left',
+        });
+      } catch (error) {
+        console.error('renderButton', error);
+        setMessage(UNAVAILABLE);
+        setPhase('failed');
+      }
+    });
+    return () => cancelAnimationFrame(frame);
   }, [phase]);
 
   return (
@@ -164,7 +186,7 @@ export function GoogleSignIn({ clientId, next }: { clientId: string; next: strin
         </p>
       )}
       {phase === 'failed' && (
-        <button type="button" className="btn btn--secondary btn--lg btn--block" onClick={() => void prepare()}>
+        <button type="button" className="btn btn--secondary btn--lg btn--block" onClick={() => { nonceRequest.current = null; void prepare(); }}>
           <Icon name="log-in" size={18} />Coba masuk dengan Google lagi
         </button>
       )}

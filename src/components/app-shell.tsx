@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { signOut } from '@/app/actions';
 import { Avatar } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/icon';
+import { LoginLink } from '@/components/login-link';
 import { MoreSheet, NavLink, type NavItem } from '@/components/nav';
 import { getClass } from '@/lib/class';
 import { signMany } from '@/lib/storage/sign';
@@ -134,7 +135,7 @@ export async function AppFrame({ children }: { children: ReactNode }) {
               {signOutForm}
             </div>)}
           {userCard}
-          {!loggedIn && <Link data-ui="button" href="/login" className="btn" aria-label="Masuk"><Icon name="log-in" size={18} /><span className="nav-link__text">Masuk</span></Link>}
+          {!loggedIn && <LoginLink data-ui="button" className="btn" aria-label="Masuk"><Icon name="log-in" size={18} /><span className="nav-link__text">Masuk</span></LoginLink>}
         </div>
       </aside>
       <div>
@@ -143,11 +144,11 @@ export async function AppFrame({ children }: { children: ReactNode }) {
       </div>
       <nav data-ui="bottom-nav" className="bottom-nav" aria-label="Navigasi bawah">
         {tabs.map((i) => <NavLink key={i.href} item={i} variant="tab" />)}
-        {guestFits && <Link data-ui="nav-item" href="/login" className="tab"><Icon name="log-in" size={22} /><span>Masuk</span></Link>}
+        {guestFits && <LoginLink data-ui="nav-item" className="tab"><Icon name="log-in" size={22} /><span>Masuk</span></LoginLink>}
         {showMore && (
           <MoreSheet items={overflow}>
             {userCard}
-            {loggedIn ? signOutForm : <Link data-ui="button" href="/login" className="btn"><Icon name="log-in" size={18} />Masuk</Link>}
+            {loggedIn ? signOutForm : <LoginLink data-ui="button" className="btn"><Icon name="log-in" size={18} />Masuk</LoginLink>}
           </MoreSheet>)}
       </nav>
     </div>
