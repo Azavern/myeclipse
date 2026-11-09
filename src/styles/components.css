@@ -711,6 +711,13 @@ dialog[open] { animation: rise var(--t-med); }
 .kb-save-state { display: grid; gap: 2px; margin-right: auto; color: var(--text-2); font-size: var(--fs-sm); }
 .kb-save-state .muted { font-size: var(--fs-xs); }
 .kb-editor__actions { align-items: flex-end; }
+.kb-editor__actions-body { display: flex; flex: 1 1 0; flex-wrap: wrap; align-items: flex-end; justify-content: flex-end; gap: var(--s-3); min-width: 0; }
+.kb-editor__actions-body[hidden] { display: none; }
+.kb-editor__actions-toggle { flex: none; }
+.kb-editor__actions--collapsed { margin-inline: 0; padding: 0; border-top: 0; background: transparent; backdrop-filter: none; }
+.kb-editor__chevron { transition: transform var(--t-fast); }
+.kb-editor__actions--collapsed .kb-editor__chevron { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .kb-editor__chevron { transition: none; } }
 .kb-escalate { margin-top: var(--s-2); }
 .kb-escalate summary { cursor: pointer; }
 .kb-escalate form { margin-top: var(--s-3); }

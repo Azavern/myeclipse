@@ -40,7 +40,8 @@
 .nav-link .nav-badge { margin-left: auto; }
 .tab__icon { position: relative; display: inline-flex; }
 .tab .nav-badge { position: absolute; top: -.3rem; right: -.55rem; }
-.user-card { display: flex; align-items: center; gap: var(--s-3); min-width: 0; padding: var(--s-3); border: var(--border-w-panel) solid var(--border); border-radius: var(--radius-panel); background: var(--surface-2); }
+.user-card { display: flex; align-items: center; gap: var(--s-3); min-width: 0; padding: var(--s-3); border: var(--border-w-panel) solid var(--border); border-radius: var(--radius-panel); background: var(--surface-2); color: var(--text); text-decoration: none; transition: background var(--t-fast), border-color var(--t-fast); }
+.user-card:hover { background: var(--surface-3); border-color: var(--border-strong); text-decoration: none; }
 .user-card__text { display: grid; min-width: 0; line-height: 1.25; }
 .user-card__name { font-weight: 700; font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .user-card__role { color: var(--text-2); font-size: var(--fs-xs); }

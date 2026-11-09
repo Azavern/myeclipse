@@ -111,10 +111,10 @@ export async function AppFrame({ children }: { children: ReactNode }) {
     <form action={signOut}><button data-ui="nav-item" type="submit" className="nav-link nav-link--danger"><Icon name="log-out" size={20} /><span className="nav-link__text">Keluar</span></button></form>
   );
   const userCard = loggedIn && (
-    <div data-ui="panel" className="user-card">
+    <Link href="/settings/profile" data-ui="panel" className="user-card" aria-label="Buka profil saya">
       <Avatar name={userName || '?'} src={avatar} size="md" />
       <span className="user-card__text"><span className="user-card__name">{userName}</span><span className="user-card__role">{me?.role_name ?? 'Belum jadi anggota'}</span></span>
-    </div>
+    </Link>
   );
 
   return (

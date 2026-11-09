@@ -110,6 +110,7 @@ export function KnowledgeEditor({ action, entry, categories, tagSuggestions, bac
   const [preview, setPreview] = useState(true);
   const [online, setOnline] = useState(true);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(true);
   const formRef = useRef<HTMLFormElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const alertRef = useRef<HTMLDivElement>(null);
@@ -417,22 +418,30 @@ export function KnowledgeEditor({ action, entry, categories, tagSuggestions, bac
         </div>
       </div>
 
-      <div className="form__actions form__actions--sticky kb-editor__actions">
-        <div className="kb-save-state" aria-live="polite">
-          {storageFailed ? 'Draf lokal tidak tersedia di perangkat ini.' : pending ? 'Menyimpan…' : dirty
-            ? savedAt ? `Tersimpan di perangkat ini pukul ${timeLabel(savedAt)}` : 'Belum tersimpan di perangkat'
-            : savedAt ? `Draf perangkat pukul ${timeLabel(savedAt)}` : 'Perubahan disimpan otomatis di perangkat ini'}
-          <span className="muted">Draf lokal hanya di perangkat ini, bukan cadangan awan.</span>
-        </div>
-        <Link href={backHref} className="btn btn--secondary">Batal</Link>
-        {isDraft && (
-          <button type="submit" name="intent" value="draft" className="btn btn--secondary" disabled={pending}>
-            <Icon name="archive" size={18} />Simpan draf
+      <div className={cx('form__actions form__actions--sticky kb-editor__actions', !actionsOpen && 'kb-editor__actions--collapsed')}>
+        <div id="kb-editor-actions" className="kb-editor__actions-body" hidden={!actionsOpen}>
+          <div className="kb-save-state" aria-live="polite">
+            {storageFailed ? 'Draf lokal tidak tersedia di perangkat ini.' : pending ? 'Menyimpan…' : dirty
+              ? savedAt ? `Tersimpan di perangkat ini pukul ${timeLabel(savedAt)}` : 'Belum tersimpan di perangkat'
+              : savedAt ? `Draf perangkat pukul ${timeLabel(savedAt)}` : 'Perubahan disimpan otomatis di perangkat ini'}
+            <span className="muted">Draf lokal hanya di perangkat ini, bukan cadangan awan.</span>
+          </div>
+          <Link href={backHref} className="btn btn--secondary">Batal</Link>
+          {isDraft && (
+            <button type="submit" name="intent" value="draft" className="btn btn--secondary" disabled={pending}>
+              <Icon name="archive" size={18} />Simpan draf
+            </button>
+          )}
+          <button type="submit" name="intent" value="publish" className="btn" disabled={pending} aria-busy={pending}>
+            {pending ? <Icon name="loader" size={18} className="spin" /> : <Icon name="check" size={18} />}
+            {pending ? 'Menyimpan…' : entry?.status === 'published' ? 'Simpan perubahan' : entry?.status === 'archived' ? 'Terbitkan lagi' : 'Terbitkan'}
           </button>
-        )}
-        <button type="submit" name="intent" value="publish" className="btn" disabled={pending} aria-busy={pending}>
-          {pending ? <Icon name="loader" size={18} className="spin" /> : <Icon name="check" size={18} />}
-          {pending ? 'Menyimpan…' : entry?.status === 'published' ? 'Simpan perubahan' : entry?.status === 'archived' ? 'Terbitkan lagi' : 'Terbitkan'}
+        </div>
+        <button type="button" className={cx('btn btn--icon kb-editor__actions-toggle', actionsOpen ? 'btn--ghost' : 'btn--secondary')}
+          aria-expanded={actionsOpen} aria-controls="kb-editor-actions" title={actionsOpen ? 'Sembunyikan aksi simpan' : 'Tampilkan aksi simpan'}
+          aria-label={actionsOpen ? 'Sembunyikan aksi simpan' : 'Tampilkan aksi simpan'}
+          onClick={() => setActionsOpen((open) => !open)}>
+          <Icon name="chevron-down" size={18} className="kb-editor__chevron" />
         </button>
       </div>
     </form>

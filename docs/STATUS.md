@@ -445,6 +445,14 @@ Database: migrasi **0001–0033** (`supabase/migrations`), seluruhnya sudah dite
 - **Pemeriksaan.** `typecheck` 0 error, `npm test` **181/181**, `check:tokens` bersih, `build` 47 halaman sukses, dan `git diff --check` bersih.
 - **Belum / batas.** Login Google end-to-end dengan akun Google sungguhan (popup, penukaran token, 2FA) belum dijalankan ulang pada sesi ini; hanya template Neo-Brutalism tersimpan yang diuji visual, bukan Default/Arsip; Firefox/Safari dan perangkat nyata belum diuji. Masih ada pelanggaran inline style attribute kecil di halaman login; atribut itu tidak memengaruhi ukuran logo/tombol dan tidak dibuka dengan `unsafe-inline`.
 
+## Editor Pengetahuan dan kartu profil (10 November 2026)
+
+- **Bilah aksi editor.** Bilah sticky berisi keterangan draf, Batal, Simpan draf, dan Terbitkan kini dapat dilipat dengan tombol chevron 44×44 px di kanan. Tombol memakai `aria-expanded`, `aria-controls="kb-editor-actions"`, label “Sembunyikan/Tampilkan aksi simpan”, dan berubah dari chevron bawah ke atas. Saat ditutup, isi memakai atribut `hidden`; margin, padding, garis atas, latar, dan blur bilah dilepas sehingga tersisa tombol ringkas. Saat dibuka, tombol berbagi baris dengan isi aksi, bukan menambah baris sendiri.
+- **Kartu profil.** Kartu nama/role di sidebar dan sheet “Lainnya” sekarang berupa `<a href="/settings/profile">` dengan label aksesibel “Buka profil saya”. Menekan kartu di sheet menutup dialog lewat perubahan pathname dan membuka halaman profil, sama seperti item “Profil saya”.
+- **Verifikasi.** Produksi `next start`, Chrome headless 390 dan 1280 px dengan sesi `abel`: bilah terbuka 199,8 px di 390 (isi 174,8 px), tertutup **44 px**; di 1280 terbuka 69 px, tertutup 44 px. `aria-expanded` berubah true/false, tiga tombol hilang saat ditutup, dan tidak ada overflow horizontal. Kartu di sheet terukur 366×70 px (390 px) dengan `href="/settings/profile"`; klik membuka `/settings/profile` dan dialog tertutup. Tangkapan/JSON ada di `.tmp-knowledge-ui/` (lokal, tidak di-commit).
+- **Pemeriksaan.** `typecheck` 0 error, `npm test` **181/181**, `check:tokens` bersih, `build` 47 halaman sukses, dan `git diff --check` bersih.
+- **Belum / batas.** Uji keyboard nyata (Tab/Enter) dan pembaca layar belum dijalankan; hanya tema Neo-Brutalism tersimpan, 390/1280 px. Tidak ada perubahan skema atau Server Action.
+
 ## Blueprint vs migrasi (migrasi = sumber kebenaran; blueprint belum diperbarui)
 
 1. `schedules` (0010): `day_of_week`, `start_time`, `end_time`, `semester` (mingguan per semester) menggantikan `start_at/end_at`. Blueprint §5.3, §8.3, §10, §14.2, §19, AC-SCHEDULE masih memakai model bertanggal.
