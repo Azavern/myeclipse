@@ -69,7 +69,7 @@ export function summaryTiles(ov: OverviewCounts): SummaryItem[] {
   if (ov.due_soon_tasks_count !== null) items.push({
     key: 'due', href: '/tasks', icon: ov.due_soon_tasks_count > 0 ? 'alert-triangle' : 'check-circle',
     value: ov.due_soon_tasks_count, label: 'Perlu tindakan', empty: 'Tidak ada tindakan mendesak',
-    note: ov.due_soon_tasks_count > 0 ? `lewat tenggat atau ≤${DUE_SOON_DAYS} hari` : undefined,
+    note: `Lewat tenggat atau ≤${DUE_SOON_DAYS} hari`,
     tone: ov.due_soon_tasks_count > 0 ? 'warning' : 'neutral',
   });
   return items;

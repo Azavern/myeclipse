@@ -159,7 +159,7 @@ describe('Beranda: kuliah dan prioritas tugas', () => {
     expect(items.map((i) => i.key)).toEqual(['members', 'events', 'due']);
     expect(items[0]).toMatchObject({ href: '/members', label: 'Anggota aktif' });
     expect(items[1]).toMatchObject({ empty: 'Tidak ada event mendatang', value: 0 });
-    expect(items[2]).toMatchObject({ href: '/tasks', label: 'Perlu tindakan', tone: 'warning', note: `lewat tenggat atau ≤${DUE_SOON_DAYS} hari` });
+    expect(items[2]).toMatchObject({ href: '/tasks', label: 'Perlu tindakan', tone: 'warning', note: `Lewat tenggat atau ≤${DUE_SOON_DAYS} hari` });
     expect(DUE_SOON_DAYS).toBe(DUE_SOON_HOURS / 24);
     const zero = summaryTiles({ members_count: 0, upcoming_events_count: null, active_tasks_count: null, due_soon_tasks_count: 0 });
     expect(zero[0]).toMatchObject({ value: 0, empty: 'Tidak ada anggota aktif' });

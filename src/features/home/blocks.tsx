@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ExtLink } from '@/components/states';
 import { Icon, type IconName } from '@/components/ui/icon';
+import { Marquee } from '@/components/ui/marquee';
 import { Avatar, Chip, DateBadge, EmptyState, SectionCard, Tile, type Tone } from '@/components/ui/primitives';
 import { activitySummary, deadlineBadge, DUE_SOON_DAYS, homeTaskGroups, memberRoleLabel, nextClass, sessionState, summaryTiles, type SessionState } from '@/features/home/derive';
 import { MemberCard, type MemberItem } from '@/features/members/member-card';
@@ -34,7 +35,14 @@ export function Hero({ name, code, tagline, description, highlight, highlightUrl
   secondary?: { href: string; label: string; icon: IconName } | null;
 }) {
   const hasCover = !!coverUrl;
-  const highlightLink = highlightUrl?.startsWith('https://') ? highlightUrl : null;
+  const highlightText = highlight?.trim() || null;
+  const highlightLink = highlightText && highlightUrl?.startsWith('https://') ? highlightUrl : null;
+  const highlightBody = highlightText ? (
+    <span className="hero__highlight-body">
+      <span className="hero__highlight-label">Sorotan</span>
+      <span className="hero__highlight-text" title={highlightText}>{highlightText}</span>
+    </span>
+  ) : null;
   return (
     <section data-ui="hero" className={cx('hero', hasCover && 'hero--cover', guest && 'hero--guest')} aria-labelledby="class-name">
       {coverUrl && (
@@ -42,23 +50,30 @@ export function Hero({ name, code, tagline, description, highlight, highlightUrl
           <img className="hero__img" src={coverUrl} alt={`Sampul kelas ${name}`} width={1600} height={500} decoding="async" fetchPriority="high" />
         </div>)}
       <div className="hero__body">
-        <p className="hero__meta">
-          {code && <><span className="hero__code">{code}</span><span aria-hidden="true">·</span></>}
-          <span>{todayLabel}</span>
-        </p>
-        <h1 id="class-name" className="hero__title">{name}</h1>
-        {tagline && <p className="hero__tagline">{tagline}</p>}
-        {guest && description && <p className="hero__desc">{description}</p>}
-        {highlight && (highlightLink
-          ? <ExtLink href={highlightLink} className="hero__highlight"><Icon name="pin" size={18} /><span>{highlight}</span></ExtLink>
-          : <p className="hero__highlight"><Icon name="pin" size={18} /><span>{highlight}</span></p>)}
-        {guest && (
-          <div className="hero__actions">
-            <Link data-ui="button" href="/login" className={cx('btn btn--lg', !hasCover && 'btn--onhero-solid')}><Icon name="log-in" size={18} />Masuk ke kelas</Link>
-            {secondary && <Link data-ui="button" href={secondary.href} className={cx('btn btn--lg', hasCover ? 'btn--secondary' : 'btn--onhero')}><Icon name={secondary.icon} size={18} />{secondary.label}</Link>}
-            <Link data-ui="button" href="/qr" className={cx('btn btn--lg', hasCover ? 'btn--secondary' : 'btn--onhero')}><Icon name="qr" size={18} />Buat QR</Link>
-            <Link data-ui="button" href="/inventory/access" className={cx('btn btn--lg', hasCover ? 'btn--secondary' : 'btn--onhero')}><Icon name="key" size={18} />Akses inventory</Link>
-          </div>)}
+        <div className="hero__identity">
+          <div className="hero__identity-main">
+            {code && <p className="hero__code">{code}</p>}
+            <h1 id="class-name" className="hero__title">{name}</h1>
+            {tagline && <p className="hero__tagline">{tagline}</p>}
+            {guest && description && <p className="hero__desc">{description}</p>}
+            {guest && (
+              <div className="hero__actions">
+                <Link data-ui="button" href="/login" className={cx('btn btn--lg', !hasCover && 'btn--onhero-solid')}><Icon name="log-in" size={18} />Masuk ke kelas</Link>
+                {secondary && <Link data-ui="button" href={secondary.href} className={cx('btn btn--lg', hasCover ? 'btn--secondary' : 'btn--onhero')}><Icon name={secondary.icon} size={18} />{secondary.label}</Link>}
+                <Link data-ui="button" href="/qr" className={cx('btn btn--lg', hasCover ? 'btn--secondary' : 'btn--onhero')}><Icon name="qr" size={18} />Buat QR</Link>
+                <Link data-ui="button" href="/inventory/access" className={cx('btn btn--lg', hasCover ? 'btn--secondary' : 'btn--onhero')}><Icon name="key" size={18} />Akses inventory</Link>
+              </div>)}
+          </div>
+          <div className="hero__context">
+            <p className="hero__today">
+              <span className="hero__today-label">Hari ini</span>
+              <span className="hero__today-date"><Icon name="calendar" size={16} />{todayLabel}</span>
+            </p>
+            {highlightBody && (highlightLink
+              ? <ExtLink href={highlightLink} className="hero__highlight hero__highlight--link">{highlightBody}</ExtLink>
+              : <p className="hero__highlight">{highlightBody}</p>)}
+          </div>
+        </div>
       </div>
       {guest && stats && stats.length > 0 && (
         <ul className="hero__stats" aria-label="Ringkasan kelas">
@@ -107,21 +122,22 @@ export function OverviewTiles({ ov }: { ov: Overview }) {
     <section aria-labelledby="h-summary">
       <h2 id="h-summary" className="sr-only">Ringkasan kelas</h2>
       <ul className="sum">
-        {tiles.map((t) => (
-          <li key={t.key}>
-            <Link href={t.href} className={cx('sum__item', t.tone === 'warning' && 'sum__item--warning')}>
-              <span className="sum__icon"><Icon name={t.icon} size={20} /></span>
-              <span className="sum__body">
-                {t.value === 0
-                  ? <span className="sum__empty">{t.empty}</span>
-                  : <>
-                    <span className="sum__value">{t.value}</span>
-                    <span className="sum__label">{t.label}</span>
-                    {t.note && <span className="sum__note">{t.note}</span>}
-                  </>}
-              </span>
-            </Link>
-          </li>))}
+        {tiles.map((t) => {
+          const empty = t.value === 0;
+          return (
+            <li key={t.key}>
+              <Link href={t.href} className={cx('sum__item', t.tone === 'warning' && 'sum__item--warning', t.key === 'due' && 'sum__item--due')}>
+                <span className="sum__icon"><Icon name={t.icon} size={20} /></span>
+                <span className="sum__body">
+                  {empty && <span className="sum__empty">{t.empty}</span>}
+                  <span className={cx('sum__value', empty && 'sum__value--empty')}>{t.value}</span>
+                  <span className={cx('sum__label', empty && 'sum__label--empty')}><Marquee>{t.label}</Marquee></span>
+                  {t.note && <span className={cx('sum__note', empty && 'sum__note--empty')}><Marquee>{t.note}</Marquee></span>}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );
@@ -133,6 +149,27 @@ const SESSION_UI: Record<SessionState, { label: string; icon: IconName }> = {
   next: { label: 'Berikutnya', icon: 'clock' },
 };
 
+// Aksi "Semua …" di kepala SectionCard. Di ponsel labelnya dipendekkan menjadi "Semua"
+// agar judul section mendapat ruang; nama aksesibel lengkap tetap berasal dari aria-label.
+export function SectionLink({ href, label, short = 'Semua' }: { href: string; label: string; short?: string }) {
+  return (
+    <Link data-ui="button" href={href} aria-label={label} className="btn btn--ghost btn--sm scard__link">
+      <span className="scard__link-long">{label}</span>
+      <span className="scard__link-short" aria-hidden="true">{short}</span>
+      <Icon name="arrow-right" size={16} />
+    </Link>
+  );
+}
+
+export function SectionFoot({ href, label }: { href: string; label: string }) {
+  return (
+    <Link href={href} className="tmore scard__foot">
+      <Marquee>{label}</Marquee>
+      <Icon name="arrow-right" size={16} />
+    </Link>
+  );
+}
+
 export function ScheduleBlock({ rows, all, tz, now, dayName, day }: {
   rows: ScheduleItem[]; all: ScheduleItem[]; tz: string; now: Date; dayName: string; day: number;
 }) {
@@ -140,8 +177,9 @@ export function ScheduleBlock({ rows, all, tz, now, dayName, day }: {
   const hasUpcoming = states.some((state) => state !== 'done');
   const upcoming = hasUpcoming ? null : nextClass(all, day, now);
   return (
-    <SectionCard id="h-sched" icon="calendar-clock" title="Kuliah hari ini" meta={`${dayName} (${zoneLabel(tz)})`} flush
-      action={<Link data-ui="button" href="/schedule" className="btn btn--ghost btn--sm">Semua jadwal<Icon name="arrow-right" size={16} /></Link>}>
+    <SectionCard id="h-sched" icon="calendar-clock" title={<Marquee>Kuliah hari ini</Marquee>} meta={<Marquee>{`${dayName} (${zoneLabel(tz)})`}</Marquee>} flush
+      className="scard--mobile-foot" action={<SectionLink href="/schedule" label="Semua jadwal" />}
+      footer={<SectionFoot href="/schedule" label="Lihat semua jadwal" />}>
       {hasUpcoming
         ? (
           <ol className="sched">
@@ -163,20 +201,26 @@ export function ScheduleBlock({ rows, all, tz, now, dayName, day }: {
           </ol>)
         : upcoming
           ? (
-            <p className="nextclass">
+            <div className="nextclass">
               <Icon name="calendar-clock" size={18} />
-              <span><span className="nextclass__label">Kuliah berikutnya:</span> {formatWeekdayDate(upcoming.at.toISOString(), tz)} · {hm(upcoming.row.start_time)} — <strong>{upcoming.row.title}</strong></span>
-            </p>)
+              <div className="nextclass__body">
+                <span className="nextclass__label">Kuliah berikutnya<span className="nextclass__sep">:</span></span>{' '}
+                <span className="nextclass__when">{formatWeekdayDate(upcoming.at.toISOString(), tz)} · {hm(upcoming.row.start_time)}</span>
+                <span className="nextclass__sep" aria-hidden="true"> — </span>
+                <strong className="nextclass__title">{upcoming.row.title}</strong>
+              </div>
+            </div>)
           : <EmptyState slim icon="calendar" title="Tidak ada jadwal">Jadwal kuliah semester ini belum diisi.</EmptyState>}
     </SectionCard>
   );
 }
 
-function HomeTaskGroup({ id, title, tone, items, tz, now }: {
-  id: string; title: string; tone: 'warning' | 'danger'; items: TaskItem[]; tz: string; now: Date;
+function HomeTaskGroup({ id, title, tone, items, tz, now, mobileHidden }: {
+  id: string; title: string; tone: 'warning' | 'danger'; items: TaskItem[]; tz: string; now: Date; mobileHidden: ReadonlySet<string>;
 }) {
+  const hiddenOnMobile = items.every((t) => mobileHidden.has(t.id));
   return (
-    <section className={cx('tgroup', `tgroup--${tone}`)} aria-labelledby={id}>
+    <section className={cx('tgroup', `tgroup--${tone}`, hiddenOnMobile && 'tgroup--mobile-hidden')} aria-labelledby={id}>
       <h3 id={id} className="tgroup__head">
         <Icon name={tone === 'danger' ? 'alert-triangle' : 'hourglass'} size={16} />
         <span>{title}</span>
@@ -184,13 +228,13 @@ function HomeTaskGroup({ id, title, tone, items, tz, now }: {
       </h3>
       <ul className="tgroup__list">
         {items.map((t) => (
-          <li key={t.id} className="htask">
+          <li key={t.id} className={cx('htask', mobileHidden.has(t.id) && 'htask--mobile-hidden')}>
             <Link href={`/tasks/${t.id}`} className="htask__row">
               <span className="htask__main">
                 <span className="htask__title">{t.title}</span>
-                <span className="meta">
-                  <span><Icon name="book" size={14} />{t.course ?? 'Tanpa mata kuliah'}</span>
-                  <span><Icon name="clock" size={14} />{formatWhen(t.deadline, tz)}</span>
+                <span className="meta htask__meta">
+                  <span className="htask__course"><Icon name="book" size={14} />{t.course ?? 'Tanpa mata kuliah'}</span>
+                  <span className="htask__deadline"><Icon name="clock" size={14} />{formatWhen(t.deadline, tz)}</span>
                 </span>
               </span>
               <Chip tone={tone === 'danger' ? 'error' : 'warning'} icon={tone === 'danger' ? 'alert-triangle' : 'hourglass'}>{deadlineBadge(t.deadline, now)}</Chip>
@@ -204,9 +248,12 @@ function HomeTaskGroup({ id, title, tone, items, tz, now }: {
 export function TasksBlock({ rows, tz, now }: { rows: TaskItem[]; tz: string; now: Date }) {
   const { soon, overdue, hidden } = homeTaskGroups(rows, now);
   const urgent = soon.length + overdue.length;
+  const visibleTasks = [...soon, ...overdue];
+  const mobileHidden = new Set(visibleTasks.slice(3).map((t) => t.id));
   return (
-    <SectionCard id="h-tasks" icon="tasks" title="Tugas" flush
-      action={<Link data-ui="button" href="/tasks" className="btn btn--ghost btn--sm">Semua tugas<Icon name="arrow-right" size={16} /></Link>}>
+    <SectionCard id="h-tasks" icon="tasks" title={<Marquee>Tugas</Marquee>} flush
+      className="scard--mobile-foot" action={<SectionLink href="/tasks" label="Semua tugas" />}
+      footer={<SectionFoot href="/tasks" label={`Lihat semua ${rows.length} tugas`} />}>
       {urgent === 0
         ? (
           <EmptyState slim icon="check-circle" title={rows.length === 0 ? 'Tidak ada tugas aktif' : 'Tidak ada tugas mendesak'}>
@@ -214,9 +261,9 @@ export function TasksBlock({ rows, tz, now }: { rows: TaskItem[]; tz: string; no
           </EmptyState>)
         : (
           <>
-            {soon.length > 0 && <HomeTaskGroup id="h-tasks-warning" title="Segera berakhir" tone="warning" items={soon} tz={tz} now={now} />}
-            {overdue.length > 0 && <HomeTaskGroup id="h-tasks-overdue" title="Lewat tenggat" tone="danger" items={overdue} tz={tz} now={now} />}
-            {hidden > 0 && <Link href="/tasks" className="tmore">+{hidden} lainnya<Icon name="arrow-right" size={16} /></Link>}
+            {soon.length > 0 && <HomeTaskGroup id="h-tasks-warning" title="Segera berakhir" tone="warning" items={soon} tz={tz} now={now} mobileHidden={mobileHidden} />}
+            {overdue.length > 0 && <HomeTaskGroup id="h-tasks-overdue" title="Lewat tenggat" tone="danger" items={overdue} tz={tz} now={now} mobileHidden={mobileHidden} />}
+            {hidden > 0 && <Link href="/tasks" className="tmore tmore--desktop">+{hidden} lainnya<Icon name="arrow-right" size={16} /></Link>}
           </>)}
     </SectionCard>
   );
@@ -224,8 +271,9 @@ export function TasksBlock({ rows, tz, now }: { rows: TaskItem[]; tz: string; no
 
 export function EventsBlock({ rows, tz, now }: { rows: EventItem[]; tz: string; now: Date }) {
   return (
-    <SectionCard id="h-events" icon="calendar-days" title="Event mendatang" flush
-      action={<Link data-ui="button" href="/events" className="btn btn--ghost btn--sm">Semua event<Icon name="arrow-right" size={16} /></Link>}>
+    <SectionCard id="h-events" icon="calendar-days" title={<Marquee>Event mendatang</Marquee>} flush
+      className="scard--mobile-foot" action={<SectionLink href="/events" label="Semua event" />}
+      footer={<SectionFoot href="/events" label="Lihat semua event" />}>
       {rows.length === 0
         ? <EmptyState slim icon="calendar-days" title="Belum ada event mendatang">Kegiatan kelas akan muncul di sini.</EmptyState>
         : (
@@ -252,26 +300,38 @@ export function EventsBlock({ rows, tz, now }: { rows: EventItem[]; tz: string; 
 export function ActivityBlock({ rows }: { rows: ActivityWeek[] }) {
   const total = rows.reduce((a, r) => a + r.activity_count, 0);
   const max = Math.max(1, ...rows.map((r) => r.activity_count));
+  const chart = (
+    <>
+      <div role="img" aria-label={activitySummary(rows)}>
+        <ol className="bars" aria-hidden="true">
+          {rows.map((r, i) => (
+            <li key={r.week_start}>
+              <span className="bars__val">{r.activity_count}</span>
+              <span className="bars__track" aria-hidden="true">
+                <span className={cx('bars__bar', `pct-${Math.round((r.activity_count / max) * 20) * 5}`, i === rows.length - 1 && 'bars__bar--now')} />
+              </span>
+              <span className={cx('bars__lab', i === rows.length - 1 && 'bars__lab--now')}>{i === rows.length - 1 ? 'Pekan ini' : formatShortDate(r.week_start)}</span>
+            </li>))}
+        </ol>
+      </div>
+      <p className="muted activity-note">{total} aktivitas tercatat dalam {rows.length} pekan.</p>
+      <p className="chart__note">Pekan dimulai Senin.</p>
+    </>
+  );
   return (
-    <SectionCard id="h-act" icon="activity" title={`Aktivitas ${rows.length} pekan terakhir`}>
+    <SectionCard id="h-act" icon="activity" title={<Marquee>{`Aktivitas ${rows.length} pekan terakhir`}</Marquee>}>
       {total === 0
         ? <EmptyState slim icon="activity" title="Belum ada aktivitas">Aktivitas jadwal, tugas, dan event akan tercatat di sini.</EmptyState>
         : (
           <>
-            <div role="img" aria-label={activitySummary(rows)}>
-              <ol className="bars" aria-hidden="true">
-                {rows.map((r, i) => (
-                  <li key={r.week_start}>
-                    <span className="bars__val">{r.activity_count}</span>
-                    <span className="bars__track" aria-hidden="true">
-                      <span className={cx('bars__bar', `pct-${Math.round((r.activity_count / max) * 20) * 5}`, i === rows.length - 1 && 'bars__bar--now')} />
-                    </span>
-                    <span className={cx('bars__lab', i === rows.length - 1 && 'bars__lab--now')}>{i === rows.length - 1 ? 'Pekan ini' : formatShortDate(r.week_start)}</span>
-                  </li>))}
-              </ol>
-            </div>
-            <p className="muted">{total} aktivitas tercatat dalam {rows.length} pekan.</p>
-            <p className="chart__note">Pekan dimulai Senin.</p>
+            <div className="act-desktop">{chart}</div>
+            <details className="act-disclosure">
+              <summary className="act-disclosure__summary">
+                <span>{total} aktivitas dalam {rows.length} pekan</span>
+                <Icon name="chevron-down" size={18} className="act-disclosure__chevron" />
+              </summary>
+              <div className="act-disclosure__body">{chart}</div>
+            </details>
           </>) }
     </SectionCard>
   );
@@ -291,8 +351,9 @@ export function MembersBlock({ rows, avatars, large }: { rows: MemberItem[]; ava
     );
   }
   return (
-    <SectionCard id="h-members" icon="users" title="Anggota terbaru" flush
-      action={<Link data-ui="button" href="/members" className="btn btn--ghost btn--sm">Semua anggota<Icon name="arrow-right" size={16} /></Link>}>
+    <SectionCard id="h-members" icon="users" title={<Marquee>Anggota terbaru</Marquee>} flush
+      className="scard--mobile-foot" action={<SectionLink href="/members" label="Semua anggota" />}
+      footer={<SectionFoot href="/members" label="Lihat semua anggota" />}>
       <ul className="mgrid">
         {rows.slice(0, 12).map((m) => {
           const role = memberRoleLabel(m.role_name);

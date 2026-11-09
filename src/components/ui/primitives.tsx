@@ -83,10 +83,11 @@ export function PageHeader({ icon, title, description, actions, crumbs, id = 'pa
     </>
   );
 }
-// Kartu berjudul dengan satu resep kepala: tinggi minimal 3.5rem, ikon + judul + meta opsional,
-// aksi di kanan, dan garis pemisah yang selalu ada. Judul yang dipotong, bukan tautan aksinya.
-export function SectionCard({ id, title, icon, meta, action, flush, children, className }: {
-  id: string; title: ReactNode; icon: IconName; meta?: ReactNode; action?: ReactNode;
+// Kartu berjudul dengan satu resep kepala: tinggi minimal 3.5rem (3rem di mobile), ikon + judul +
+// meta opsional, aksi di kanan, dan garis pemisah yang selalu ada. Desktop memotong judul;
+// di mobile judul membungkus dan meta turun ke baris kedua.
+export function SectionCard({ id, title, icon, meta, action, footer, flush, children, className }: {
+  id: string; title: ReactNode; icon: IconName; meta?: ReactNode; action?: ReactNode; footer?: ReactNode;
   flush?: boolean; children: ReactNode; className?: string;
 }) {
   return (
@@ -100,6 +101,7 @@ export function SectionCard({ id, title, icon, meta, action, flush, children, cl
         {action && <div className="scard__action" data-ui="section-action">{action}</div>}
       </div>
       <div className={cx('scard__body', flush && 'scard__body--flush')}>{children}</div>
+      {footer}
     </section>
   );
 }
