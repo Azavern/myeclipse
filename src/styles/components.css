@@ -318,10 +318,10 @@ dialog[open] { animation: rise var(--t-med); }
 @media (min-width: 640px) { .hero--cover .hero__body { padding: var(--s-4) var(--s-5); } }
 .hero__body { display: grid; gap: var(--s-3); align-content: start; min-width: 0; }
 .hero__identity { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-3); min-width: 0; }
+.hero__lead { display: grid; gap: var(--s-3); align-content: start; min-width: 0; }
 .hero__identity-main { display: grid; gap: var(--s-2); align-content: start; min-width: 0; }
 .hero__context { display: grid; gap: var(--s-3); align-content: start; min-width: 0; }
-.hero__code { color: var(--text-2); font-family: var(--font-mono); font-size: var(--fs-sm); font-weight: 700; line-height: 1.4; letter-spacing: .01em; overflow-wrap: anywhere; }
-.hero:not(.hero--cover) .hero__code { color: inherit; opacity: .86; }
+.hero__side { display: grid; gap: var(--s-3); align-content: start; min-width: 0; }
 .hero__today { display: grid; gap: 2px; }
 .hero__today-label { color: var(--text-2); font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 700; letter-spacing: .04em; line-height: 1.3; text-transform: uppercase; }
 .hero__today-date { display: flex; align-items: center; gap: var(--s-2); color: var(--text); font-size: var(--fs-sm); font-weight: 600; line-height: 1.4; white-space: nowrap; }
@@ -342,17 +342,26 @@ dialog[open] { animation: rise var(--t-med); }
 @media (min-width: 1024px) {
   .hero--cover .hero__identity { grid-template-columns: minmax(0, 1fr) var(--hero-context-min); gap: var(--s-5); }
   .hero--cover .hero__context { padding-left: var(--s-5); border-left: var(--border-w-panel) solid var(--border); }
+  .hero--cover.hero--guest .hero__side { padding-left: var(--s-5); border-left: var(--border-w-panel) solid var(--border); }
+  .hero--cover.hero--guest .hero__context { padding-left: 0; border-left: 0; }
+  .hero--cover.hero--guest .hero__actions { flex-direction: column; align-items: stretch; width: 100%; }
 }
 @media (min-width: 1280px) {
   .hero--cover .hero__identity { grid-template-columns: minmax(0, 1fr) var(--hero-context-w); }
 }
-.hero__actions { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; margin-top: var(--s-1); }
+.hero__actions { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; }
 @media (max-width: 639px) { .hero__actions .btn { flex: 1 1 100%; } }
 .hero__stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr)); gap: var(--s-2); }
-.hero--cover .hero__stats { padding: 0 var(--s-4) var(--s-4); }
-@media (min-width: 640px) { .hero--cover .hero__stats { padding: 0 var(--s-5) var(--s-5); } }
-/* Hero tamu tanpa sampul: teks dan panel ringkasan berdampingan di layar lebar. */
-@media (min-width: 900px) { .hero--guest:not(.hero--cover) { grid-template-columns: minmax(0, 1fr) minmax(16rem, 23rem); align-items: end; gap: var(--s-6); } }
+/* Hero tamu tanpa sampul: identitas dan aksi di kiri, ringkasan di kanan. Empat tombol
+   vertikal mengisi lebar kolom kiri; statistik berada tepat di bawah sorotan. */
+@media (min-width: 900px) {
+  .hero--guest:not(.hero--cover) .hero__identity {
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 23rem);
+    align-items: start;
+    column-gap: var(--s-6);
+  }
+  .hero--guest:not(.hero--cover) .hero__actions { flex-direction: column; align-items: stretch; width: 100%; }
+}
 .hero--guest::after { content: ''; position: absolute; z-index: -1; top: -9rem; right: -7rem; width: 26rem; height: 26rem; border-radius: var(--r-full); border: 1px solid rgb(255 255 255 / .16); box-shadow: 0 0 0 3.5rem rgb(255 255 255 / .05), 0 0 0 8rem rgb(255 255 255 / .035); pointer-events: none; }
 .hero--cover.hero--guest::after { display: none; }
 .hero__stat { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: 'icon value' 'icon label'; align-items: center; column-gap: var(--s-2); padding: var(--s-3); border: 1px solid rgb(255 255 255 / .26); border-radius: var(--r-lg); background: rgb(255 255 255 / .12); backdrop-filter: blur(8px); }

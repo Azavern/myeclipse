@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { NoAccess } from '@/components/states';
 import { ActivityBlock, EventsBlock, ExploreBlock, Hero, MembersBlock, OverviewTiles, ScheduleBlock, TasksBlock,
   overviewTiles, type ActivityWeek, type EventItem, type ExploreItem, type Overview, type ScheduleItem } from '@/features/home/blocks';
-import { HOME_REGIONS, type HomeBlock } from '@/features/home/layouts';
+import { HOME_REGIONS, type HomeBlock, type HomeRegion } from '@/features/home/layouts';
 import type { MemberItem } from '@/features/members/member-card';
 import type { TaskItem } from '@/features/tasks/task-row';
 import { getClass } from '@/lib/class';
@@ -78,7 +78,7 @@ export default async function Home() {
     identity: show('section.home.identity')
       ? (
         <div className="stack">
-          <Hero name={id.name} code={cls?.code ?? null} tagline={id.tagline} description={id.description} highlight={id.highlight_text}
+          <Hero name={id.name} tagline={id.tagline} description={id.description} highlight={id.highlight_text}
             highlightUrl={id.highlight_url} coverUrl={id.cover_path ? cover.get(id.cover_path) : undefined}
             todayLabel={formatDay(now.toISOString(), tz)} guest={guest} stats={heroStats} secondary={secondary} />
           {guestLinks.length > 0 && <ExploreBlock items={guestLinks} />}
@@ -93,7 +93,14 @@ export default async function Home() {
       ? <MembersBlock rows={members} avatars={avatars} large={layout === 'profile_focused'} />
       : null,
   };
-  const region = HOME_REGIONS[layout];
+  const baseRegion = HOME_REGIONS[layout];
+  // Tamu tidak punya kartu tugas/KPI yang mengisi kolom utama seperti anggota.
+  // Di desktop, Event dan Aktivitas ikut kolom utama agar tidak menyisakan kolom
+  // kiri kosong; Anggota tetap menjadi rail. Urutan mobile tetap sama karena
+  // Event/Aktivitas memang sudah tampil sebelum Anggota.
+  const region: HomeRegion = guest && layout === 'standard'
+    ? { ...baseRegion, main: ['schedule', 'tasks', 'overview', 'events', 'activity'], rail: [], wide: ['members'] }
+    : baseRegion;
   const renderRegion = (keys: HomeBlock[], className?: string) => keys.map((key) => {
     const node = blocks[key];
     return node ? <div key={key} className={className}>{node}</div> : null;

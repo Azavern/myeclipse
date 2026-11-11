@@ -17,7 +17,7 @@ const task = (i: number): TaskItem => ({
 });
 
 const hero = (props: Partial<Parameters<typeof Hero>[0]>) => renderToStaticMarkup(createElement(Hero, {
-  name: 'Kelas', code: 'ECL', tagline: null, highlight: null, highlightUrl: null,
+  name: 'Kelas', tagline: null, highlight: null, highlightUrl: null,
   todayLabel: 'Senin, 9 November 2026', guest: false, ...props,
 }));
 
@@ -26,6 +26,17 @@ const tasks = (count: number) => renderToStaticMarkup(createElement(TasksBlock, 
 }));
 
 describe('hero sorotan', () => {
+  it('tidak menampilkan kode kelas dan menyusun statistik tamu di rail', () => {
+    const html = hero({
+      guest: true,
+      stats: [{ icon: 'users', value: 19, label: 'Anggota aktif', tone: 'brand' }],
+    });
+    expect(html).not.toContain('hero__code');
+    expect(html).toContain('hero__side');
+    expect(html.indexOf('hero__actions')).toBeLessThan(html.indexOf('hero__side'));
+    expect(html.indexOf('hero__side')).toBeLessThan(html.indexOf('Anggota aktif'));
+  });
+
   it('tidak merender callout saat highlight_text kosong', () => {
     const html = hero({ highlight: '   ', highlightUrl: 'https://example.com' });
     expect(html).not.toContain('hero__highlight');

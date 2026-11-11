@@ -30,8 +30,8 @@ export function overviewTiles(ov: Overview): OverviewTile[] {
   return tiles;
 }
 
-export function Hero({ name, code, tagline, description, highlight, highlightUrl, coverUrl, todayLabel, guest, stats, secondary }: {
-  name: string; code?: string | null; tagline: string | null; description?: string | null; highlight: string | null; highlightUrl: string | null;
+export function Hero({ name, tagline, description, highlight, highlightUrl, coverUrl, todayLabel, guest, stats, secondary }: {
+  name: string; tagline: string | null; description?: string | null; highlight: string | null; highlightUrl: string | null;
   coverUrl?: string; todayLabel: string; guest: boolean; stats?: OverviewTile[];
   secondary?: { href: string; label: string; icon: IconName } | null;
 }) {
@@ -44,6 +44,27 @@ export function Hero({ name, code, tagline, description, highlight, highlightUrl
       <span className="hero__highlight-text" title={highlightText}>{highlightText}</span>
     </span>
   ) : null;
+  const context = (
+    <div className="hero__context">
+      <p className="hero__today">
+        <span className="hero__today-label">Hari ini</span>
+        <span className="hero__today-date"><Icon name="calendar" size={16} />{todayLabel}</span>
+      </p>
+      {highlightBody && (highlightLink
+        ? <ExtLink href={highlightLink} className="hero__highlight hero__highlight--link">{highlightBody}</ExtLink>
+        : <p className="hero__highlight">{highlightBody}</p>)}
+    </div>
+  );
+  const statsList = guest && stats && stats.length > 0 ? (
+    <ul className="hero__stats" aria-label="Ringkasan kelas">
+      {stats.map((s) => (
+        <li key={s.label} className="hero__stat">
+          <span className="hero__stat-icon"><Icon name={s.icon} size={18} /></span>
+          <span className="hero__stat-value">{s.value}</span>
+          <span className="hero__stat-label">{s.label}</span>
+        </li>))}
+    </ul>
+  ) : null;
   return (
     <section data-ui="hero" className={cx('hero', hasCover && 'hero--cover', guest && 'hero--guest')} aria-labelledby="class-name">
       {coverUrl && (
@@ -52,11 +73,12 @@ export function Hero({ name, code, tagline, description, highlight, highlightUrl
         </div>)}
       <div className="hero__body">
         <div className="hero__identity">
-          <div className="hero__identity-main">
-            {code && <p className="hero__code">{code}</p>}
-            <h1 id="class-name" className="hero__title">{name}</h1>
-            {tagline && <p className="hero__tagline">{tagline}</p>}
-            {guest && description && <p className="hero__desc">{description}</p>}
+          <div className="hero__lead">
+            <div className="hero__identity-main">
+              <h1 id="class-name" className="hero__title">{name}</h1>
+              {tagline && <p className="hero__tagline">{tagline}</p>}
+              {guest && description && <p className="hero__desc">{description}</p>}
+            </div>
             {guest && (
               <div className="hero__actions">
                 <LoginLink data-ui="button" className={cx('btn btn--lg', !hasCover && 'btn--onhero-solid')}><Icon name="log-in" size={18} />Masuk ke kelas</LoginLink>
@@ -65,26 +87,14 @@ export function Hero({ name, code, tagline, description, highlight, highlightUrl
                 <Link data-ui="button" href="/inventory/access" className={cx('btn btn--lg', hasCover ? 'btn--secondary' : 'btn--onhero')}><Icon name="key" size={18} />Akses inventory</Link>
               </div>)}
           </div>
-          <div className="hero__context">
-            <p className="hero__today">
-              <span className="hero__today-label">Hari ini</span>
-              <span className="hero__today-date"><Icon name="calendar" size={16} />{todayLabel}</span>
-            </p>
-            {highlightBody && (highlightLink
-              ? <ExtLink href={highlightLink} className="hero__highlight hero__highlight--link">{highlightBody}</ExtLink>
-              : <p className="hero__highlight">{highlightBody}</p>)}
-          </div>
+          {guest ? (
+            <div className="hero__side">
+              {context}
+              {statsList}
+            </div>
+          ) : context}
         </div>
       </div>
-      {guest && stats && stats.length > 0 && (
-        <ul className="hero__stats" aria-label="Ringkasan kelas">
-          {stats.map((s) => (
-            <li key={s.label} className="hero__stat">
-              <span className="hero__stat-icon"><Icon name={s.icon} size={18} /></span>
-              <span className="hero__stat-value">{s.value}</span>
-              <span className="hero__stat-label">{s.label}</span>
-            </li>))}
-        </ul>)}
     </section>
   );
 }
