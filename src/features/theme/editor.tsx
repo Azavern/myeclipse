@@ -1,5 +1,5 @@
 'use client';
-import { useActionState, useEffect, useRef, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { Icon } from '@/components/ui/icon';
 import { Chip, Notice, Tile } from '@/components/ui/primitives';
 import { cx } from '@/lib/cx';
@@ -46,7 +46,7 @@ export function ThemeEditor({ initial, action, fontClasses, templateFontClasses 
 }) {
   const [t, setT] = useState<Theme>(() => ({ ...initial, template: themeTemplate(initial) })); // pratinjau = state lokal, belum disimpan (A-12)
   const [state, act, pending] = useActionState(action, null);
-  const previewRef = useRef<HTMLDivElement>(null);
+  const [nonce, setNonce] = useState('');
 
   const template = themeTemplate(t);
   const previewFont = template === 'default' ? fontClasses[t.font_preset] : templateFontClasses[template];
@@ -55,12 +55,16 @@ export function ThemeEditor({ initial, action, fontClasses, templateFontClasses 
   const failing = report.filter((r) => !r.ok);
   const canSave = hexOk && ThemeSchema.safeParse(t).success && !pending;
 
-  // Pratinjau memakai variabel tema yang dipasang lewat CSSOM (bukan atribut style) agar sesuai CSP.
+  // CSP menolak perubahan CSSOM (style.setProperty). Pratinjau karena itu memakai stylesheet bernonce
+  // yang dicakup ke elemen pratinjau, sehingga warna berubah tanpa atribut style inline.
+  // Nonce dibaca dari stylesheet root, bukan dari request halaman: navigasi <Link> memakai dokumen
+  // yang sama dan nonce request RSC yang baru tidak akan cocok dengan CSP dokumen.
   useEffect(() => {
-    const el = previewRef.current;
-    if (!el || !hexOk) return;
-    for (const [k, v] of Object.entries(themeVars(t.palette))) el.style.setProperty(k, v);
-  }, [t.palette, hexOk]);
+    setNonce(document.querySelector<HTMLElement>('style[nonce]')?.nonce ?? '');
+  }, []);
+  const previewCss = hexOk
+    ? `.preview.theme-scope.theme-preview__surface{${Object.entries(themeVars(t.palette)).map(([k, v]) => `${k}:${v};`).join('')}}`
+    : '';
 
   const setColor = (k: (typeof PALETTE_KEYS)[number], v: string) => setT((cur) => ({ ...cur, palette: { ...cur.palette, [k]: v } }));
   const chooseTemplate = (id: ThemeTemplate) => {
@@ -75,8 +79,9 @@ export function ThemeEditor({ initial, action, fontClasses, templateFontClasses 
       {template !== 'default' && <input type="hidden" name="font_preset" value={t.font_preset} />}
       {/* Pratinjau menempel di atas saat menggulir (layar ≥768px) supaya perubahan warna langsung terlihat. */}
       <section className="theme-preview" aria-label="Pratinjau tema, belum dipublikasikan">
+        {previewCss && nonce && <style key={nonce} nonce={nonce}>{previewCss}</style>}
         {/* data-preview menahan grain global agar tidak menutupi halaman editor. */}
-        <div data-ui="panel" data-template={template} data-preview ref={previewRef} className={cx('preview theme-scope', previewFont)} aria-hidden="true" inert>
+        <div data-ui="panel" data-template={template} data-preview className={cx('preview', 'theme-scope', 'theme-preview__surface', previewFont)} aria-hidden="true" inert>
           <div className="preview__bar"><Tile icon="cap" size="sm" />Kelas contoh<Chip tone="outline">Pratinjau</Chip></div>
           <div className="preview__body preview__body--row">
             <div className="stack stack--sm">

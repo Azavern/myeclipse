@@ -8,12 +8,14 @@ import { activitySummary, deadlineBadge, DUE_SOON_DAYS, homeTaskGroups, memberRo
 import { MemberCard, type MemberItem } from '@/features/members/member-card';
 import type { TaskItem } from '@/features/tasks/task-row';
 import { cx } from '@/lib/cx';
+import { formatRupiah } from '@/lib/kas/format';
 import { formatClock, formatShortDate, formatWeekdayDate, formatWhen, hm, relativeTime, zoneLabel } from '@/lib/time';
 
 export type ScheduleItem = { id: string; title: string; start_time: string; end_time: string; location: string | null; type: 'class' | 'activity'; day_of_week: number };
 export type EventItem = { id: string; title: string; start_at: string; location: string | null };
 export type Overview = { members_count: number | null; upcoming_events_count: number | null; active_tasks_count: number | null; due_soon_tasks_count: number | null };
 export type ActivityWeek = { week_start: string; activity_count: number };
+export type KasHomeSummary = { balance: number; own_unpaid: number; own_pending: number };
 
 export type OverviewTile = { icon: IconName; value: number; label: string; tone: Tone };
 
@@ -344,6 +346,27 @@ export function ActivityBlock({ rows }: { rows: ActivityWeek[] }) {
               <div className="act-disclosure__body">{chart}</div>
             </details>
           </>) }
+    </SectionCard>
+  );
+}
+
+export function KasBlock({ summary }: { summary: KasHomeSummary }) {
+  return (
+    <SectionCard id="h-kas" icon="wallet" title={<Marquee>Kas kelas</Marquee>}
+      action={<SectionLink href="/kas" label="Buka kas" />}
+      footer={<SectionFoot href="/kas" label="Lihat rincian kas" />}>
+      <div className="kas-home">
+        <div>
+          <span className="kas-home__label">Saldo kas</span>
+          <strong className={cx('kas-home__balance', summary.balance < 0 && 'kas-home__balance--negative')}>
+            {formatRupiah(summary.balance)}
+          </strong>
+        </div>
+        <div className="kas-home__notes">
+          <span><b>{summary.own_unpaid}</b> iuran belum dibayar</span>
+          <span><b>{summary.own_pending}</b> menunggu verifikasi</span>
+        </div>
+      </div>
     </SectionCard>
   );
 }

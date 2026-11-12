@@ -1263,3 +1263,53 @@ a.library-nav__image:hover { border-color: var(--brand); background: var(--surfa
   .marquee--overflow .marquee__text { padding-inline-end: 0; }
   .marquee--overflow .marquee__text[aria-hidden=true] { display: none; }
 }
+
+/* Kas kelas --------------------------------------------------------------------------------- */
+.kas-summary { margin-block: var(--s-5) var(--s-6); }
+.kas-section { margin-block: var(--s-5); padding: var(--s-4); border: var(--border-w-panel) solid var(--border-strong); border-radius: var(--radius-panel); background: var(--surface); }
+@media (min-width: 640px) { .kas-section { padding: var(--s-5); } }
+.kas-layout .kas-section { margin-block: 0; }
+.kas-layout { display: grid; gap: var(--s-6); align-items: start; }
+.kas-main, .kas-aside { display: grid; gap: var(--s-6); min-width: 0; }
+@media (min-width: 1100px) {
+  .kas-layout { grid-template-columns: minmax(0, 1.6fr) minmax(20rem, .9fr); }
+}
+.kas-bill { display: grid; gap: var(--s-3); }
+.kas-bill__head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--s-3); }
+.kas-bill__head h3 { margin: 0; }
+.kas-bill__amount { font: 800 var(--fs-stat)/1.1 var(--font-head); font-variant-numeric: tabular-nums; }
+.kas-bill__actions { display: flex; flex-wrap: wrap; gap: var(--s-2); padding-top: var(--s-3); border-top: 1px solid var(--border); }
+.kas-amount { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kas-note { color: var(--text-2); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.kas-evidence { display: inline-flex; width: fit-content; align-items: center; min-height: 2rem; color: var(--brand-strong); font-size: var(--fs-sm); font-weight: 600; }
+.kas-evidence:hover { text-decoration: underline; }
+.kas-pending .row__meta, .kas-tx .row__meta { color: var(--text-2); font-size: var(--fs-sm); }
+.kas-pending__actions { align-items: flex-end; }
+.kas-tx__amount { font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.kas-tx__amount--income { color: var(--success-text); }
+.kas-tx__actions { align-items: flex-end; }
+.kas-qris img { display: block; width: 100%; max-width: 18rem; height: auto; margin-inline: auto; padding: var(--s-2); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); }
+.kas-manage-media { display: grid; gap: var(--s-3); margin-top: var(--s-4); }
+.kas-form--compact { gap: var(--s-3); }
+.kas-fieldset { display: grid; gap: var(--s-2); min-width: 0; padding: var(--s-3); border: 1px solid var(--border); border-radius: var(--r-md); }
+.kas-fieldset legend { padding-inline: var(--s-1); }
+.kas-member-picker { max-height: 14rem; overflow: auto; padding-right: var(--s-2); }
+.kas-member-picker .checklist__label { padding-block: var(--s-2); }
+.kas-admin-bill { padding: 0; overflow: hidden; }
+.kas-admin-bill__summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3); padding: var(--s-4); cursor: pointer; list-style: none; }
+.kas-admin-bill__summary::-webkit-details-marker { display: none; }
+.kas-admin-bill__title { display: grid; gap: 2px; min-width: 0; font-weight: 700; }
+.kas-admin-bill__chevron { transition: transform var(--t-fast); }
+.kas-admin-bill[open] .kas-admin-bill__chevron { transform: rotate(180deg); }
+.kas-admin-bill__body { display: grid; gap: var(--s-4); padding: var(--s-4); border-top: 1px solid var(--border); }
+.kas-recipients { display: grid; }
+.kas-recipients li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-2); padding: var(--s-2) 0; border-top: 1px solid var(--border); }
+.kas-recipients li:first-child { border-top: 0; }
+.kas-admin-bill__manage { display: grid; gap: var(--s-3); padding-top: var(--s-3); border-top: 1px solid var(--border); }
+.kas-home { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-4); }
+.kas-home__label { display: block; color: var(--text-2); font-size: var(--fs-sm); }
+.kas-home__balance { display: block; margin-top: 2px; font: 800 var(--fs-h2)/1.15 var(--font-head); font-variant-numeric: tabular-nums; }
+.kas-home__balance--negative { color: var(--warning-text); }
+.kas-home__notes { display: grid; gap: var(--s-1); color: var(--text-2); font-size: var(--fs-sm); }
+.kas-home__notes b { color: var(--text); font-variant-numeric: tabular-nums; }
+.kas-footnote { margin-top: var(--s-5); font-size: var(--fs-sm); }

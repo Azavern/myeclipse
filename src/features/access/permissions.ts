@@ -3,7 +3,7 @@ import type { IconName } from '@/components/ui/icon';
 // Akses yang dapat diatur Ketua untuk jabatan di bawahnya (migrasi 0016).
 // `members.request` sengaja terpisah dari `members.manage`: yang pertama hanya
 // mengajukan promosi/demosi jabatan dan menunggu persetujuan Ketua.
-export type AccessKey = 'class.manage' | 'schedule.manage' | 'events.manage' | 'tasks.manage' | 'members.request';
+export type AccessKey = 'class.manage' | 'schedule.manage' | 'events.manage' | 'tasks.manage' | 'members.request' | 'kas.manage';
 
 export const ACCESS_ITEMS: { key: AccessKey; label: string; hint: string; icon: IconName }[] = [
   { key: 'class.manage', label: 'Kelola kelas', hint: 'Profil kelas, tema, dan visibilitas halaman.', icon: 'book' },
@@ -13,6 +13,10 @@ export const ACCESS_ITEMS: { key: AccessKey; label: string; hint: string; icon: 
   {
     key: 'members.request', label: 'Kelola anggota', icon: 'users',
     hint: 'Hanya mengajukan promosi atau demosi jabatan anggota. Setiap pengajuan baru berlaku setelah disetujui Ketua.',
+  },
+  {
+    key: 'kas.manage', label: 'Kelola kas', icon: 'wallet',
+    hint: 'Membuat tagihan, memverifikasi setoran, mencatat pemasukan/pengeluaran, dan mengelola QRIS. Ketua tetap dapat melihat tanpa izin ini.',
   },
 ];
 

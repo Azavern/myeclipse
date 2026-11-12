@@ -7,7 +7,7 @@ import { fail, type ActionResult } from '@/lib/result';
 
 export type AccessState = ActionResult<null> | null;
 
-const permission = z.enum(['class.manage', 'schedule.manage', 'events.manage', 'tasks.manage', 'members.request']);
+const permission = z.enum(['class.manage', 'schedule.manage', 'events.manage', 'tasks.manage', 'members.request', 'kas.manage']);
 
 // Checklist akses: satu permintaan per centang/un-centang, langsung disimpan.
 export async function toggleRoleAccess(_p: AccessState, fd: FormData): Promise<AccessState> {

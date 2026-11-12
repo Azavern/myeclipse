@@ -41,6 +41,10 @@ select c.id, u.id, u.un, u.fn from public.classes c
 
 alter table public.memberships enable trigger user;
 
+-- Tes ini menguji toggle dari keadaan kosong; default izin jabatan tidak boleh
+-- membuat hasil bergantung pada migrasi seed. Semua perubahan tetap rollback.
+update public.roles set permissions = '{}'::text[] where key <> 'ketua';
+
 -- id role disimpan di GUC: pemegang members.request tidak boleh membaca tabel
 -- roles langsung (hanya lewat RPC get_role_change_options, seperti di aplikasi).
 select set_config('tap.role_ketua',     (select id::text from public.roles where key = 'ketua'), false);

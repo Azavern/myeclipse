@@ -54,13 +54,16 @@ create function public.t_holders(p_key text) returns int language sql as $$
 $$;
 grant execute on function public.t_holders(text) to public;
 
--- Role baru hanya label: belum ada permission yang menempel.
-select is((select permissions from public.roles where key = 'wakil'), '{}'::text[],
-  'Wakil Ketua dibuat tanpa permission');
-select is((select permissions from public.roles where key = 'sekretaris'), '{}'::text[],
-  'Sekretaris dibuat tanpa permission');
-select is((select permissions from public.roles where key = 'bendahara'), '{}'::text[],
-  'Bendahara dibuat tanpa permission');
+-- Default izin jabatan saat ini (termasuk kas.manage untuk Bendahara).
+select is((select permissions from public.roles where key = 'wakil'),
+  array['class.manage','schedule.manage','events.manage','tasks.manage','members.request']::text[],
+  'Wakil Ketua memakai default izinnya');
+select is((select permissions from public.roles where key = 'sekretaris'),
+  array['schedule.manage','tasks.manage']::text[],
+  'Sekretaris memakai default izinnya');
+select is((select permissions from public.roles where key = 'bendahara'),
+  array['events.manage','kas.manage']::text[],
+  'Bendahara memakai default izinnya termasuk kelola kas');
 
 -- ===== Batas Wakil Ketua (3) =================================================
 select is(public.t_holders('ketua'), 1, 'fixture dimulai dengan satu ketua');

@@ -13,7 +13,8 @@ import { getViewer, getVisibilityMap } from '@/lib/visibility/server';
 // [href, label, ikon, kunci visibility]; urutan = urutan di sidebar. Empat pertama yang terlihat menjadi tab bawah di layar sempit.
 const PAGES: [string, string, NavItem['icon'], string][] = [
   ['/', 'Beranda', 'home', 'page.home'], ['/schedule', 'Jadwal', 'calendar', 'page.schedule'],
-  ['/tasks', 'Tugas', 'tasks', 'page.tasks'], ['/members', 'Anggota', 'users', 'page.members'],
+  ['/tasks', 'Tugas', 'tasks', 'page.tasks'], ['/kas', 'Kas', 'wallet', 'page.kas'],
+  ['/members', 'Anggota', 'users', 'page.members'],
   ['/events', 'Event', 'calendar-days', 'page.events'], ['/class', 'Kelas', 'book', 'page.class_about'],
   ['/knowledge', 'Pengetahuan', 'book-open', 'page.knowledge'],
 ];
@@ -33,15 +34,24 @@ async function pendingKnowledgeCount(supabase: Awaited<ReturnType<typeof createC
   return (author.count ?? 0) + (leader.count ?? 0);
 }
 
+async function pendingKasCount(supabase: Awaited<ReturnType<typeof createClient>>) {
+  const { data, error } = await supabase.rpc('get_kas_summary');
+  if (error) return 0;
+  return Number(((data ?? []) as { pending_verifications: number }[])[0]?.pending_verifications ?? 0);
+}
+
 export async function AppFrame({ children }: { children: ReactNode }) {
   const [map, viewer, cls] = await Promise.all([getVisibilityMap(), getViewer(), getClass()]);
   const supabase = await createClient();
-  const [meRow, pendingKnowledge] = await Promise.all([
+  const [meRow, pendingKnowledge, pendingKas] = await Promise.all([
     viewer.user && viewer.status
       ? supabase.from('member_profile_v').select('full_name,role_name,avatar_path').eq('user_id', viewer.user.id).maybeSingle()
       : Promise.resolve({ data: null }),
     viewer.user && viewer.status === 'active' && map.get('page.knowledge') === true
       ? pendingKnowledgeCount(supabase, viewer.user.id, viewer.can('class.manage'))
+      : Promise.resolve(0),
+    viewer.user && viewer.status === 'active' && map.get('page.kas') === true
+      ? pendingKasCount(supabase)
       : Promise.resolve(0),
   ]);
   const me = meRow.data as { full_name: string; role_name: string; avatar_path: string | null } | null;
@@ -54,7 +64,8 @@ export async function AppFrame({ children }: { children: ReactNode }) {
   const active = !!viewer.user && viewer.status === 'active';
   const pages: NavItem[] = PAGES.filter(([, , , key]) => map.get(key) === true)
     .map(([href, label, icon]) => ({ href, label, icon,
-      ...(href === '/knowledge' ? { except: ['/knowledge/manage', '/knowledge/new'] } : {}) }));
+      ...(href === '/knowledge' ? { except: ['/knowledge/manage', '/knowledge/new'] } : {}),
+      ...(href === '/kas' && pendingKas > 0 ? { badge: pendingKas } : {}) }));
   // Grup "Utama" dan "Sumber daya" dipisah; empat destinasi pertama `main` tetap menjadi tab bawah.
   const primary = pages.filter((item) => item.href !== '/knowledge');
   const utilities: NavItem[] = pages.filter((item) => item.href === '/knowledge');

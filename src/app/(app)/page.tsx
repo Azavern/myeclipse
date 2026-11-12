@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { NoAccess } from '@/components/states';
-import { ActivityBlock, EventsBlock, ExploreBlock, Hero, MembersBlock, OverviewTiles, ScheduleBlock, TasksBlock,
-  overviewTiles, type ActivityWeek, type EventItem, type ExploreItem, type Overview, type ScheduleItem } from '@/features/home/blocks';
+import { ActivityBlock, EventsBlock, ExploreBlock, Hero, KasBlock, MembersBlock, OverviewTiles, ScheduleBlock, TasksBlock,
+  overviewTiles, type ActivityWeek, type EventItem, type ExploreItem, type KasHomeSummary, type Overview, type ScheduleItem } from '@/features/home/blocks';
 import { HOME_REGIONS, type HomeBlock, type HomeRegion } from '@/features/home/layouts';
 import type { MemberItem } from '@/features/members/member-card';
 import type { TaskItem } from '@/features/tasks/task-row';
@@ -30,7 +30,8 @@ export default async function Home() {
 
   const now = new Date();
   const dow = isoWeekday(tz, now);
-  const [sched, events, tasks, members, overview, activity] = await Promise.all([
+  const showKas = !!viewer.user && viewer.status === 'active' && ok('page.kas');
+  const [sched, events, tasks, members, overview, activity, kasSummary] = await Promise.all([
     run<(ScheduleItem & { semester: string })[]>(show('section.home.schedule', 'page.schedule'), () => supabase.from('schedules')
       .select('id,title,start_time,end_time,location,semester,type,day_of_week')
       .order('semester', { ascending: false }).order('day_of_week').order('start_time').limit(200)),
@@ -42,6 +43,7 @@ export default async function Home() {
       .select('username,full_name,nickname,role_name,avatar_path').eq('status', 'active').order('joined_at', { ascending: false }).limit(12)),
     run<Overview[]>(show('section.home.overview'), () => supabase.rpc('get_home_overview')),
     run<ActivityWeek[]>(show('section.home.activity'), () => supabase.rpc('get_activity_trend')),
+    run<KasHomeSummary[]>(showKas, () => supabase.rpc('get_kas_summary')),
   ]);
   const [cover, avatars] = await Promise.all([
     signMany(supabase, 'class-media', [id.cover_path]),
@@ -92,6 +94,7 @@ export default async function Home() {
     members: members !== null && members.length > 0
       ? <MembersBlock rows={members} avatars={avatars} large={layout === 'profile_focused'} />
       : null,
+    kas: kasSummary?.[0] ? <KasBlock summary={kasSummary[0]} /> : null,
   };
   const baseRegion = HOME_REGIONS[layout];
   // Tamu tidak punya kartu tugas/KPI yang mengisi kolom utama seperti anggota.

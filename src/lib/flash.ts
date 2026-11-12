@@ -19,6 +19,17 @@ export const FLASH = {
   rejected: 'Permintaan edit ditolak.',
   revoked: 'Akses edit dicabut.',
   keyRevoked: 'inv_key dicabut. Tautan itu tidak lagi bisa membuka inventory.',
+  kasBillCreated: 'Tagihan kas dibuat.',
+  kasBillUpdated: 'Penerima tagihan diperbarui.',
+  kasBillCancelled: 'Tagihan kas dibatalkan.',
+  kasSubmitted: 'Pengajuan dikirim dan menunggu verifikasi.',
+  kasApproved: 'Pengajuan disetujui dan pemasukan kas tercatat.',
+  kasRejected: 'Pengajuan ditolak.',
+  kasPaid: 'Iuran ditandai lunas.',
+  kasRecorded: 'Catatan kas disimpan.',
+  kasCancelled: 'Catatan kas dibatalkan.',
+  kasQris: 'Gambar QRIS diperbarui.',
+  kasQrisRemoved: 'Gambar QRIS dihapus.',
 } as const;
 
 export type FlashKey = keyof typeof FLASH;

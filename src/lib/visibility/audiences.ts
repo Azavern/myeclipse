@@ -23,6 +23,7 @@ export const CLASS_KEYS: [string, string, string][] = [
   ['page.schedule', 'Halaman Jadwal', 'public'], ['page.events', 'Halaman Event', 'public'],
   ['page.tasks', 'Halaman Tugas', 'class_member'], ['page.members', 'Halaman Anggota', 'public'],
   ['page.knowledge', 'Halaman Pengetahuan', 'public'],
+  ['page.kas', 'Halaman Kas', 'class_member'],
 ];
 // Pilihan yang sah untuk satu kunci kelas: tidak lebih luas dari `widest`, dan `self` tidak berlaku untuk kelas.
 export const allowedFor = (widest: string) => AUDIENCES.filter((a) => AUDIENCES.indexOf(a) >= AUDIENCES.indexOf(widest as never) && a !== 'self');

@@ -24,6 +24,7 @@ import { normalizeTag, normalizeTags, parseTagsJson } from '../../src/lib/knowle
 const sql = readFileSync(new URL('../../supabase/migrations/20261005120700_reference_data.sql', import.meta.url), 'utf8');
 const sqlV2 = readFileSync(new URL('../../supabase/migrations/20261012120000_theme_default_v2.sql', import.meta.url), 'utf8');
 const sqlKnowledge = readFileSync(new URL('../../supabase/migrations/20261023120000_knowledge.sql', import.meta.url), 'utf8');
+const sqlKas = readFileSync(new URL('../../supabase/migrations/20261112120000_kas.sql', import.meta.url), 'utf8');
 const neoCss = readFileSync(new URL('../../src/styles/templates/neobrutalism.css', import.meta.url), 'utf8');
 const archiveCss = readFileSync(new URL('../../src/styles/templates/archive.css', import.meta.url), 'utf8');
 const cssVar = (css: string, name: string) => css.match(new RegExp(`--${name}:\\s*(#[0-9A-Fa-f]{6})`))?.[1] ?? '';
@@ -330,10 +331,10 @@ describe('detectImage', () => {
   });
 });
 
-describe('paritas katalog visibility (kode vs migrasi 0008 + 0014)', () => {
-  const cat = new Map([...`${sql}\n${sqlKnowledge}`.matchAll(/\('((?:page|section|field|item)\.[a-z_.]+)'\s*,\s*'\w+'\s*,\s*'\w+'\s*,\s*(?:null|'[a-z_.]+')\s*,\s*(?:null|'\w+')\s*,\s*'(\w+)'\)/g)].map((m) => [m[1], m[2]]));
+describe('paritas katalog visibility (kode vs migrasi 0008 + 0014 + 0034)', () => {
+  const cat = new Map([...`${sql}\n${sqlKnowledge}\n${sqlKas}`.matchAll(/\('((?:page|section|field|item)\.[a-z_.]+)'\s*,\s*'\w+'\s*,\s*'\w+'\s*,\s*(?:null|'[a-z_.]+')\s*,\s*(?:null|'\w+')\s*,\s*'(\w+)'\)/g)].map((m) => [m[1], m[2]]));
   it('semua kunci ada di DB dengan batas terluas yang sama', () => {
-    expect(cat.size).toBe(28);
+    expect(cat.size).toBe(29);
     for (const [k, , widest] of CLASS_KEYS) expect(cat.get(k)).toBe(widest);
     for (const [k] of MEMBER_KEYS) expect(cat.has(k)).toBe(true);
   });
