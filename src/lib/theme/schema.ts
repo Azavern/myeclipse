@@ -7,9 +7,15 @@ export const THEME_TEMPLATES = ['default', 'neobrutalism', 'archive'] as const;
 export const ThemeTemplateSchema = z.enum(THEME_TEMPLATES);
 export type ThemeTemplate = z.infer<typeof ThemeTemplateSchema>;
 
+export const HOME_MODES = ['classic', 'intro'] as const;
+export const HomeModeSchema = z.enum(HOME_MODES);
+export type HomeMode = z.infer<typeof HomeModeSchema>;
+
 export const ThemeSchema = z.object({
   // Opsional agar tema lama tanpa kunci ini tetap valid dan tidak perlu ditulis ulang.
   template: ThemeTemplateSchema.optional(),
+  // Opsional agar tema lama tetap valid. Default klasik (lihat lib/theme/home-mode.ts).
+  home_mode: HomeModeSchema.optional(),
   layout: z.enum(['standard', 'profile_focused']),
   font_preset: z.enum(['editorial', 'grotesk', 'rounded']),
   palette: z.object({
@@ -27,3 +33,5 @@ export type Theme = z.infer<typeof ThemeSchema>;
 
 // Tema lama tidak memiliki kunci template; untuk render keduanya sama-sama default.
 export const themeTemplate = (t: Pick<Theme, 'template'> | null | undefined): ThemeTemplate => t?.template ?? 'default';
+// Tema lama tidak memiliki kunci home_mode; default klasik.
+export const homeMode = (t: Pick<Theme, 'home_mode'> | null | undefined): HomeMode => t?.home_mode ?? 'classic';

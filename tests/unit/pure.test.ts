@@ -542,6 +542,12 @@ describe('CSP bernonce', () => {
     expect(dir(prod, 'style-src')).toBe("style-src 'self' 'nonce-abc123'");
     expect(prod).not.toMatch(/unsafe-inline|unsafe-eval/);
   });
+  it('membatasi connect-src /intro ke origin sendiri', () => {
+    const intro = buildCsp({ nonce: 'n', supabaseUrl: 'https://proj.supabase.co', connectSelfOnly: true });
+    expect(dir(intro, 'connect-src')).toBe("connect-src 'self'");
+    expect(dir(intro, 'img-src')).toContain('https://proj.supabase.co');
+  });
+
   it('img-src dan connect-src memuat asal Supabase saja (tanpa path); connect-src tetap memuat Google Drive', () => {
     expect(dir(prod, 'img-src')).toBe("img-src 'self' data: blob: https://proj.supabase.co");
     expect(dir(prod, 'connect-src')).toBe("connect-src 'self' https://proj.supabase.co https://www.googleapis.com");

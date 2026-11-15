@@ -10,6 +10,7 @@ export async function updateTheme(_p: FormState, fd: FormData): Promise<FormStat
   const g = (k: string) => String(fd.get(k) ?? '');
   const parsed = ThemeSchema.safeParse({
     template: g('template') || undefined,
+    home_mode: g('home_mode') || undefined,
     layout: g('layout'), font_preset: g('font_preset'),
     palette: Object.fromEntries(PALETTE_KEYS.map((k) => [k, g(`p_${k}`)])),
   });

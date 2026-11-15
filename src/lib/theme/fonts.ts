@@ -37,6 +37,10 @@ export type TemplateFont = Exclude<ThemeTemplate, 'default'>;
 export const fontClass = (preset: Theme['font_preset']) => PRESETS[preset].map((f) => f.variable).join(' ');
 export const templateFontClass = (template: TemplateFont) => TEMPLATE_PRESETS[template].map((f) => f.variable).join(' ');
 
+// Intro memakai pasangan font sendiri yang tetap (Fraunces + Source Sans + Space Mono),
+// bukan font tema kelas, agar identitas visualnya konsisten. Semua loader sudah ada di modul ini.
+export const introFontClass = () => [fraunces, sourceSans3, spaceMono].map((font) => font.variable).join(' ');
+
 // Saat template non-default, font_preset diabaikan saat render.
 export const themeFontClass = (theme: Theme) => {
   const template = themeTemplate(theme);

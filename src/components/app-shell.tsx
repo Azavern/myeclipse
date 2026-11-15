@@ -4,8 +4,11 @@ import { signOut } from '@/app/actions';
 import { Avatar } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/icon';
 import { LoginLink } from '@/components/login-link';
+import { BacksideLink } from '@/features/intro/backside-link';
 import { MoreSheet, NavLink, type NavItem } from '@/components/nav';
 import { getClass } from '@/lib/class';
+import { homeMode } from '@/lib/theme/schema';
+import { resolveStoredTheme } from '@/lib/theme/resolve';
 import { signMany } from '@/lib/storage/sign';
 import { createClient } from '@/lib/supabase/server';
 import { getViewer, getVisibilityMap } from '@/lib/visibility/server';
@@ -60,6 +63,7 @@ export async function AppFrame({ children }: { children: ReactNode }) {
   const logo = cls?.logo_path ? signed.get(cls.logo_path) : undefined;
   const avatar = me?.avatar_path ? memberSigned.get(me.avatar_path) : undefined;
   const className = cls?.name ?? 'Eclipse';
+  const home = homeMode(resolveStoredTheme(cls?.theme).theme);
 
   const active = !!viewer.user && viewer.status === 'active';
   const pages: NavItem[] = PAGES.filter(([, , , key]) => map.get(key) === true)
@@ -145,6 +149,7 @@ export async function AppFrame({ children }: { children: ReactNode }) {
               {management.map((i) => <NavLink key={i.href} item={i} />)}
               {signOutForm}
             </div>)}
+          <BacksideLink mode={home} />
           {userCard}
           {!loggedIn && <LoginLink data-ui="button" className="btn" aria-label="Masuk"><Icon name="log-in" size={18} /><span className="nav-link__text">Masuk</span></LoginLink>}
         </div>

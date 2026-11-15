@@ -8,7 +8,7 @@ import { PALETTE_LABEL, contrastReport } from '@/lib/theme/contrast';
 import { themeVars } from '@/lib/theme/css';
 import { DEFAULT_THEME } from '@/lib/theme/defaults';
 import { TEMPLATE_PRESETS, THEME_PRESETS } from '@/lib/theme/presets';
-import { PALETTE_KEYS, ThemeSchema, themeTemplate, type Theme, type ThemeTemplate } from '@/lib/theme/schema';
+import { homeMode, PALETTE_KEYS, ThemeSchema, themeTemplate, type HomeMode, type Theme, type ThemeTemplate } from '@/lib/theme/schema';
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const norm = (v: string) => { const s = v.trim(); return /^[0-9a-fA-F]{6}$/.test(s) ? `#${s.toUpperCase()}` : HEX.test(s) ? s.toUpperCase() : s; };
@@ -25,6 +25,10 @@ const FONTS: { id: Theme['font_preset']; name: string; note: string }[] = [
 const LAYOUTS: { id: Theme['layout']; name: string; note: string }[] = [
   { id: 'standard', name: 'Standar', note: 'Ringkasan kelas lebih dulu, lalu jadwal dan aktivitas.' },
   { id: 'profile_focused', name: 'Berfokus anggota', note: 'Daftar anggota tampil lebih awal di Beranda.' },
+];
+const HOMES: { id: HomeMode; name: string; note: string }[] = [
+  { id: 'classic', name: 'Klasik', note: 'Beranda ringkas seperti sekarang. Halaman intro tetap bisa dibuka di /intro.' },
+  { id: 'intro', name: 'Intro', note: 'Halaman pembuka sinematik di /. Beranda klasik tetap tersedia di /beranda.' },
 ];
 type TemplateFont = Exclude<ThemeTemplate, 'default'>;
 
@@ -44,7 +48,7 @@ export function ThemeEditor({ initial, action, fontClasses, templateFontClasses 
   fontClasses: Record<Theme['font_preset'], string>;
   templateFontClasses: Record<TemplateFont, string>;
 }) {
-  const [t, setT] = useState<Theme>(() => ({ ...initial, template: themeTemplate(initial) })); // pratinjau = state lokal, belum disimpan (A-12)
+  const [t, setT] = useState<Theme>(() => ({ ...initial, template: themeTemplate(initial), home_mode: homeMode(initial) })); // pratinjau = state lokal, belum disimpan (A-12)
   const [state, act, pending] = useActionState(action, null);
   const [nonce, setNonce] = useState('');
 
@@ -197,6 +201,16 @@ export function ThemeEditor({ initial, action, fontClasses, templateFontClasses 
                 <input type="radio" name="layout" value={l.id} checked={t.layout === l.id} onChange={() => setT((cur) => ({ ...cur, layout: l.id }))} />
                 <span className="choice__name">{l.name}</span>
                 <span className="choice__note">{l.note}</span>
+              </label>
+            ))}
+          </fieldset>
+          <fieldset className="choices">
+            <legend>Halaman utama</legend>
+            {HOMES.map((h) => (
+              <label key={h.id} className="choice">
+                <input type="radio" name="home_mode" value={h.id} checked={homeMode(t) === h.id} onChange={() => setT((cur) => ({ ...cur, home_mode: h.id }))} />
+                <span className="choice__name">{h.name}</span>
+                <span className="choice__note">{h.note}</span>
               </label>
             ))}
           </fieldset>

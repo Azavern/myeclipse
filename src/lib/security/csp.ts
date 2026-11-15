@@ -35,6 +35,8 @@ export type CspInput = {
   allowHttpsImages?: boolean;
   /** Hanya untuk /login: skrip dan iframe Google Identity Services. */
   googleSignIn?: boolean;
+  /** Hanya untuk /intro: tidak ada klien Supabase, Drive, atau Google di browser. */
+  connectSelfOnly?: boolean;
 };
 
 // Asal (origin) dari URL; null bila tidak valid atau bukan http(s), sehingga CSP tetap ketat (fail closed).
@@ -48,8 +50,13 @@ export function originOf(url: string | undefined): string | null {
   }
 }
 
-export function buildCsp({ nonce, supabaseUrl, dev = false, allowHttpsImages = false, googleSignIn = false }: CspInput): string {
+export function buildCsp({ nonce, supabaseUrl, dev = false, allowHttpsImages = false, googleSignIn = false, connectSelfOnly = false }: CspInput): string {
   const media = originOf(supabaseUrl);
+  // /intro hanya boleh menghubungi origin sendiri. Halaman lain tetap memerlukan asal Storage,
+  // Google Drive, dan (khusus /login) Google Identity Services.
+  const connect = connectSelfOnly
+    ? ["'self'", ...(dev ? ['ws:', 'wss:'] : [])]
+    : ["'self'", ...(media ? [media] : []), ...(googleSignIn ? [GOOGLE_GSI] : []), GOOGLE_DRIVE_UPLOAD, ...(dev ? ['ws:', 'wss:'] : [])];
   const directives: [string, string[]][] = [
     ['default-src', ["'self'"]],
     // React di mode dev memakai eval untuk menyusun call stack; produksi tidak membutuhkannya.
@@ -57,7 +64,7 @@ export function buildCsp({ nonce, supabaseUrl, dev = false, allowHttpsImages = f
     ['style-src', ["'self'", `'nonce-${nonce}'`, ...(googleSignIn ? [GOOGLE_GSI_STYLE] : [])]],
     ['img-src', ["'self'", 'data:', 'blob:', ...(media ? [media] : []), ...(allowHttpsImages ? ['https:'] : [])]],
     ['font-src', ["'self'"]],
-    ['connect-src', ["'self'", ...(media ? [media] : []), ...(googleSignIn ? [GOOGLE_GSI] : []), GOOGLE_DRIVE_UPLOAD, ...(dev ? ['ws:', 'wss:'] : [])]], // ws: hanya untuk HMR di dev
+    ['connect-src', connect], // ws: hanya untuk HMR di dev
     ['object-src', ["'none'"]],
     ['base-uri', ["'self'"]],
     ['form-action', ["'self'"]],

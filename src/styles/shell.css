@@ -46,6 +46,7 @@
 .user-card__name { font-weight: 700; font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .user-card__role { color: var(--text-2); font-size: var(--fs-xs); }
 .sidebar__foot { display: grid; flex: none; gap: var(--s-2); }
+.nav-link--backside { min-height: var(--ctl-sm); color: var(--text-2); font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: .16em; text-transform: uppercase; }
 
 /* Icon rail: label disembunyikan secara visual tetapi tetap terbaca pembaca layar. Hanya berlaku di .sidebar;
    sub-navigasi Pengaturan memakai .nav-link yang sama dan harus tetap berlabel. */

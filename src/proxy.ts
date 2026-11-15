@@ -16,6 +16,8 @@ export async function proxy(request: NextRequest) {
     dev: process.env.NODE_ENV !== 'production',
     allowHttpsImages,
     googleSignIn: allowsGoogleSignIn(request.nextUrl.pathname),
+    // /intro tidak memakai klien Supabase/Drive/Google; ketatkan connect-src hanya di sana.
+    connectSelfOnly: request.nextUrl.pathname === '/intro',
   });
 
   // Dibangun ulang setiap kali dipanggil supaya header `cookie` hasil refresh ikut terkirim ke render berikutnya.

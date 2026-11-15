@@ -32,6 +32,7 @@ Jenis aturan mengikuti `DESIGN.md`: `[HARD]` wajib, `[DEFAULT]` standar (boleh m
 | M-05 | §11.2 tidak punya FAB | Komponen `Fab` untuk aksi "buat baru" bagi pemegang permission di <1024 px | Aksi utama masuk zona jempol; tombol di `PageHeader` tersembunyi di sana agar tidak ganda |
 | M-06 | §10: `/settings` redirect ke `/settings/profile` | Route tetap. Di <1024 px ditambah `SettingsSwitcher` (tombol + sheet) untuk berpindah antar halaman pengaturan | Enam sub-halaman tidak muat sebagai tab |
 | M-07 | §17.3 z-index `base 0, bar 10, dialog 50` | Tambah `fab 20`. Tambah token tinggi bar dan batas sheet (§6) | Layer baru |
+| M-08 | §11.5: semua layar aplikasi memakai `AppFrame` | `/intro` memakai layout sendiri di luar grup `(app)` tanpa `TopBar`/`Sidebar`/`BottomNav`; cek MFA disalin, skip link dan navigasi keluar tetap ada | Panggung sinematik membutuhkan viewport penuh; halaman ini bukan beranda klasik |
 
 ---
 
