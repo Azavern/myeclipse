@@ -866,7 +866,8 @@ dialog[open] { animation: rise var(--t-med); }
 .qr-result .muted { margin-top: var(--s-3); }
 .qr-guest-note .qr-preview__empty { max-width: 30ch; }
 .qr-guest-note .field__hint { margin-top: var(--s-3); }
-.qr-donation-dialog { display: flex; flex-direction: column; width: min(34rem, calc(100% - 2rem)); max-height: min(92dvh, 44rem); }
+.qr-donation-dialog { width: min(34rem, calc(100% - 2rem)); max-height: min(92dvh, 44rem); }
+.qr-donation-dialog[open] { display: flex; flex-direction: column; }
 .qr-donation-dialog .dialog__body { min-height: 0; overflow-y: auto; }
 .qr-donation-dialog .dialog__actions { flex: none; }
 .qr-donation-qris { display: grid; place-items: center; padding: var(--s-3); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface-2); }
