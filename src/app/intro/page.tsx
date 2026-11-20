@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { NoAccess } from '@/components/states';
-import { buildIntroActs, buildIntroChapters, introRoster } from '@/features/intro/chapters';
+import { buildIntroActs, buildIntroChapters } from '@/features/intro/chapters';
 import { IntroEmpty } from '@/features/intro/empty';
 import { IntroExperience } from '@/features/intro/intro-experience';
 import { loadIntroSource, type IntroExplore } from '@/features/intro/queries';
@@ -53,5 +53,5 @@ export default async function IntroPage() {
   }
 
   const { acts, total } = buildIntroActs(chapters);
-  return <IntroExperience acts={acts} total={total} roster={introRoster(chapters)} brand={brand} guest={guest} />;
+  return <IntroExperience acts={acts} total={total} brand={brand} guest={guest} />;
 }

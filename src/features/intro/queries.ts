@@ -29,6 +29,7 @@ export type IntroEventRow = { id: string; title: string; start_at: string; locat
 export type IntroOverview = { members_count: number | null; upcoming_events_count: number | null; active_tasks_count: number | null; due_soon_tasks_count: number | null };
 export type IntroActivity = { week_start: string; activity_count: number };
 export type IntroMember = MemberItem & { joined_at?: string | null };
+export type IntroLeaderRow = { username: string; full_name: string; bio: string | null; role_name: string; avatar_path: string | null };
 export type IntroExplore = { href: string; label: string; desc: string };
 
 export type IntroSource = {
@@ -39,6 +40,7 @@ export type IntroSource = {
   events: IntroEventRow[] | null;
   tasks: TaskItem[] | null;
   members: IntroMember[] | null;
+  leader: IntroLeaderRow | null;
   coverUrl?: string;
   avatars: Record<string, string>;
   explore: IntroExplore[];
@@ -68,7 +70,7 @@ export async function loadIntroSource(input: {
     ? supabase.from('class_identity_v').select('name,tagline,description,highlight_text,highlight_url,timezone,cover_path').single()
     : Promise.resolve({ data: null, error: null });
 
-  const [identity, schedule, events, tasks, members, overview, activity] = await Promise.all([
+  const [identity, schedule, events, tasks, members, leaderResult, overview, activity] = await Promise.all([
     identityQuery,
     run<IntroScheduleRow[]>(show('section.home.schedule', 'page.schedule'), () => supabase.from('schedules')
       .select('id,title,start_time,end_time,location,semester,type,day_of_week')
@@ -80,15 +82,21 @@ export async function loadIntroSource(input: {
     run<IntroMember[]>(show('section.home.members', 'page.members'), () => supabase.from('member_profile_v')
       .select('username,full_name,nickname,role_name,avatar_path,status,joined_at').eq('status', 'active')
       .order('joined_at', { ascending: false }).limit(200)),
+    show('section.home.members', 'page.members')
+      ? supabase.from('member_profile_v').select('username,full_name,bio,role_name,avatar_path')
+        .eq('status', 'active').eq('role_name', 'Ketua').limit(1).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
     run<IntroOverview[]>(show('section.home.overview'), () => supabase.rpc('get_home_overview')),
     run<IntroActivity[]>(show('section.home.activity'), () => supabase.rpc('get_activity_trend')),
   ]);
 
   if (identity.error) throw new Error('Identitas kelas tidak terbaca');
   const id = identity.data as IntroIdentity | null;
+  const leader = leaderResult.error ? null : (leaderResult.data as IntroLeaderRow | null);
+  const avatarPaths = [...(members ?? []).map((member) => member.avatar_path), leader?.avatar_path ?? null];
   const [cover, avatars] = await Promise.all([
     id?.cover_path ? signMany(supabase, 'class-media', [id.cover_path]) : Promise.resolve(new Map<string, string>()),
-    members?.length ? signMany(supabase, 'member-media', members.map((member) => member.avatar_path)) : Promise.resolve(new Map<string, string>()),
+    avatarPaths.length ? signMany(supabase, 'member-media', avatarPaths) : Promise.resolve(new Map<string, string>()),
   ]);
 
   return {
@@ -99,6 +107,7 @@ export async function loadIntroSource(input: {
     events: events ?? null,
     tasks: tasks ?? null,
     members: members ?? null,
+    leader,
     coverUrl: id?.cover_path ? cover.get(id.cover_path) : undefined,
     avatars: Object.fromEntries(avatars),
     explore,

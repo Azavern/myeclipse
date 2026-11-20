@@ -48,9 +48,6 @@
   pointer-events: none;
   /* Fallback tanpa WebGL: cakram gelap, korona, dan beberapa butir bintang. */
   background:
-    radial-gradient(circle at 50% 40%, #05070a 0 15.4%, transparent 15.9%),
-    radial-gradient(circle at 50% 40%, transparent 0 15.5%, rgb(233 184 114 / 52%) 16.2%, rgb(233 184 114 / 12%) 18%, transparent 23%),
-    radial-gradient(circle at 50% 40%, rgb(233 184 114 / 24%) 0, rgb(233 184 114 / 7%) 24%, transparent 42%),
     radial-gradient(circle at 12% 22%, rgb(245 241 230 / 65%) 0 0.8px, transparent 1.4px),
     radial-gradient(circle at 78% 18%, rgb(245 241 230 / 50%) 0 0.7px, transparent 1.3px),
     radial-gradient(circle at 28% 68%, rgb(245 241 230 / 55%) 0 0.9px, transparent 1.5px),
@@ -59,6 +56,23 @@
     radial-gradient(80% 55% at 80% 15%, rgb(124 154 179 / 12%), transparent 60%),
     linear-gradient(180deg, #0a0d14 0%, #07090e 48%, #05070a 100%);
 }
+
+/* Matahari dipisah agar bisa keluar layar saat bab anggota tanpa memindahkan bintang. */
+.intro::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: var(--intro-sun, 1);
+  transform: translate3d(var(--intro-sun-x, 0px), 0, 0);
+  background:
+    radial-gradient(circle at 50% 40%, #05070a 0 15.4%, transparent 15.9%),
+    radial-gradient(circle at 50% 40%, transparent 0 15.5%, rgb(233 184 114 / 52%) 16.2%, rgb(233 184 114 / 12%) 18%, transparent 23%),
+    radial-gradient(circle at 50% 40%, rgb(233 184 114 / 24%) 0, rgb(233 184 114 / 7%) 24%, transparent 42%);
+}
+
+.intro[data-motion="on"][data-gl="on"]::after { display: none; }
 
 .intro-canvas {
   position: fixed;
@@ -71,6 +85,64 @@
 }
 
 .intro[data-motion="on"][data-gl="on"] .intro-canvas { display: block; }
+
+/* Komet fallback CSS: bentuk diagonal besar yang sama dengan shader. Komet hanya
+   terlihat pada trek anggota. Wipe memakai --intro-reveal (persen) dari skrip. */
+.intro-comet {
+  position: fixed;
+  top: -36vh;
+  left: 62%;
+  z-index: 0;
+  display: none;
+  width: min(54vw, 660px);
+  height: 118vh;
+  pointer-events: none;
+  transform: translateX(-50%) rotate(31deg);
+  transform-origin: 50% 92%;
+  background:
+    radial-gradient(52% 38% at 50% 88%, rgb(255 240 208 / 42%) 0%, rgb(233 184 114 / 24%) 42%, transparent 72%),
+    radial-gradient(34% 82% at 48% 70%, rgb(124 154 179 / 20%) 0%, rgb(245 241 230 / 10%) 44%, transparent 68%),
+    linear-gradient(180deg, transparent 0%, rgb(124 154 179 / 5%) 18%, rgb(245 241 230 / 14%) 50%, rgb(233 184 114 / 25%) 82%, transparent 100%);
+  background-blend-mode: screen;
+  filter: blur(14px) saturate(0.95);
+  /* Dua mask: wipe vertikal bertepi lunak + tepi samping yang memudar. */
+  -webkit-mask-image:
+    linear-gradient(180deg, transparent 0%, #000 28%, #000 calc(var(--intro-reveal, 100%) - 18%), transparent var(--intro-reveal, 100%)),
+    linear-gradient(90deg, transparent 0%, #000 22%, #000 78%, transparent 100%);
+  mask-image:
+    linear-gradient(180deg, transparent 0%, #000 28%, #000 calc(var(--intro-reveal, 100%) - 18%), transparent var(--intro-reveal, 100%)),
+    linear-gradient(90deg, transparent 0%, #000 22%, #000 78%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+
+/* Kepala besar: inti putih dan halo amber. */
+.intro-comet::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 8%;
+  width: 24%;
+  aspect-ratio: 1;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, #fffdf8 0 24%, #fff1d2 38%, rgb(255 206 130 / 72%) 57%, transparent 78%);
+  box-shadow: 0 0 26px 10px rgb(255 247 226 / 56%), 0 0 90px 34px rgb(233 184 114 / 18%);
+}
+
+
+@media (max-width: 767px) {
+  .intro-comet {
+    top: -42vh;
+    left: 55%;
+    width: min(88vw, 520px);
+    transform: translateX(-50%) rotate(16deg);
+  }
+
+  .intro-comet::before { width: 28%; }
+}
+
+.intro[data-motion="on"][data-gl="off"][data-act="comet"] .intro-comet { display: block; }
 
 .intro-bar {
   position: sticky;
@@ -232,6 +304,7 @@
 .intro[data-motion="on"] .intro-card--member { width: min(330px, 72vw); }
 .intro[data-motion="on"] .intro-card--tile { width: 220px; }
 .intro[data-motion="on"] .intro-card--finale { width: min(580px, 86vw); }
+.intro[data-motion="on"] .intro-card--leader { width: min(560px, 86vw); }
 
 .intro[data-motion="on"] .intro-progress { display: block; }
 .intro[data-motion="on"] .intro-hud { display: block; }
@@ -775,74 +848,39 @@
   font-style: italic;
 }
 
-/* Direktori lengkap setelah trek. */
-.intro-roster {
-  position: relative;
-  z-index: 2;
-  padding: 80px max(18px, env(safe-area-inset-right)) 96px max(18px, env(safe-area-inset-left));
-  border-top: 1px solid var(--intro-line-soft);
-  background: linear-gradient(180deg, rgb(5 7 10 / 72%), #05070a 18%);
-}
-
-.intro-roster__head,
-.intro-roster__list {
-  width: min(1100px, 100%);
-  margin-inline: auto;
-}
-
-.intro-roster__title {
-  margin: 0 0 30px;
-  font-family: var(--font-display), Georgia, serif;
-  font-size: clamp(2rem, 1.5rem + 2.5vw, 3.5rem);
-  font-weight: 500;
-  letter-spacing: -0.03em;
-}
-
-.intro-roster__title span {
-  color: var(--intro-amber);
-  font-family: var(--font-template-mono), ui-monospace, monospace;
-  font-size: 0.875rem;
-  letter-spacing: 0.1em;
-  vertical-align: middle;
-}
-
-.intro-roster__list {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0 40px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.intro-roster__row {
+/* Kartu profil singkat Ketua, setelah komet dan sebelum gerhana. */
+.intro-leader__top {
   display: flex;
   align-items: center;
-  gap: 16px;
-  min-height: 72px;
-  padding: 12px 0;
-  border-top: 1px solid var(--intro-line-soft);
-  color: var(--intro-ink);
-  text-decoration: none;
+  gap: 18px;
+  margin-bottom: 22px;
 }
 
-.intro-roster__row .intro-avatar { width: 42px; height: 42px; font-size: 0.875rem; }
+.intro-leader__top .intro-avatar {
+  width: 76px;
+  height: 76px;
+  font-size: 1.5rem;
+}
 
-.intro-roster__row:hover { color: var(--intro-amber); }
+.intro-leader__identity { min-width: 0; }
+.intro-leader__identity .intro-label { margin-bottom: 8px; }
 
-.intro-roster__text { display: grid; gap: 3px; min-width: 0; }
+.intro-leader__name {
+  margin-bottom: 8px;
+  font-size: clamp(2rem, 1.4rem + 2vw, 3rem);
+  overflow-wrap: anywhere;
+}
 
-.intro-roster__name { font-weight: 600; overflow-wrap: anywhere; }
-
-.intro-roster__role {
-  color: var(--intro-muted);
+.intro-leader__role {
+  margin: 0;
+  color: var(--intro-amber);
   font-family: var(--font-template-mono), ui-monospace, monospace;
   font-size: 10px;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 
-.intro-roster__arrow { margin-left: auto; color: var(--intro-muted); }
+.intro-leader__bio { margin: 0 0 8px; color: var(--intro-ink); }
 
 /* Statis / tanpa JavaScript: semua adegan berurutan, tanpa kamera. */
 .intro:not([data-motion="on"]) .intro-world { gap: 64px; }
@@ -877,14 +915,6 @@
   .intro[data-motion="on"] .intro-bars__fill { transform: none !important; }
 }
 
-@media (min-width: 720px) {
-  .intro-roster__list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
-@media (min-width: 1100px) {
-  .intro-roster__list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-
 @media (max-width: 767px) {
   .intro[data-motion="on"] .intro-card { width: min(760px, 90vw); }
   .intro[data-motion="on"] .intro-card--about { width: 88vw; }
@@ -910,7 +940,9 @@
   .intro-row--task .intro-chip { grid-column: auto; }
   .intro-actions { flex-direction: column; align-items: stretch; }
   .intro-btn { width: 100%; }
-  .intro-roster { padding-top: 56px; }
+  .intro[data-motion="on"] .intro-card--leader { width: 88vw; }
+  .intro-leader__top { gap: 14px; }
+  .intro-leader__top .intro-avatar { width: 62px; height: 62px; font-size: 1.25rem; }
   .intro:not([data-motion="on"]) [data-scene="comet"] { grid-template-columns: 1fr; }
   .intro:not([data-motion="on"]) [data-scene="overview"] { grid-template-columns: 1fr 1fr; }
 }

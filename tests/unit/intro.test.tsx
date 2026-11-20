@@ -2,9 +2,9 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { BacksideLink } from '../../src/features/intro/backside-link';
-import { buildIntroActs, buildIntroChapters, INTRO_CHAPTER_KEYS, introRoster } from '../../src/features/intro/chapters';
+import { buildIntroActs, buildIntroChapters, INTRO_CHAPTER_KEYS } from '../../src/features/intro/chapters';
 import { IntroEmpty } from '../../src/features/intro/empty';
-import { actPresence, dwell, focusWeight, pickTier } from '../../src/features/intro/choreography';
+import { actPresence, cometFlow, cometHighlight, cometPlacement, dwell, focusWeight, pickTier } from '../../src/features/intro/choreography';
 import type { IntroSource } from '../../src/features/intro/queries';
 import { DEFAULT_THEME } from '../../src/lib/theme/defaults';
 import { homeDestination } from '../../src/lib/theme/home-mode';
@@ -36,6 +36,10 @@ function source(overrides: Partial<IntroSource> = {}): IntroSource {
       role_name: index === 0 ? 'Ketua' : 'member', status: 'active', avatar_path: null,
       joined_at: '2026-10-01T00:00:00Z',
     })),
+    leader: {
+      username: 'anggota1', full_name: 'Anggota 1', bio: 'Bio ketua.',
+      role_name: 'Ketua', avatar_path: null,
+    },
     avatars: {},
     explore: [{ href: '/schedule', label: 'Jadwal', desc: 'Kuliah' }],
     guest: false,
@@ -58,25 +62,56 @@ describe('pemetaan bab intro ke kunci visibility', () => {
       events: 'section.home.events',
       activity: 'section.home.activity',
       members: 'section.home.members',
+      leader: 'section.home.members',
       finale: 'page.home',
     });
   });
 
-  it('membangun kelima adegan dari data yang semuanya terlihat', () => {
+  it('membangun semua adegan dari data yang semuanya terlihat', () => {
     const chapters = buildIntroChapters(source());
     expect(kinds(source())).toEqual([
-      'identity', 'about', 'overview', 'schedule', 'tasks', 'events', 'activity', 'members', 'finale',
+      'identity', 'about', 'overview', 'schedule', 'tasks', 'events', 'activity', 'members', 'leader', 'finale',
     ]);
     const acts = buildIntroActs(chapters).acts;
-    expect(acts.map((act) => act.id)).toEqual(['gate', 'overview', 'orbit', 'comet', 'finale']);
-    expect(introRoster(chapters)).toHaveLength(25);
+    expect(acts.map((act) => act.id)).toEqual(['gate', 'overview', 'orbit', 'comet', 'leader', 'finale']);
     const members = chapters.find((chapter) => chapter.kind === 'members');
-    expect(members?.kind === 'members' && members.shown).toBe(19);
+    expect(members?.kind === 'members' && members.items).toHaveLength(25);
+    expect(members?.kind === 'members' && members.shown).toBe(25);
     expect(members?.kind === 'members' && members.total).toBe(25);
   });
 
+  it('menampilkan satu kartu Ketua setelah komet dengan field dari view profil', () => {
+    const input = source({
+      leader: { username: 'ketua', full_name: 'Ketua Fixture', bio: 'Bio ketua.', role_name: 'Ketua', avatar_path: 'ketua.jpg' },
+      avatars: { 'ketua.jpg': 'https://storage.example/ketua.jpg' },
+    });
+    const chapters = buildIntroChapters(input);
+    const leader = chapters.find((chapter) => chapter.kind === 'leader');
+    expect(leader?.kind === 'leader' && leader.member).toEqual({
+      username: 'ketua', name: 'Ketua Fixture', role: 'Ketua kelas', bio: 'Bio ketua.',
+      avatarUrl: 'https://storage.example/ketua.jpg',
+    });
+    expect(kinds(input)).toEqual(['identity', 'about', 'overview', 'schedule', 'tasks', 'events', 'activity', 'members', 'leader', 'finale']);
+  });
+
+  it('membuang bab Ketua bila baris profil tidak terlihat', () => {
+    const hidden = source({ leader: null });
+    expect(kinds(hidden)).not.toContain('leader');
+    expect(buildIntroActs(buildIntroChapters(hidden)).acts.map((act) => act.id)).not.toContain('leader');
+  });
+
+  it('tidak mengirim bio atau avatar yang disamarkan view', () => {
+    const chapters = buildIntroChapters(source({
+      leader: { username: 'ketua', full_name: 'Ketua Fixture', bio: null, role_name: 'Ketua', avatar_path: null },
+    }));
+    const leader = chapters.find((chapter) => chapter.kind === 'leader');
+    expect(leader?.kind === 'leader' && leader.member.bio).toBeNull();
+    expect(leader?.kind === 'leader' && leader.member.avatarUrl).toBeUndefined();
+    expect(leader?.kind === 'leader' && leader.member).not.toHaveProperty('nickname');
+  });
+
   it('membuang bab yang datanya tersaring, bukan menyembunyikannya di CSS', () => {
-    const partial = source({ schedule: null, tasks: null, events: null, activity: null, members: null });
+    const partial = source({ schedule: null, tasks: null, events: null, activity: null, members: null, leader: null });
     expect(kinds(partial)).toEqual(['identity', 'about', 'overview', 'finale']);
     const acts = buildIntroActs(buildIntroChapters(partial)).acts;
     expect(acts.map((act) => act.id)).toEqual(['gate', 'overview', 'finale']);
@@ -87,7 +122,7 @@ describe('pemetaan bab intro ke kunci visibility', () => {
   it('kembali kosong saat semua bab data tersaring', () => {
     const empty = source({
       identity: null, overview: null, activity: null, schedule: null,
-      events: null, tasks: null, members: null,
+      events: null, tasks: null, members: null, leader: null,
     });
     expect(buildIntroChapters(empty)).toEqual([]);
     expect(buildIntroActs([]).total).toBe(0);
@@ -122,6 +157,51 @@ describe('kontinuitas koreografi', () => {
       const next = acts.map((act) => actPresence(act, t).opacity);
       next.forEach((value, index) => expect(Math.abs(value - (previous[index] ?? 0))).toBeLessThan(0.06));
       previous = next;
+    }
+  });
+
+  it('menggerakkan sorotan komet turun dan kembali tanpa berhenti', () => {
+    const { acts } = buildIntroActs(buildIntroChapters(source()));
+    const comet = acts.find((act) => act.id === 'comet');
+    expect(comet).toBeDefined();
+    if (!comet) return;
+    let previous = cometHighlight(0);
+    for (let t = comet.start + 1; t <= comet.end; t += 1) {
+      const next = cometHighlight((t - comet.start) / comet.weight);
+      expect(next).toBeLessThan(previous);
+      previous = next;
+    }
+    previous = cometHighlight(1);
+    for (let t = comet.end - 1; t >= comet.start; t -= 1) {
+      const next = cometHighlight((t - comet.start) / comet.weight);
+      expect(next).toBeGreaterThan(previous);
+      previous = next;
+    }
+    expect(cometFlow(0.75)).toBeGreaterThan(cometFlow(0.25));
+  });
+
+  it('tidak melonjakkan posisi kartu komet saat digulir tiap 1vh', () => {
+    const { acts } = buildIntroActs(buildIntroChapters(source()));
+    const comet = acts.find((act) => act.id === 'comet');
+    expect(comet).toBeDefined();
+    if (!comet) return;
+    const count = 19;
+    for (const phone of [false, true]) {
+      const positions = (t: number) => {
+        const focus = dwell(((t - comet.start) / comet.weight) * (count - 1), 0.22);
+        return Array.from({ length: count }, (_, index) => cometPlacement(index, focus, phone));
+      };
+      let previous = positions(comet.start);
+      for (let t = comet.start + 1; t <= comet.end; t += 1) {
+        const next = positions(t);
+        next.forEach((value, index) => {
+          const before = previous[index]!;
+          expect(Math.abs(value.x - before.x)).toBeLessThan(18);
+          expect(Math.abs(value.y - before.y)).toBeLessThan(18);
+          expect(Math.abs(value.z - before.z)).toBeLessThan(18);
+        });
+        previous = next;
+      }
     }
   });
 

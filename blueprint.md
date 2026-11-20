@@ -1837,7 +1837,7 @@ Next.js App Router. `params`/`searchParams` bersifat asinkron pada versi Next te
 | `/members/[username]` | `page.members` | `member_profile_v`, `portfolio_items`, `social_links` | `notFound()` seragam bila baris tak terlihat |
 | `/inventory` | login + aktif | `inventory_items`, `inventory_keys` | Editor inventory pribadi: tambah/hapus URL https, buat/cabut `inv_key` 16 karakter (kuota 12 key aktif bersamaan). Tidak ada halaman jelajah untuk anggota lain |
 | `/inventory/access` | publik | RPC `get_inventory_by_key` | Tanpa login: masukkan `inv_key` untuk membuka seluruh inventory pemilik. Key dikirim lewat POST dan tidak masuk URL |
-| `/qr` | publik | — (renderer di browser) | QR Studio: mode Normal dan Custom (titik kotak/bulat/balok horizontal/vertikal/diagonal, warna, ikon tengah). Gambar diunggah ke bucket publik sementara `qr-shares`, disapu setelah 6 jam; tautan gambar dan unduhan ditampilkan |
+| `/qr` | publik | `qr_studio_settings` (hanya pengelola) | QR Studio: mode Normal dan Custom (titik kotak/bulat/balok horizontal/vertikal/diagonal, warna, ikon tengah). Anggota aktif mendapat pratinjau langsung; tamu memakai render server. Tamu melihat pilihan donasi dan QRIS dari Bendahara/Ketua (bucket privat `qr-studio-media`). Gambar diunggah ke bucket publik sementara `qr-shares`, disapu setelah 6 jam; tautan gambar dan unduhan ditampilkan |
 | `/terms` | publik | — | Syarat Layanan sederhana: akun, konten, QR Studio, ketersediaan, dan hukum yang berlaku |
 | `/privacy` | publik | — | Kebijakan Privasi sederhana: data yang diproses, QR Studio, visibilitas, cookie, retensi, dan hak pengguna |
 | `/settings` | login | — | Redirect ke `/settings/profile` |
@@ -1975,8 +1975,9 @@ Satu elemen "dominan" per layar (`DESIGN.md` §9): Home = hero identitas; Member
 | `class-media` | Logo, cover kelas, cover event | **Private** | 2 MiB; JPEG/PNG/WebP |
 | `member-media` | Avatar, media portofolio | **Private** | 2 MiB; JPEG/PNG/WebP |
 | `qr-shares` | Gambar QR Studio sementara | **Public** (baca URL objek) | 4 MiB; PNG; disapu setelah 6 jam |
+| `qr-studio-media` | QRIS donasi QR Studio | **Private** (anggota aktif) | 2 MiB; JPEG/PNG/WebP; satu objek aktif per kelas |
 
-Alasan `class-media`/`member-media` private: visibilitas dinamis; bucket public akan membuat URL tetap berlaku setelah visibility dipersempit. `qr-shares` adalah pengecualian yang disengaja: gambar QR harus bisa dibuka tanpa login, namanya UUID acak, tidak ada policy daftar/tulis/hapus untuk anon, penulisan hanya lewat service role di server, dan umur objek dibatasi 6 jam (migrasi 0019, `src/lib/qr/server.ts`, `/api/qr/cleanup`).
+Alasan `class-media`/`member-media` private: visibilitas dinamis; bucket public akan membuat URL tetap berlaku setelah visibility dipersempit. `qr-shares` adalah pengecualian yang disengaja: gambar QR harus bisa dibuka tanpa login, namanya UUID acak, tidak ada policy daftar/tulis/hapus untuk anon, penulisan hanya lewat service role di server, dan umur objek dibatasi 6 jam (migrasi 0019, `src/lib/qr/server.ts`, `/api/qr/cleanup`). `qr-studio-media` juga private karena hanya anggota yang boleh melihat QRIS donasi; tamu menerima signed URL berumur pendek setelah memilih donasi (migrasi 0035).
 
 ### 13.2 Tata path
 

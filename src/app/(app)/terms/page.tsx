@@ -82,13 +82,15 @@ export default async function TermsPage() {
       <section>
         <h2>7. QR Studio</h2>
         <p>
-          QR Studio dapat dipakai tanpa login. Teks QR diproses di browser, sedangkan gambar PNG yang kamu
-          unggah disimpan sementara di penyimpanan publik dengan tautan acak dan dihapus setelah sekitar
-          6 jam. Siapa pun yang memiliki tautan dapat membuka gambar tersebut.
+          QR Studio dapat dipakai tanpa login. Anggota aktif memproses QR di browser; tamu mengirim parameter
+          QR ke server karena pratinjau langsung hanya tersedia untuk anggota. Gambar PNG hasilnya disimpan
+          sementara di penyimpanan publik dengan tautan acak dan dihapus setelah sekitar 6 jam. Siapa pun
+          yang memiliki tautan dapat membuka gambar tersebut.
         </p>
         <p>
-          Jangan memakai QR Studio untuk konten ilegal, phishing, atau data sensitif. Ketersediaan tautan
-          tidak dijamin, dan layanan ini bukan tempat penyimpanan permanen.
+          Tamu dapat memilih untuk melihat QRIS donasi kelas sebelum QR dibuat. Donasi bersifat sukarela dan
+          tidak mengubah hasil QR. Jangan memakai QR Studio untuk konten ilegal, phishing, atau data sensitif.
+          Ketersediaan tautan tidak dijamin, dan layanan ini bukan tempat penyimpanan permanen.
         </p>
       </section>
 

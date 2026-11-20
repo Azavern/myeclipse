@@ -17,6 +17,14 @@ export type GlState = {
   fall: number;
   bloom: number;
   comet: [number, number, number, number] | null;
+  /** 0..1; menggeser wipe komet dari ujung ekor ke kepala tanpa mengubah lebar ekor. */
+  highlight: number;
+  /** Perpindahan bintang/debu ke bawah selama bab anggota. */
+  flow: number;
+  /** Matahari keluar dari layar saat bab anggota; 0 = tidak terlihat. */
+  sun: number;
+  sunX: number;
+  pointer: { x: number; y: number; amount: number };
   stars: number;
   corona: [number, number, number];
   background: [number, number, number];
@@ -41,6 +49,10 @@ const BG_FS = [
   'uniform float u_bloom;',
   'uniform vec4 u_comet;',
   'uniform vec3 u_cool;',
+  'uniform float u_sun;',
+  'uniform float u_sunX;',
+  'uniform float u_highlight;',
+  'uniform float u_flow;',
   'float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }',
   'float noise(vec2 p) {',
   '  vec2 i = floor(p); vec2 f = fract(p);',
@@ -53,7 +65,7 @@ const BG_FS = [
   '  vec2 uv = gl_FragCoord.xy / u_res;',
   '  vec2 p = (uv - 0.5) * vec2(u_res.x / u_res.y, 1.0);',
   '  float t = clamp(u_prog, 0.0, 1.0);',
-  '  vec2 sun = vec2(0.0, 0.06);',
+  '  vec2 sun = vec2(u_sunX, 0.06);',
   '  vec2 moon = sun + vec2((1.0 - smoothstep(0.0, 1.0, t)) * 0.82, 0.0);',
   '  float sunR = 0.185;',
   '  float moonR = 0.178;',
@@ -73,22 +85,63 @@ const BG_FS = [
   '  float band2 = exp(-pow((p.y - 0.25 + 0.04 * cos(p.x * 1.7 - u_time * 0.03)) * 7.0, 2.0));',
   '  float curtain = smoothstep(0.35, 0.9, noise(vec2(p.x * 1.7 + u_time * 0.02, u_spin * 0.2)));',
   '  col += u_cool * (band * 0.10 + band2 * 0.06) * curtain;',
-  '  col += u_corona * (corona * 0.58 * (1.0 + 0.8 * u_bloom) + sunDisc * 0.30) * (1.0 - disc);',
+  '  col += u_corona * (corona * 0.58 * (1.0 + 0.8 * u_bloom) + sunDisc * 0.30) * (1.0 - disc) * u_sun;',
   // Cincin berlian hanya menyala halus saat totalitas, tanpa kilatan cepat.
   '  vec2 sparkP = sun + vec2(cos(0.7), sin(0.7)) * (sunR + 0.006);',
   '  float nearTotal = 1.0 - smoothstep(0.0, 0.10, abs(t - 0.82));',
-  '  col += vec3(1.0, 0.94, 0.82) * exp(-pow(length(p - sparkP) * 32.0, 2.0)) * u_bloom * (0.18 + 0.82 * nearTotal);',
+  '  col += vec3(1.0, 0.94, 0.82) * exp(-pow(length(p - sparkP) * 32.0, 2.0)) * u_bloom * (0.18 + 0.82 * nearTotal) * u_sun;',
   '  if (u_comet.z > 0.001) {',
-  '    vec2 q = p - u_comet.xy;',
-  '    float head = exp(-dot(q, q) * 1500.0) * 1.15 + exp(-length(q) * 18.0) * 0.24;',
-  '    float tailT = clamp(q.y / u_comet.w, 0.0, 1.0);',
-  '    float w = mix(0.012, 0.075, tailT);',
-  '    float core = exp(-pow(q.x / w, 2.0)) * pow(1.0 - tailT, 1.7) * step(0.0, q.y);',
-  '    float shimmer = 0.68 + 0.32 * noise(vec2(q.x * 55.0, q.y * 8.0 - u_time * 1.8));',
-  '    vec3 tailCol = mix(vec3(0.98, 0.93, 0.82), u_cool * 2.1, tailT);',
-  '    col += (vec3(1.0, 0.96, 0.88) * head + tailCol * core * shimmer * 1.35) * u_comet.z;',
+  '    float portrait = 1.0 - step(1.0, u_res.x / u_res.y);',
+  '    vec2 head = u_comet.xy;',
+  // Ekor diagonal: kepala di bawah, ujung ekor di kiri atas. Di ponsel lebih tegak.
+  '    vec2 axis = normalize(mix(vec2(-0.72, 1.0), vec2(-0.22, 1.0), portrait));',
+  '    vec2 across = vec2(axis.y, -axis.x);',
+  '    vec2 q = p - head;',
+  '    float along = dot(q, axis);',
+  '    float side = dot(q, across);',
+  '    float len = max(0.4, u_comet.w);',
+  '    float tt = clamp(along / len, 0.0, 1.0);',
+  // Geometri ekor tetap sepanjang adegan. Sorotan tidak boleh menambah lebar:
+  // hanya mengubah bagian mana yang sudah terbuka. Lebar menyempit ke ujung.
+  '    float taper = pow(1.0 - tt, 0.62);',
+  '    float width = 0.032 + 0.185 * taper;',
+  '    float coreShape = exp(-pow(abs(side) / width, 2.15));',
+  '    float veil = exp(-pow(abs(side) / (width * 2.4), 2.0));',
+  // Ekor memudar ke arah kepala supaya pangkalnya tidak membentuk segitiga lebar
+  // yang terlihat seperti cahaya masuk. Koma kepala yang menutup sambungannya.
+  '    float body = coreShape * exp(-tt * 0.8) * smoothstep(0.04, 0.22, tt);',
+  '    float halo = veil * exp(-tt * 1.05) * 0.34 * smoothstep(0.02, 0.18, tt);',
+  // Serat memanjang dan butir debu di ujung atas: ekor memudar, bukan melebar.
+  '    float fibers = noise(vec2(side * 21.0, along * 2.8 - u_time * 0.025));',
+  '    fibers = smoothstep(0.46, 0.82, fibers) * smoothstep(0.08, 0.2, tt) * (1.0 - smoothstep(0.82, 1.0, tt));',
+  '    float dust = noise(vec2(side * 74.0, along * 9.0 - u_time * 0.09));',
+  '    dust = smoothstep(0.73, 0.95, dust) * smoothstep(0.28, 0.85, tt) * (1.0 - tt);',
+  // Wipe dari ujung ekor ke kepala. front turun mengikuti gulir; area di atasnya
+  // terbuka, area di bawahnya masih gelap. Garis tepi hanya menambah cahaya.
+  '    float front = mix(0.62, -0.18, 1.0 - u_highlight);',
+  '    float lit = smoothstep(front - 0.16, front, along);',
+  '    float edge = exp(-pow((along - front) / 0.07, 2.0));',
+  // Halo hanya boleh berada di sisi ekor. Tanpa gerbang ini, tepi wipe memotong
+  // koma kepala dan tampak sebagai segitiga cahaya yang melebar di bawah kepala.
+  '    float tailGate = smoothstep(0.0, 0.08, along);',
+  '    float tailLit = (body + halo * tailGate) * lit + (fibers * 0.5 + dust * 0.8) * lit * coreShape;',
+  '    tailLit += edge * (coreShape * 0.28 + veil * 0.05) * smoothstep(0.02, 0.1, along);',
+  '    vec3 warm = vec3(1.0, 0.67, 0.36);',
+  '    vec3 cream = vec3(1.0, 0.95, 0.84);',
+  '    vec3 tailCol = mix(warm, u_cool * 1.5, smoothstep(0.02, 0.72, tt));',
+  // Kepala muncul saat wipe hampir mencapai dasar, supaya seluruh komet tidak
+  // tampil sekaligus. Inti terang dikelilingi koma hangat dan halo dingin.
+  '    float r = length(q);',
+  '    float headReveal = 1.0 - smoothstep(0.0, 0.24, front);',
+  '    float coma = exp(-pow(r / 0.16, 2.0)) * headReveal;',
+  '    float headHalo = exp(-r * 4.6) * headReveal;',
+  '    float nucleus = exp(-pow(r / 0.045, 2.0)) * headReveal;',
+  '    col += (tailCol * tailLit * 0.85',
+  '      + cream * coma * 0.75',
+  '      + u_corona * headHalo * 0.36',
+  '      + cream * nucleus * 1.1) * u_comet.z;',
   '  }',
-  '  float s = hash(floor(gl_FragCoord.xy / 2.0));',
+  '  float s = hash(floor((gl_FragCoord.xy + vec2(0.0, u_flow)) / 2.0));',
   '  float twinkle = 0.72 + 0.28 * sin(u_time * 0.55 + s * 40.0);',
   '  col += vec3(0.88, 0.86, 0.78) * step(0.9984, s) * twinkle * u_stars * (1.0 - corona);',
   '  col *= 1.0 - 0.24 * dot(p, p);',
@@ -107,6 +160,10 @@ const PT_VS = [
   'uniform float u_pixel;',
   'uniform float u_spin;',
   'uniform float u_fall;',
+  'uniform vec2 u_res;',
+  'uniform vec2 u_pointer;',
+  'uniform float u_pointerAmt;',
+  'uniform float u_pointerRadius;',
   'varying float v_a;',
   'void main() {',
   '  float cs = cos(u_spin); float sn = sin(u_spin);',
@@ -117,6 +174,17 @@ const PT_VS = [
   '  float d = depth + 0.08;',
   '  vec2 xy = vec2(xz.x / u_aspect, yy) / d * 0.46;',
   '  gl_Position = vec4(xy, 0.0, 1.0);',
+  // Distorsi di ruang layar: dorongan radial + pusaran, dengan falloff 160 px.
+  // Amplitudo datang dari kecepatan penunjuk dan meredam kembali ke nol.
+  '  vec2 screenPos = (gl_Position.xy * 0.5 + 0.5) * u_res;',
+  '  vec2 pointerPx = u_pointer * u_res;',
+  '  vec2 delta = screenPos - pointerPx;',
+  '  float dist = length(delta);',
+  '  float falloff = 1.0 - smoothstep(u_pointerRadius * 0.25, u_pointerRadius, dist);',
+  '  vec2 dir = dist > 0.001 ? delta / dist : vec2(0.0, 1.0);',
+  '  vec2 tangent = vec2(-dir.y, dir.x);',
+  '  vec2 offset = (dir * 24.0 + tangent * 16.0) * falloff * u_pointerAmt;',
+  '  gl_Position.xy += offset / (0.5 * u_res);',
   '  gl_PointSize = min(a_size * u_pixel * (1.7 / d), 26.0);',
   '  float fadeFar = 1.0 - smoothstep(u_len * 0.55, u_len, depth);',
   '  float fadeNear = smoothstep(0.0, 0.09, depth);',
@@ -189,6 +257,7 @@ export function createEclipseGl(canvas: HTMLCanvasElement, options: { particles:
     res: bgUniform('u_res'), time: bgUniform('u_time'), progress: bgUniform('u_prog'),
     corona: bgUniform('u_corona'), background: bgUniform('u_bg'), stars: bgUniform('u_stars'),
     spin: bgUniform('u_spin'), bloom: bgUniform('u_bloom'), comet: bgUniform('u_comet'), cool: bgUniform('u_cool'),
+    sun: bgUniform('u_sun'), sunX: bgUniform('u_sunX'), highlight: bgUniform('u_highlight'), flow: bgUniform('u_flow'),
   };
   const ptPosition = gl.getAttribLocation(particleProgram, 'a_pos');
   const ptSize = gl.getAttribLocation(particleProgram, 'a_size');
@@ -196,6 +265,8 @@ export function createEclipseGl(canvas: HTMLCanvasElement, options: { particles:
   const pt = {
     camZ: ptUniform('u_camZ'), length: ptUniform('u_len'), aspect: ptUniform('u_aspect'),
     pixel: ptUniform('u_pixel'), tint: ptUniform('u_tint'), spin: ptUniform('u_spin'), fall: ptUniform('u_fall'),
+    res: ptUniform('u_res'), pointer: ptUniform('u_pointer'), pointerAmt: ptUniform('u_pointerAmt'),
+    pointerRadius: ptUniform('u_pointerRadius'),
   };
 
   let width = 1;
@@ -247,6 +318,10 @@ export function createEclipseGl(canvas: HTMLCanvasElement, options: { particles:
       gl.uniform1f(bg.stars, state.stars);
       gl.uniform1f(bg.spin, state.spin);
       gl.uniform1f(bg.bloom, state.bloom);
+      gl.uniform1f(bg.sun, state.sun);
+      gl.uniform1f(bg.sunX, state.sunX);
+      gl.uniform1f(bg.highlight, state.highlight);
+      gl.uniform1f(bg.flow, state.flow);
       const comet = state.comet ?? [0, 0, 0, 1];
       gl.uniform4f(bg.comet, comet[0]!, comet[1]!, comet[2]!, comet[3]!);
       gl.uniform3fv(bg.cool, state.cool);
@@ -264,10 +339,15 @@ export function createEclipseGl(canvas: HTMLCanvasElement, options: { particles:
       gl.uniform1f(pt.camZ, state.cameraZ);
       gl.uniform1f(pt.length, 1);
       gl.uniform1f(pt.aspect, width / height);
-      gl.uniform1f(pt.pixel, Math.max(1, width / Math.max(1, canvas.clientWidth)));
+      const pixelRatio = Math.max(1, width / Math.max(1, canvas.clientWidth));
+      gl.uniform1f(pt.pixel, pixelRatio);
       gl.uniform3fv(pt.tint, state.corona);
       gl.uniform1f(pt.spin, state.spin);
       gl.uniform1f(pt.fall, state.fall);
+      gl.uniform2f(pt.res, width, height);
+      gl.uniform2f(pt.pointer, state.pointer.x, state.pointer.y);
+      gl.uniform1f(pt.pointerAmt, state.pointer.amount);
+      gl.uniform1f(pt.pointerRadius, 160 * pixelRatio);
       gl.drawArrays(gl.POINTS, 0, count);
     },
     dispose() {

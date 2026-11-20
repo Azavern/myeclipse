@@ -209,6 +209,24 @@ export function MemberCard({ member, index, total }: { member: IntroMember; inde
   );
 }
 
+export function LeaderCard({ chapter }: { chapter: OfKind<'leader'> }) {
+  const member = chapter.member;
+  return (
+    <div className="intro-card__inner intro-leader">
+      <div className="intro-leader__top">
+        <Avatar name={member.name} src={member.avatarUrl} />
+        <div className="intro-leader__identity">
+          <p className="intro-label">Profil ketua</p>
+          <h2 className="intro-heading intro-leader__name">{member.name}</h2>
+          <p className="intro-leader__role">{member.role}</p>
+        </div>
+      </div>
+      {member.bio && <p className="intro-body intro-leader__bio">{member.bio}</p>}
+      <Link className="intro-link" href={`/members/${member.username}`}>Lihat profil <span aria-hidden="true">→</span></Link>
+    </div>
+  );
+}
+
 export function FinaleCard({ chapter }: { chapter: OfKind<'finale'> }) {
   return (
     <div className="intro-card__inner intro-finale">
@@ -239,30 +257,5 @@ export function FinaleCard({ chapter }: { chapter: OfKind<'finale'> }) {
       )}
       {chapter.className && <p className="intro-finale__mark">{chapter.className}</p>}
     </div>
-  );
-}
-
-export function MemberRoster({ members }: { members: IntroMember[] }) {
-  return (
-    <section className="intro-roster" aria-labelledby="intro-roster-title">
-      <div className="intro-roster__head">
-        <p className="intro-label">Direktori lengkap</p>
-        <h2 id="intro-roster-title" className="intro-roster__title">Semua anggota <span>{members.length}</span></h2>
-      </div>
-      <ul className="intro-roster__list">
-        {members.map((member) => (
-          <li key={member.username}>
-            <Link href={`/members/${member.username}`} className="intro-roster__row">
-              <Avatar name={member.name} src={member.avatarUrl} />
-              <span className="intro-roster__text">
-                <span className="intro-roster__name">{member.name}</span>
-                <span className="intro-roster__role">{member.role}</span>
-              </span>
-              <span className="intro-roster__arrow" aria-hidden="true">→</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }

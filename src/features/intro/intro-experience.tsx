@@ -2,13 +2,13 @@
 import Link from 'next/link';
 import { Fragment, useEffect, useRef } from 'react';
 import {
-  ACT_LABEL, actPresence, cameraConfig, clamp, damp, dwell, focusWeight, nearFade, noise1d,
+  ACT_LABEL, actPresence, cameraConfig, clamp, cometFlow, cometHighlight, cometPlacement, damp, dwell, focusWeight, nearFade, noise1d,
   pickTier, smoothstep, TIER_QUALITY, wrapDegrees, type CameraConfig, type MotionTier,
 } from './choreography';
-import type { IntroAct, IntroChapter, IntroMember } from './chapters';
+import type { IntroAct, IntroChapter } from './chapters';
 import { createEclipseGl, parseHex, type EclipseGl } from './gl';
 import {
-  AboutCard, ActivityCard, EventsCard, FinaleCard, IdentityCard, MemberCard, MemberRoster,
+  AboutCard, ActivityCard, EventsCard, FinaleCard, IdentityCard, LeaderCard, MemberCard,
   OverviewTile, OverviewTitle, ScheduleCard, TasksCard,
 } from './panels';
 
@@ -25,6 +25,7 @@ function ChapterCard({ chapter }: { chapter: IntroChapter }) {
     case 'tasks': return <TasksCard chapter={chapter} />;
     case 'events': return <EventsCard chapter={chapter} />;
     case 'activity': return <ActivityCard chapter={chapter} />;
+    case 'leader': return <LeaderCard chapter={chapter} />;
     case 'finale': return <FinaleCard chapter={chapter} />;
     default: return null;
   }
@@ -54,11 +55,22 @@ function Scene({ act }: { act: IntroAct }) {
           );
         }
         if (chapter.kind === 'members') {
-          return chapter.items.slice(0, chapter.shown).map((member, index) => (
-            <article key={member.username} className="intro-card intro-card--member" data-card aria-hidden="true">
-              <MemberCard member={member} index={index} total={chapter.shown} />
-            </article>
-          ));
+          return (
+            <Fragment key={chapter.id}>
+              {/* Kartu helix dekoratif; daftar lengkap tetap terbaca pembaca layar tanpa tampil visual. */}
+              <div className="sr-only">
+                <h2>Daftar anggota</h2>
+                <ul>{chapter.items.map((member) => (
+                  <li key={member.username}><Link href={`/members/${member.username}`}>{member.name}</Link></li>
+                ))}</ul>
+              </div>
+              {chapter.items.slice(0, chapter.shown).map((member, index) => (
+                <article key={member.username} className="intro-card intro-card--member" data-card aria-hidden="true">
+                  <MemberCard member={member} index={index} total={chapter.shown} />
+                </article>
+              ))}
+            </Fragment>
+          );
         }
         return (
           <article key={chapter.id} className={`intro-card intro-card--${chapter.kind}`} data-card>
@@ -72,10 +84,9 @@ function Scene({ act }: { act: IntroAct }) {
 
 type SceneRefs = { root: HTMLElement; nodes: HTMLElement[]; rings: HTMLElement[] };
 
-export function IntroExperience({ acts, total, roster, brand, guest }: {
+export function IntroExperience({ acts, total, brand, guest }: {
   acts: IntroAct[];
   total: number;
-  roster: IntroMember[];
   brand: string;
   guest: boolean;
 }) {
@@ -144,12 +155,20 @@ export function IntroExperience({ acts, total, roster, brand, guest }: {
     };
 
     let gl: EclipseGl | null = null;
+    // Posisi penunjuk disimpan dalam piksel layar; amount mengikuti kecepatan dan
+    // meredam ke nol, sehingga partikel kembali ke posisi asalnya tanpa state per partikel.
+    const aim = {
+      x: window.innerWidth / 2, y: window.innerHeight / 2,
+      tx: window.innerWidth / 2, ty: window.innerHeight / 2,
+      amount: 0, lastT: 0, lastX: 0, lastY: 0,
+    };
     const applyTier = (next: MotionTier) => {
       if (next === 'static') return;
       tier = next;
       root.dataset.tier = next;
       if (next === 'css') {
         root.dataset.gl = 'off';
+        aim.amount = 0;
         gl?.dispose();
         gl = null;
         return;
@@ -265,21 +284,25 @@ export function IntroExperience({ acts, total, roster, brand, guest }: {
     };
 
     const updateComet = (scene: SceneRefs, presence: ReturnType<typeof actPresence>, focus: number) => {
-      const n = Math.max(1, scene.nodes.length);
-      const radius = camera.phone ? 250 : 360;
-      const angle = camera.phone ? 58 : 62;
-      const gapY = camera.phone ? 118 : 150;
       scene.root.style.transform = `rotateX(7deg) rotateZ(${(Math.sin(focus * 0.6) * 1.8).toFixed(2)}deg) `
         + `translate3d(0px,0px,${presence.warp.toFixed(1)}px)`;
       scene.nodes.forEach((node, index) => {
-        const delta = index - focus;
-        const radians = delta * angle * D2R;
-        const facing = Math.cos(radians);
-        const zig = index % 2 ? 1 : -1;
-        const opacity = focusWeight(index, focus) * smoothstep(-0.35, 0.4, facing) * presence.opacity;
-        put(node, radius * Math.sin(radians) + zig * 14, delta * gapY + zig * 16,
-          -radius + radius * facing, 0, wrapDegrees(delta * angle) * 0.6, zig * 2.5, opacity);
+        const placement = cometPlacement(index, focus, camera.phone);
+        const opacity = focusWeight(index, focus) * smoothstep(-0.35, 0.4, placement.facing) * presence.opacity;
+        put(node, placement.x, placement.y, placement.z, 0, placement.ry, placement.rz, opacity);
       });
+    };
+
+    const updateLeader = (scene: SceneRefs, presence: ReturnType<typeof actPresence>) => {
+      scene.root.style.transform = `rotateX(3deg) rotateY(${(Math.sin(presence.u * Math.PI) * 3).toFixed(2)}deg) `
+        + `translate3d(0px,0px,${presence.warp.toFixed(1)}px)`;
+      const node = scene.nodes[0];
+      if (!node) return;
+      const enter = smoothstep(0, 0.5, presence.u);
+      const leave = smoothstep(0.8, 1, presence.u);
+      put(node, (1 - enter) * 90 - leave * 60, (1 - enter) * 110 - leave * 40,
+        -(1 - enter) * 460, (1 - enter) * 12, 0, (1 - enter) * -4,
+        smoothstep(0, 0.28, presence.u) * (1 - smoothstep(0.82, 1, presence.u)) * presence.opacity);
     };
 
     const updateFinale = (scene: SceneRefs, presence: ReturnType<typeof actPresence>) => {
@@ -329,6 +352,10 @@ export function IntroExperience({ acts, total, roster, brand, guest }: {
       let cameraZ = 0;
       let bloom = 0;
       let comet: [number, number, number, number] | null = null;
+      let highlight = 0;
+      let flow = 0;
+      let sun = 1;
+      let sunX = 0;
       let bestId: IntroAct['id'] = acts[0]?.id ?? 'gate';
       let bestOpacity = -1;
       let bestFocus = 1;
@@ -338,6 +365,11 @@ export function IntroExperience({ acts, total, roster, brand, guest }: {
         const presence = actPresence(act, t);
         const scene = scenes.get(act.id);
         if (!scene) continue;
+        // Selama komet dan kartu Ketua, matahari keluar dari layar dan tidak digambar.
+        if ((act.id === 'comet' || act.id === 'leader') && presence.opacity > 0.001) {
+          sun = Math.min(sun, 1 - presence.opacity);
+          sunX = Math.max(sunX, presence.opacity * 1.5);
+        }
         const count = Math.max(1, scene.nodes.length);
         let focus = 1;
         let focusTotal = count;
@@ -374,8 +406,12 @@ export function IntroExperience({ acts, total, roster, brand, guest }: {
             updateOrbit(scene, presence, orbitFocus);
             const width = focusWeight(Math.round(orbitFocus), orbitFocus, 0.5);
             orbitBars.forEach((bar, index) => { bar.style.transform = `scaleY(${clamp(width * 1.4 - index * 0.12).toFixed(3)})`; });
-          } else if (act.id === 'comet') updateComet(scene, presence, cometFocus);
-          else updateFinale(scene, presence);
+          } else if (act.id === 'comet') {
+            updateComet(scene, presence, cometFocus);
+            highlight = cometHighlight(presence.u);
+          } else if (act.id === 'leader') {
+            updateLeader(scene, presence);
+          } else updateFinale(scene, presence);
         }
 
         if (act.id === 'gate') cameraZ += presence.u * 0.9;
@@ -386,13 +422,39 @@ export function IntroExperience({ acts, total, roster, brand, guest }: {
         } else if (act.id === 'comet') {
           cameraZ += presence.u * 0.2;
           spin += cometFocus * 58 * D2R * 0.35;
-          fall += cometFocus * 0.11;
-          if (presence.opacity > 0.001) comet = [Math.sin(cometFocus * 0.9) * 0.025, -0.1, presence.opacity, 0.95];
+          // Kepala di kiri-bawah panggung; ekor panjang ke kiri atas. Drift kecil
+          // memberi parallax kamera tanpa membuat geometri ekor berubah-ubah.
+          if (presence.opacity > 0.001) {
+            const headX = (camera.phone ? 0.02 : 0.16) + Math.sin(cometFocus * 0.55) * (camera.phone ? 0.012 : 0.03);
+            const headY = (camera.phone ? -0.25 : -0.2) + Math.cos(cometFocus * 0.4) * 0.008;
+            comet = [headX, headY, presence.opacity, 1.15];
+          }
         } else {
           cameraZ += presence.u * 0.9;
           bloom = Math.max(bloom, smoothstep(0.1, 0.8, presence.u) * presence.opacity);
         }
       }
+
+      // Aliran latar adalah fungsi timeline, bukan fokus dwell, dan tidak di-reset
+      // mendadak saat komet berakhir (tidak ada lompatan bintang di finale).
+      const cometTimeline = acts.find((act) => act.id === 'comet');
+      if (cometTimeline && t > cometTimeline.start) {
+        const leaderTimeline = acts.find((act) => act.id === 'leader');
+        const end = leaderTimeline?.end ?? cometTimeline.end;
+        const progress = clamp((t - cometTimeline.start) / Math.max(1, end - cometTimeline.start));
+        flow = cometFlow(progress);
+        fall = progress * 1.4;
+      }
+
+      root.dataset.act = bestId;
+      root.style.setProperty('--intro-sun', sun.toFixed(3));
+      root.style.setProperty('--intro-sun-x', `${Math.round(sunX * window.innerWidth)}px`);
+      root.style.setProperty('--intro-highlight', highlight.toFixed(4));
+      // Nilai persen untuk wipe fallback CSS; shader memakai u_highlight yang sama.
+      root.style.setProperty('--intro-reveal', `${((1 - highlight) * 100).toFixed(2)}%`);
+      root.style.setProperty('--intro-pointer', aim.amount.toFixed(3));
+      root.style.setProperty('--intro-flow', flow.toFixed(1));
+      // (nilai runtime di atas dibaca pengujian visual; tidak ada atribut style server.)
 
       const finale = acts.find((act) => act.id === 'finale');
       if (finale) {
@@ -400,7 +462,12 @@ export function IntroExperience({ acts, total, roster, brand, guest }: {
         const progress = 0.5 * clamp(t / Math.max(1, totality)) + 0.06 * smoothstep(totality, finale.end, t);
         if (progressRef.current) progressRef.current.style.transform = `scaleX(${progress.toFixed(4)})`;
         gl?.draw({
-          time, progress, cameraZ, spin, fall, bloom, comet,
+          time, progress, cameraZ, spin, fall, bloom, comet, highlight, flow, sun, sunX,
+          pointer: {
+            x: aim.x / Math.max(1, window.innerWidth),
+            y: 1 - aim.y / Math.max(1, window.innerHeight),
+            amount: aim.amount,
+          },
           stars: TIER_QUALITY[tier].stars,
           corona: colors.corona, background: colors.background, cool: colors.cool,
         });
@@ -415,6 +482,10 @@ export function IntroExperience({ acts, total, roster, brand, guest }: {
     function frame(now: number) {
       const dt = last ? Math.min(0.1, (now - last) / 1000) : 0.016;
       last = now;
+      aim.x = lerp(aim.x, aim.tx, damp(dt, 14));
+      aim.y = lerp(aim.y, aim.ty, damp(dt, 14));
+      aim.amount *= 1 - damp(dt, 5);
+      if (aim.amount < 0.001) aim.amount = 0;
       current += (target - current) * damp(dt, 7.5);
       if (Math.abs(target - current) < 0.01) current = target;
       update(current, now / 1000);
@@ -455,6 +526,24 @@ export function IntroExperience({ acts, total, roster, brand, guest }: {
       }
     };
 
+    // Listener native dan pasif: sentuhan tetap menggulir, tidak ada preventDefault.
+    const onPointerMove = (event: PointerEvent) => {
+      if (tier === 'css') return;
+      const now = event.timeStamp || performance.now();
+      const first = !aim.lastT;
+      const dt = first ? 16 : Math.max(1, now - aim.lastT);
+      const dx = first ? 0 : event.clientX - aim.lastX;
+      const dy = first ? 0 : event.clientY - aim.lastY;
+      aim.tx = event.clientX;
+      aim.ty = event.clientY;
+      aim.lastX = event.clientX;
+      aim.lastY = event.clientY;
+      aim.lastT = now;
+      const speed = Math.hypot(dx, dy) / Math.max(12, dt * 2.2);
+      aim.amount = Math.min(1, Math.max(aim.amount, speed) + (first ? 0.2 : 0));
+    };
+    const onPointerLeave = () => { aim.lastT = 0; };
+
     const observer = 'IntersectionObserver' in window
       ? new IntersectionObserver((entries) => {
         inView = entries[0]?.isIntersecting ?? true;
@@ -467,6 +556,10 @@ export function IntroExperience({ acts, total, roster, brand, guest }: {
     window.addEventListener('scroll', readScroll, { passive: true });
     window.addEventListener('resize', onResize);
     document.addEventListener('visibilitychange', onVisibility);
+    root.addEventListener('pointermove', onPointerMove, { passive: true });
+    root.addEventListener('pointerdown', onPointerMove, { passive: true });
+    root.addEventListener('pointerleave', onPointerLeave, { passive: true });
+    root.addEventListener('pointercancel', onPointerLeave, { passive: true });
 
     measure();
     readScroll();
@@ -479,6 +572,10 @@ export function IntroExperience({ acts, total, roster, brand, guest }: {
       window.removeEventListener('scroll', readScroll);
       window.removeEventListener('resize', onResize);
       document.removeEventListener('visibilitychange', onVisibility);
+      root.removeEventListener('pointermove', onPointerMove);
+      root.removeEventListener('pointerdown', onPointerMove);
+      root.removeEventListener('pointerleave', onPointerLeave);
+      root.removeEventListener('pointercancel', onPointerLeave);
       gl?.dispose();
       gl = null;
       for (const scene of scenes.values()) {
@@ -494,7 +591,14 @@ export function IntroExperience({ acts, total, roster, brand, guest }: {
       root.removeAttribute('data-motion');
       root.removeAttribute('data-tier');
       root.removeAttribute('data-gl');
+      root.removeAttribute('data-act');
       root.style.removeProperty('--intro-persp');
+      root.style.removeProperty('--intro-sun');
+      root.style.removeProperty('--intro-sun-x');
+      root.style.removeProperty('--intro-highlight');
+      root.style.removeProperty('--intro-reveal');
+      root.style.removeProperty('--intro-pointer');
+      root.style.removeProperty('--intro-flow');
       track.style.removeProperty('height');
     };
   }, [acts, total]);
@@ -502,6 +606,8 @@ export function IntroExperience({ acts, total, roster, brand, guest }: {
   return (
     <div className="intro" ref={rootRef}>
       <canvas ref={canvasRef} className="intro-canvas" aria-hidden="true" />
+      {/* Fallback CSS saat WebGL tidak tersedia; highlight digerakkan oleh --intro-highlight. */}
+      <div className="intro-comet" aria-hidden="true" />
       <header className="intro-bar">
         <span className="intro-bar__brand">{brand}</span>
         <nav aria-label="Navigasi intro">
@@ -519,7 +625,6 @@ export function IntroExperience({ acts, total, roster, brand, guest }: {
           </div>
         </div>
       </main>
-      {roster.length > 0 && <MemberRoster members={roster} />}
       <div className="intro-hud" aria-hidden="true"><span ref={hudRef} /></div>
     </div>
   );

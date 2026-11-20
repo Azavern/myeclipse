@@ -1,7 +1,7 @@
 // Matematika murni untuk gerak intro: jendela adegan, peredam fokus, dan pemilihan tier.
 // Semua posisi kartu dihitung dari kemajuan gulir (bukan akumulasi bingkai), sehingga
 // gerak bisa dibalik dan berhenti kapan saja tanpa drift.
-export const INTRO_ACTS = ['gate', 'overview', 'orbit', 'comet', 'finale'] as const;
+export const INTRO_ACTS = ['gate', 'overview', 'orbit', 'comet', 'leader', 'finale'] as const;
 export type IntroActId = (typeof INTRO_ACTS)[number];
 
 export const ACT_LABEL: Record<IntroActId, string> = {
@@ -9,14 +9,15 @@ export const ACT_LABEL: Record<IntroActId, string> = {
   overview: 'Ringkasan',
   orbit: 'Orbit',
   comet: 'Anggota',
+  leader: 'Ketua',
   finale: 'Gerhana',
 };
 
 // Lebar tumpang tindih antar adegan dalam vh (36vh sebelum + sesudah batas).
 export const OVERLAP_VH = 36;
 
-const BASE_VH: Record<IntroActId, number> = { gate: 120, overview: 170, orbit: 70, comet: 0, finale: 150 };
-const PER_ITEM_VH: Record<IntroActId, number> = { gate: 85, overview: 0, orbit: 95, comet: 42, finale: 0 };
+const BASE_VH: Record<IntroActId, number> = { gate: 120, overview: 170, orbit: 70, comet: 0, leader: 150, finale: 150 };
+const PER_ITEM_VH: Record<IntroActId, number> = { gate: 85, overview: 0, orbit: 95, comet: 42, leader: 0, finale: 0 };
 
 // Panjang gulir tiap adegan. Adegan anggota selalu cukup panjang untuk jeda fokus.
 export function actWeight(id: IntroActId, count: number): number {
@@ -76,6 +77,13 @@ export function dwell(step: number, rest: number): number {
 // Bobot fokus kartu di sekitar pusat (kartu tengah tajam, sekitarnya memudar).
 export const focusWeight = (index: number, focus: number, spread = 1.4) => Math.exp(-((index - focus) ** 2) / spread);
 
+// Sorotan ekor komet bergerak dari ujung atas (1) ke kepala (0) mengikuti gulir.
+// Nilai ini tidak memakai dwell supaya tidak berhenti saat anggota sedang fokus.
+export const cometHighlight = (u: number) => 1 - clamp(u);
+
+// Debu dan bintang di latar mengalir ke bawah selama bab anggota.
+export const cometFlow = (u: number) => clamp(u) * 900;
+
 // Redam kartu yang mendekati bidang kamera. z sudah termasuk warp adegan.
 export const nearFade = (z: number, perspective: number) => 1 - smoothstep(perspective * 0.32, perspective * 0.62, z);
 
@@ -129,6 +137,26 @@ export function cameraConfig(phone: boolean): CameraConfig {
 export const damp = (dt: number, k = 7.5) => 1 - Math.exp(-Math.max(0, dt) * k);
 
 export const wrapDegrees = (degrees: number) => ((((degrees + 180) % 360) + 360) % 360) - 180;
+
+// Posisi kartu komet murni fungsi fokus, sehingga kontinuitas tiap 1vh bisa diuji
+// tanpa DOM. Fokus berasal dari dwell() yang berhenti di angka bulat.
+export function cometPlacement(index: number, focus: number, phone: boolean) {
+  const radius = phone ? 250 : 360;
+  const angle = phone ? 58 : 62;
+  const gapY = phone ? 118 : 150;
+  const delta = index - focus;
+  const radians = delta * angle * (Math.PI / 180);
+  const facing = Math.cos(radians);
+  const zig = index % 2 ? 1 : -1;
+  return {
+    x: radius * Math.sin(radians) + zig * 26,
+    y: delta * gapY + zig * 24,
+    z: -radius + radius * facing,
+    ry: wrapDegrees(delta * angle) * 0.6,
+    rz: zig * 3.2,
+    facing,
+  };
+}
 
 // Deterministik untuk sebaran ubin ringkasan; tidak memakai Math.random agar posisi
 // kartu sama setiap render dan tidak ada lompatan saat React me-remount.

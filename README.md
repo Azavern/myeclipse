@@ -13,7 +13,7 @@ Nama kelas tidak ditulis di kode. Semua tampilan membaca `classes.name` (data aw
 - **Modul kelas.** Identitas dan tema kelas, direktori anggota, profil, portofolio (halaman pengelolaan terpisah dari profil), jadwal kuliah mingguan per semester, event, tugas (dengan mata kuliah), dan beranda.
 - **Eclipse Knowledge.** Perpustakaan pengetahuan bersama: entri Markdown dengan pratinjau, pencarian/filter/sort, draf lokal, penanda bagian yang diedit, serta alur permintaan akses edit (penulis, editor, dan eskalasi ke Ketua). Entri publik dapat dibaca tanpa masuk.
 - **Inventory pribadi.** Daftar tautan https milik tiap anggota, tidak dijelajahi bersama. Pemilik membagikan seluruh isinya lewat `inv_key` 16 karakter (custom atau acak) dengan masa aktif 24 jam, 7 hari, 1 bulan, 6 bulan, atau tanpa kedaluwarsa. Maksimal 12 key aktif bersamaan; mencabut atau membiarkan key kedaluwarsa mengosongkan slot. Halaman `/inventory/access` membuka inventory dengan key tanpa perlu login.
-- **QR Studio.** Halaman publik `/qr` untuk membuat QR tanpa login. Tautannya selalu ada di navigasi utama, untuk tamu maupun anggota. Dua mode: **Normal** (modul kotak standar) dan **Custom** (titik kotak/bulat/balok, warna, serta ikon tengah dengan bentuk border, crop/shrink, gap, ketebalan, dan outline). Balok dapat memakai orientasi horizontal, vertikal, diagonal turun, atau diagonal naik. Gambar PNG disimpan maksimal 6 jam di bucket publik `qr-shares`, dengan URL gambar dan tombol unduh.
+- **QR Studio.** Halaman publik `/qr` untuk membuat QR tanpa login. Tautannya selalu ada di navigasi utama, untuk tamu maupun anggota. Dua mode: **Normal** (modul kotak standar) dan **Custom** (titik kotak/bulat/balok, warna, serta ikon tengah dengan bentuk border, crop/shrink, gap, ketebalan, dan outline). Balok dapat memakai orientasi horizontal, vertikal, diagonal turun, atau diagonal naik. Anggota aktif mendapat pratinjau langsung di browser; tamu mengirim parameter ke server dan tidak menerima modul pembuat QR. Sebelum tamu membuat QR, muncul pilihan **Ingin donasi?**; bila memilih ya, QRIS donasi yang diatur Bendahara/Ketua ditampilkan lebih dulu. Gambar PNG disimpan maksimal 6 jam di bucket publik `qr-shares`, dengan URL gambar dan tombol unduh.
 - **Cloud Google Drive.** Anggota aktif mengunggah file langsung dari peramban ke Google Drive lewat sesi resumable yang dibuat server (file tidak melewati server Eclipse). Folder tujuan mengikuti pilihan unggahan → default pribadi → folder kategori → folder utama. Setiap anggota dapat membuat folder custom, menambahkan folder eksternal (wajib *Anyone with the link → Editor*, diuji dengan dummy.txt), dan menetapkan default. Ketua mengatur batas ukuran (bawaan 500 MB) dan izin ZIP/RAR di **Pengaturan → Cloud**.
 - **Syarat & Privasi.** Halaman publik `/terms` dan `/privacy` menjelaskan ketentuan penggunaan dan pemrosesan data; ditautkan dari halaman masuk dan pengaturan keamanan akun.
 - **PWA.** Manifest, service worker, dan halaman offline membuat aplikasi dapat dipasang ke beranda. Hanya aset statis yang di-cache; halaman berisi data anggota tidak disimpan di cache.
@@ -68,7 +68,7 @@ Bila `blueprint.md` bertentangan dengan `AGENTS.md` atau `DESIGN.md`, dua yang t
    supabase db push
    ```
 
-   Migration berada di `supabase/migrations/` (0001–0020) dan diterapkan berurutan. Jangan menjalankan ulang atau mengubah migration yang sudah diterapkan; perubahan skema ditulis sebagai migration baru.
+   Migration berada di `supabase/migrations/` (0001–0035) dan diterapkan berurutan. Jangan menjalankan ulang atau mengubah migration yang sudah diterapkan; perubahan skema ditulis sebagai migration baru.
 
 4. **Atur Auth** di dashboard Supabase (padanan `supabase/config.toml`):
 
@@ -193,4 +193,5 @@ Batasan free tier: tidak ada point-in-time recovery, jadi lakukan ekspor berkala
 - Jangan commit `.env.local`, kunci Supabase, atau tautan akses.
 - Semua keputusan akses ditegakkan di database (RLS, view bermasker, RPC, policy Storage); UI hanya lapisan tambahan.
 - Bucket `qr-shares` sengaja publik agar gambar QR bisa dibuka tanpa login. Objek ditulis hanya oleh server dengan service role, memakai nama UUID acak; tidak ada policy daftar/tulis/hapus untuk anon, dan file disapu setelah 6 jam.
+- QRIS donasi QR Studio disimpan di bucket privat `qr-studio-media`. Bendahara/pemegang `kas.manage` dan Ketua dapat mengunggahnya; tamu hanya menerima URL bertanda tangan singkat setelah memilih donasi. QRIS ini terpisah dari QRIS kas.
 - Tautan akses adalah kredensial. Ketua yang menerbitkannya dapat mengambil alih akun anggota sebelum dipakai; risiko ini diterima untuk kelas kecil (lihat `blueprint.md` §23).

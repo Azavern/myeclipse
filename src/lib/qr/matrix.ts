@@ -1,5 +1,6 @@
 import * as QRCode from 'qrcode';
-import { QR_MAX_TEXT_BYTES, textByteLength } from './style';
+
+export { validateQrText } from './text';
 
 export type QrMatrix = {
   size: number;
@@ -15,13 +16,4 @@ export function encodeQr(text: string): QrMatrix {
   const rows = Array.from({ length: modules.size }, (_, y) =>
     Array.from({ length: modules.size }, (_, x) => modules.get(y, x) === 1));
   return { size: modules.size, version: qr.version, modules: rows };
-}
-
-// Pesan yang ditampilkan ke pengguna, bukan error internal library.
-export function validateQrText(text: string): string | null {
-  if (!text.trim()) return 'Isi teks atau tautan yang ingin dijadikan QR.';
-  if (textByteLength(text) > QR_MAX_TEXT_BYTES) {
-    return `Teks terlalu panjang (${textByteLength(text)} byte). Maksimal ${QR_MAX_TEXT_BYTES} byte pada koreksi galat H.`;
-  }
-  return null;
 }

@@ -100,3 +100,27 @@ export const DEFAULT_CUSTOM_STYLE: QrStyle = {
 export function textByteLength(text: string): number {
   return new TextEncoder().encode(text).length;
 }
+
+export type QrStyleChoice = {
+  mode: QrMode;
+  dotShape: QrDotShape;
+  barOrientation?: QrBarOrientation;
+  fillColor: string;
+  backColor: string;
+  icon?: QrIconStyle;
+};
+
+// Satu-satunya tempat menggabungkan pilihan UI menjadi style renderer, dipakai
+// oleh preview anggota dan renderer server tamu.
+export function composeQrStyle(choice: QrStyleChoice): QrStyle {
+  return choice.mode === 'custom'
+    ? {
+        ...DEFAULT_CUSTOM_STYLE,
+        dotShape: choice.dotShape,
+        barOrientation: choice.barOrientation ?? 'horizontal',
+        fillColor: choice.fillColor,
+        backColor: choice.backColor,
+        icon: choice.icon ?? DEFAULT_ICON_STYLE,
+      }
+    : { mode: 'normal', dotShape: 'square', fillColor: choice.fillColor, backColor: choice.backColor };
+}

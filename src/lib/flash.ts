@@ -30,6 +30,8 @@ export const FLASH = {
   kasCancelled: 'Catatan kas dibatalkan.',
   kasQris: 'Gambar QRIS diperbarui.',
   kasQrisRemoved: 'Gambar QRIS dihapus.',
+  qrStudioQris: 'QRIS donasi QR Studio diperbarui.',
+  qrStudioQrisRemoved: 'QRIS donasi QR Studio dihapus.',
 } as const;
 
 export type FlashKey = keyof typeof FLASH;

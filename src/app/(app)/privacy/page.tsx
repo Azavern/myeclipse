@@ -36,14 +36,19 @@ export default async function PrivacyPage() {
       <section>
         <h2>3. QR Studio</h2>
         <p>
-          Teks atau tautan yang kamu masukkan ke QR Studio dirender di browser dan tidak dikirim ke server.
-          Ikon tengah juga tetap di perangkatmu. Hanya gambar PNG akhir yang dikirim saat kamu menekan
-          tombol unggah.
+          Sebagai anggota aktif, teks atau tautan QR Studio dirender di browser dan tidak dikirim ke server;
+          hanya gambar PNG akhir yang dikirim saat kamu menekan tombol unggah. Sebagai tamu, teks, pilihan
+          tampilan, dan ikon yang sudah diperkecil dikirim ke server untuk dibuatkan QR karena pratinjau
+          langsung tidak tersedia. Server tidak menyimpan parameter itu, hanya gambar hasilnya.
         </p>
         <p>
-          Gambar itu disimpan di penyimpanan publik dengan nama acak dan tautan yang dapat dibuka siapa pun
+          Gambar QR disimpan di penyimpanan publik dengan nama acak dan tautan yang dapat dibuka siapa pun
           yang memegangnya. File disapu setelah sekitar 6 jam, tetapi cache penyedia dapat menyajikan salinan
           hingga sekitar 1 jam setelah penghapusan. Jangan memakai QR Studio untuk data rahasia.
+        </p>
+        <p>
+          Tamu yang memilih donasi akan menerima tautan bertanda tangan berumur pendek ke QRIS donasi yang
+          diunggah Bendahara atau Ketua. QRIS itu disimpan di bucket privat dan terpisah dari QRIS kas.
         </p>
       </section>
 

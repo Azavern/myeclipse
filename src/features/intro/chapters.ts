@@ -16,10 +16,12 @@ export const INTRO_CHAPTER_KEYS = {
   events: 'section.home.events',
   activity: 'section.home.activity',
   members: 'section.home.members',
+  leader: 'section.home.members',
   finale: 'page.home',
 } as const;
 
 export type IntroMember = { username: string; name: string; role: string; avatarUrl?: string };
+export type IntroLeader = IntroMember & { bio: string | null };
 
 type Base = { id: string; act: IntroActId; label: string; title: string; accent?: string };
 
@@ -49,6 +51,7 @@ export type IntroChapter =
     kind: 'activity'; rows: { week: string; label: string; value: number; pct: number }[]; total: number; summary: string; empty: string;
   })
   | (Base & { kind: 'members'; items: IntroMember[]; total: number; shown: number })
+  | (Base & { kind: 'leader'; member: IntroLeader })
   | (Base & {
     kind: 'finale'; guest: boolean; className: string | null; explore: IntroSource['explore'];
     classicHref: string; loginHref: string;
@@ -177,10 +180,28 @@ export function buildIntroChapters(source: IntroSource): IntroChapter[] {
       avatarUrl: member.avatar_path ? source.avatars[member.avatar_path] : undefined,
     }));
     chapters.push({
-      id: 'members', act: 'comet', kind: 'members', label: 'Direktori',
+      id: 'members', act: 'comet', kind: 'members', label: 'Anggota',
       title: 'Anggota', accent: 'kelas',
-      items, total: items.length, shown: Math.min(19, items.length),
+      // Helix adalah satu-satunya daftar anggota; jangan menyisakan orang di luar babak.
+      items, total: items.length, shown: items.length,
     });
+
+    // Profil Ketua memakai baris member_profile_v yang sama dengan halaman anggota.
+    // bio/avatar sudah disamarkan view; bila baris itu tidak terlihat, bab tidak dibuat.
+    if (source.leader) {
+      const role = source.leader.role_name.trim().toLowerCase() === 'ketua' ? 'Ketua kelas' : source.leader.role_name;
+      chapters.push({
+        id: 'leader', act: 'leader', kind: 'leader', label: 'Profil ketua',
+        title: 'Ketua', accent: 'kelas',
+        member: {
+          username: source.leader.username,
+          name: source.leader.full_name,
+          role,
+          bio: source.leader.bio?.trim() || null,
+          avatarUrl: source.leader.avatar_path ? source.avatars[source.leader.avatar_path] : undefined,
+        },
+      });
+    }
   }
 
   if (chapters.length > 0) {
@@ -200,16 +221,11 @@ export function buildIntroChapters(source: IntroSource): IntroChapter[] {
 
 export function buildIntroActs(chapters: IntroChapter[]): { acts: IntroAct[]; total: number } {
   const memberChapter = chapters.find((chapter): chapter is Extract<IntroChapter, { kind: 'members' }> => chapter.kind === 'members');
-  const groups = (['gate', 'overview', 'orbit', 'comet', 'finale'] as const).map((act) => ({
+  const groups = (['gate', 'overview', 'orbit', 'comet', 'leader', 'finale'] as const).map((act) => ({
     id: act,
     chapters: chapters.filter((chapter) => chapter.act === act),
-    // Heliks bergerak 42vh per anggota yang tampil, bukan per bab direktori.
+    // Heliks bergerak 42vh per anggota yang tampil, bukan per jumlah bab.
     itemCount: act === 'comet' ? memberChapter?.shown : undefined,
   }));
   return buildTimeline(groups);
-}
-
-export function introRoster(chapters: IntroChapter[]): IntroMember[] {
-  const members = chapters.find((chapter) => chapter.kind === 'members');
-  return members?.kind === 'members' ? members.items : [];
 }
