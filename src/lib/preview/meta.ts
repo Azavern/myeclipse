@@ -32,7 +32,12 @@ export function blockedHost(raw: string): boolean {
 }
 
 // Tautan yang layak diambil server: https, tanpa kredensial, port standar, host publik berdomain.
-export function previewUrl(raw: string): { href: string; host: string } | null {
+// `checkHost` adalah nama yang benar-benar dihubungi fetch(); `host` hanya label
+// tampilan tanpa "www.". Guard SSRF wajib memakai `checkHost`, karena
+// "www.evil.com" bisa menunjuk ke alamat internal meski "evil.com" publik.
+export type PreviewTarget = { href: string; host: string; checkHost: string };
+
+export function previewUrl(raw: string): PreviewTarget | null {
   let u: URL;
   try {
     u = new URL(raw);
@@ -41,9 +46,10 @@ export function previewUrl(raw: string): { href: string; host: string } | null {
   }
   if (u.protocol !== 'https:' || u.username || u.password) return null;
   if (u.port && u.port !== '443') return null;
-  const host = u.hostname.replace(/^\[|\]$/g, '').replace(/\.+$/, '').toLowerCase().replace(/^www\./, '');
-  if (!host.includes('.') || blockedHost(host)) return null;
-  return { href: u.href, host };
+  const checkHost = u.hostname.replace(/^\[|\]$/g, '').replace(/\.+$/, '').toLowerCase();
+  const host = checkHost.replace(/^www\./, '');
+  if (!checkHost.includes('.') || blockedHost(checkHost)) return null;
+  return { href: u.href, host, checkHost };
 }
 
 // Teks pengganti saat kartu tidak punya gambar sama sekali: origin tautannya (mis. https://www.example.com).

@@ -50,6 +50,13 @@ describe('safeRedirect', () => {
   it('menolak target eksternal dan trik slash', () => {
     for (const x of ['//evil.com', '/\\evil', 'https://evil.com', 'evil', '', null, undefined]) expect(safeRedirect(x)).toBe('/');
   });
+  it('menolak karakter kendali yang dinormalisasi URL parser menjadi //host', () => {
+    // new URL('/\t/evil.com', origin) menghasilkan https://evil.com/; Next menulis
+    // string apa adanya ke header Location, jadi ini open redirect bila lolos.
+    for (const x of ['/\t/evil.com', '/\n/evil.com', '/\r/evil.com', '/\u0000/evil.com', '/a\\b']) {
+      expect(safeRedirect(x), JSON.stringify(x)).toBe('/');
+    }
+  });
   it('mempertahankan path internal', () => expect(safeRedirect('/tasks?status=completed')).toBe('/tasks?status=completed'));
 });
 
@@ -420,7 +427,8 @@ describe('Markdown pengetahuan yang aman', () => {
     expect(parseInline('[a](https://contoh.id "Petunjuk")')[0])
       .toMatchObject({ t: 'link', href: 'https://contoh.id/', title: 'Petunjuk' });
     expect(parseInline('![x](http://contoh.id/a.png)').some((t) => t.t === 'image')).toBe(false);
-    for (const bad of ['https://127.0.0.1/a.png', 'https://10.0.0.5/a.png', 'https://[::1]/a.png', 'https://localhost/a.png']) {
+    for (const bad of ['https://127.0.0.1/a.png', 'https://10.0.0.5/a.png', 'https://[::1]/a.png', 'https://localhost/a.png',
+      'https://localhost./a.png', 'https://printer.local./a.png']) {
       expect(parseInline(`![x](${bad})`).some((t) => t.t === 'image'), bad).toBe(false);
     }
   });
@@ -618,6 +626,10 @@ describe('Pratinjau tautan portofolio', () => {
     expect(safeImage(undefined, 'https://example.com/')).toBeNull();
     expect(parsePreview('<meta property="og:image" content="https://localhost/a.png">', 'https://example.com/').image).toBeNull();
     expect(parsePreview(`<meta property="og:title" content="${'x'.repeat(300)}">`, 'https://example.com/').title).toHaveLength(120);
+  });
+  it('memeriksa DNS pada host yang di-fetch, bukan label tampilan tanpa www', () => {
+    expect(previewUrl('https://www.github.com/budi')).toMatchObject({ host: 'github.com', checkHost: 'www.github.com' });
+    expect(previewUrl('https://github.com/budi')?.checkHost).toBe('github.com');
   });
   it('menerima hanya tautan https publik tanpa kredensial di port standar', () => {
     expect(previewUrl('https://www.github.com/budi')?.host).toBe('github.com');

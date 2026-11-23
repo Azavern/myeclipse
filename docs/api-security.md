@@ -53,8 +53,11 @@ Karena API memakai service role untuk query domain (bypass RLS), kompensasinya:
 - `withApi` memeriksa izin resource+aksi sebelum handler berjalan.
 - Cakupan baris diperiksa di query: `all`, `selected`, `self`, atau `public`.
 - `selected` memakai `api_key_members` yang hanya berisi anggota aktif kelas itu.
-- `public` hanya mengembalikan baris `visibility = 'public'`; profil memakai
-  `member_profile_v` yang menyamarkan field non-publik untuk identitas anonim.
+- `public` hanya mengembalikan baris `visibility = 'public'`. Profil anggota
+  dihitung dengan evaluator katalog (`canViewAsPublic`): hanya anggota aktif dan
+  hanya field beraudiens publik; aturan `page.members` dari Ketua tetap
+  dihormati. `member_profile_v` tidak dapat dipakai karena view itu membaca
+  `auth.uid()`.
 - `all`/`selected` pada portfolio dan tautan sosial menyaring baris yang audiens
   efektifnya `self` milik anggota lain (`src/lib/api/visibility.ts`), sehingga
   bypass RLS tidak membuka konten `self`.

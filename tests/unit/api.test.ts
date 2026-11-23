@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+// Modul evaluator visibilitas memuat penanda server; tes unit menjalankannya di Node.
+vi.mock('server-only', () => ({}));
 import {
   API_KEY_PATTERN, generateApiKey, hashApiKeySecret, parseApiKey, verifyApiKeySecret,
 } from '../../src/lib/api/keys';
@@ -8,6 +11,9 @@ import {
   permissionCount, scopeFor, scopeMatches,
 } from '../../src/lib/api/permissions';
 import { DEFAULT_SCOPE } from '../../src/lib/api/resources';
+import {
+  audienceRank, canViewAsAdmin, canViewAsPublic, effectiveAudience, type VisibilityContext,
+} from '../../src/lib/api/visibility';
 
 describe('API key', () => {
   it('membuat prefix 12 hex dan secret 43 karakter base64url', () => {
@@ -96,5 +102,53 @@ describe('pencocokan cakupan', () => {
     expect(canWriteOwned(normalizeScope({ portfolio: 'self' }), 'portfolio', 'owner', 'owner')).toBe(true);
     expect(canWriteOwned(normalizeScope({ portfolio: 'self' }), 'portfolio', 'owner', 'a')).toBe(false);
     expect(canWriteOwned(normalizeScope({ portfolio: 'all' }), 'portfolio', 'owner', 'owner')).toBe(false);
+  });
+});
+
+// Katalog mini yang meniru reference_data: `page.members` paling luas class_member,
+// jadi pembaca anonim tidak pernah melihat baris; field-nya juga class_member.
+describe('audiens API', () => {
+  const context = (classRules: Record<string, string> = {}): VisibilityContext => ({
+    catalog: new Map([
+      ['page.members', {
+        key: 'page.members', parent_key: null, default_audience: 'public',
+        widest_audience: 'class_member', kind: 'page', scope: 'class',
+      }],
+      ['field.member.nickname', {
+        key: 'field.member.nickname', parent_key: 'page.members', default_audience: 'public',
+        widest_audience: 'class_member', kind: 'field', scope: 'member',
+      }],
+      ['field.class.tagline', {
+        key: 'field.class.tagline', parent_key: null, default_audience: 'public',
+        widest_audience: 'public', kind: 'field', scope: 'class',
+      }],
+    ]),
+    classRules: new Map(Object.entries(classRules)),
+    ownerRules: new Map(),
+  });
+
+  it('cakupan publik hanya meloloskan audiens public', () => {
+    const ctx = context();
+    expect(effectiveAudience(ctx, 'page.members', null)).toBe('class_member');
+    expect(canViewAsPublic(ctx, 'field.member.nickname', 'u1')).toBe(false);
+    expect(canViewAsPublic(ctx, 'field.class.tagline', 'u1')).toBe(true);
+  });
+
+  it('aturan Ketua yang mempersempit page.members menutup cakupan publik', () => {
+    const ctx = context({ 'page.members': 'class_admin' });
+    expect(effectiveAudience(ctx, 'page.members', null)).toBe('class_admin');
+    expect(audienceRank(effectiveAudience(ctx, 'page.members', null)))
+      .toBeGreaterThan(audienceRank('class_member'));
+  });
+
+  it('nilai audiens tak dikenal diperlakukan paling sempit', () => {
+    expect(audienceRank('galaxy')).toBe(audienceRank('self'));
+  });
+
+  it('pemilik key melihat field non-self milik anggota lain', () => {
+    const ctx = context();
+    expect(canViewAsAdmin(ctx, 'field.member.nickname', 'u1', null, 'owner')).toBe(true);
+    expect(canViewAsAdmin(ctx, 'field.member.nickname', 'u2', 'self', 'owner')).toBe(false);
+    expect(canViewAsAdmin(ctx, 'field.member.nickname', 'owner', 'self', 'owner')).toBe(true);
   });
 });

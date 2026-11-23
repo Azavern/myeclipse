@@ -44,7 +44,9 @@ export function safeHref(raw: string): string | null {
 export function safeImageSrc(raw: string): string | null {
   const href = safeHref(raw);
   if (!href) return null;
-  const host = new URL(href).hostname.toLowerCase();
+  // Titik di akhir (FQDN absolut) membuat "localhost." lolos dari pemeriksaan
+  // nama; URL parser tidak membuangnya, jadi normalkan lebih dulu.
+  const host = new URL(href).hostname.toLowerCase().replace(/\.+$/, '');
   if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) {
     return null;
   }

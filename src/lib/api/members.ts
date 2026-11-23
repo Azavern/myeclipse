@@ -1,4 +1,3 @@
-export const MEMBER_LIST_FIELDS = 'user_id,username,full_name,nickname,bio,role_name,status,joined_at';
 export const MEMBER_PROFILE_FIELDS = 'user_id,username,full_name,nickname,bio';
 
 export type MemberProfileRow = {

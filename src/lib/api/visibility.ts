@@ -3,9 +3,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 // API key tidak punya auth.uid(), jadi app.can_view tidak bisa dipakai langsung.
 // Evaluator ini meniru app.own_audience + app.effective_audience (migration 0003)
-// untuk audiens `self`: satu-satunya tingkat yang tidak boleh dibaca pengelola.
-// Tingkat lain (public/authenticated/class_member/class_admin) memang terlihat
-// oleh pemilik key yang memegang class.manage.
+// untuk dua pembaca: pemilik key (class.manage) dan pembaca publik tanpa sesi.
+// Bagi pemilik key, `self` milik anggota lain tidak boleh dibaca; bagi pembaca
+// publik, hanya audiens `public` yang lolos.
 
 const ORDER = ['public', 'authenticated', 'class_member', 'class_admin', 'self'] as const;
 type Audience = (typeof ORDER)[number];
@@ -29,6 +29,12 @@ const rank = (value: string) => {
   const index = ORDER.indexOf(value as Audience);
   return index < 0 ? ORDER.length - 1 : index;
 };
+
+// Peringkat audiens: makin besar makin sempit. Nilai tak dikenal diperlakukan
+// sebagai paling sempit (fail closed).
+export function audienceRank(value: string): number {
+  return rank(value);
+}
 const greatest = (a: string, b: string) => (rank(a) >= rank(b) ? a : b);
 
 export async function visibilityContext(admin: SupabaseClient, classId: string): Promise<VisibilityContext> {
@@ -106,4 +112,11 @@ export function canViewAsAdmin(
 ): boolean {
   const audience = effectiveAudience(ctx, key, rowOwnerId, itemVisibility);
   return audience !== 'self' || rowOwnerId === viewerId;
+}
+
+// Pembaca publik tidak punya sesi: hanya audiens `public` yang terlihat.
+export function canViewAsPublic(
+  ctx: VisibilityContext, key: string, rowOwnerId: string, itemVisibility: string | null = null,
+): boolean {
+  return effectiveAudience(ctx, key, rowOwnerId, itemVisibility) === 'public';
 }

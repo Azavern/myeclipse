@@ -63,6 +63,11 @@ Sengaja read-only: perubahan role, status, penghapusan akun, dan penerbitan taut
 akses adalah operasi sensitif yang tidak boleh otomatis tersedia karena izin CRUD
 umum (sesuai §6 brief API).
 
+Endpoint v1 anggota membaca `member_profiles` + `memberships` + `roles` langsung,
+bukan `member_profile_v`: view itu memakai `auth.uid()` dan request API tidak punya
+sesi, sehingga audiens dihitung lewat `src/lib/api/visibility.ts`. Lihat
+`api-reference.md` (Cakupan) dan `api-security.md`.
+
 ### 2.4 Member profiles
 
 | Operasi | Sumber sekarang | Tabel | Endpoint v1 | Izin API |

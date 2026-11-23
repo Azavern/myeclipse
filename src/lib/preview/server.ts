@@ -72,7 +72,8 @@ async function fetchPage(target: string): Promise<Page> {
   for (let hop = 0; hop <= MAX_HOPS; hop++) {
     const url = previewUrl(current);
     if (!url) return { ok: false, reason: 'url' };
-    if (!(await publicHost(url.host))) return { ok: false, reason: 'dns' };
+    // Periksa alamat host yang benar-benar di-fetch, bukan label tanpa "www.".
+    if (!(await publicHost(url.checkHost))) return { ok: false, reason: 'dns' };
     const res = await fetch(url.href, {
       redirect: 'manual',
       signal: AbortSignal.timeout(TIMEOUT_MS),

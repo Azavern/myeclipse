@@ -50,7 +50,7 @@ Cakupan hanya menyaring baris; izin operasi tetap diperiksa terpisah.
 | `all` | Semua baris kelas. |
 | `selected` | Hanya anggota yang dicentang di key. |
 | `self` | Hanya baris milik pembuat key. |
-| `public` | Hanya baris dengan `visibility = 'public'` (profil memakai view anonim). |
+| `public` | Hanya baris dengan `visibility = 'public'`; profil hanya identitas anggota aktif tanpa field non-publik. |
 
 Penulisan resource milik anggota (`portfolio`, `social_links`, `inventory`) hanya
 diizinkan bila cakupannya `self`.
@@ -94,9 +94,14 @@ Field: `name`, `code`, `tagline`, `description`, `highlight_text`,
 
 Read-only. `user_id` adalah `auth.users.id`. Field: `user_id`, `username`,
 `full_name`, `nickname`, `bio`, `role`, `role_id`, `status`, `joined_at`.
-Cakupan `public` memakai `member_profile_v`, sehingga field non-publik tersamar
-dan hanya anggota aktif yang muncul. Untuk `all`/`selected`, `nickname` dan `bio`
-dikosongkan bila aturan visibilitasnya `self` dan baris bukan milik pemilik key.
+Cakupan `public` mengembalikan anggota aktif dengan identitas dasar (`user_id`,
+`username`, `full_name`, `role`, `role_id`, `status`, `joined_at`); `nickname` dan
+`bio` kosong karena audiens terluasnya `class_member`, bukan publik. Audiens
+dihitung dari katalog visibilitas yang sama dengan UI (bukan `member_profile_v`,
+yang bergantung pada `auth.uid()` dan karena itu tidak berlaku untuk key). Bila
+Ketua mempersempit `page.members` ke pengelola, cakupan publik tidak
+mengembalikan baris. Untuk `all`/`selected`/`self`, `nickname` dan `bio`
+dikosongkan hanya bila aturan visibilitasnya `self` dan baris bukan milik pemilik key.
 
 ### Portofolio
 
