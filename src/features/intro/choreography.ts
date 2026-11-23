@@ -99,18 +99,17 @@ export function actPresence<T>(act: TimelineAct<T>, t: number) {
   };
 }
 
-export type MotionTier = 'static' | 'css' | 'mobile' | 'full';
+export type MotionTier = 'css' | 'mobile' | 'full';
 
-// Preferensi sistem menang. Tanpa WebGL atau saveData, kamera tetap 3D tetapi latar
-// memakai CSS. Ponsel mendapat partikel dan DPR yang lebih rendah.
-export function pickTier(input: { reducedMotion: boolean; webgl: boolean; saveData: boolean; phone: boolean }): MotionTier {
-  if (input.reducedMotion) return 'static';
+// Tanpa WebGL atau saveData, kamera tetap 3D tetapi latar memakai CSS. Ponsel
+// mendapat partikel dan DPR yang lebih rendah. Reduced-motion sengaja diabaikan:
+// intro tetap beranimasi agar komposisi kartu tidak jatuh ke tata letak statis.
+export function pickTier(input: { webgl: boolean; saveData: boolean; phone: boolean }): MotionTier {
   if (!input.webgl || input.saveData) return 'css';
   return input.phone ? 'mobile' : 'full';
 }
 
 export const TIER_QUALITY: Record<MotionTier, { dpr: number; particles: number; stars: number }> = {
-  static: { dpr: 1, particles: 0, stars: 0 },
   css: { dpr: 1, particles: 0, stars: 0 },
   mobile: { dpr: 1.5, particles: 1600, stars: 0.6 },
   full: { dpr: 2, particles: 8000, stars: 1 },

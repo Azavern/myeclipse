@@ -210,7 +210,7 @@ Define what changes at each breakpoint, not just "gets smaller":
 - Visible keyboard focus on every interactive element.
 - Semantic structure and real accessible names. Labels are not placeholders; errors are tied to their fields.
 - Touch targets ≥ 44×44 px.
-- Respect reduced-motion preferences (replace movement with a fade, or nothing).
+- Respect reduced-motion preferences (replace movement with a fade, or nothing). Exception: the `/intro` cinematic always animates because its static fallback breaks the composition; keep reduced-motion in every other surface.
 - Text stays usable at 200% zoom and at larger system font sizes.
 
 ## 11. Content, language and UX writing `[DEFAULT]`

@@ -102,12 +102,6 @@ export function IntroExperience({ acts, total, brand, guest }: {
     const canvas = canvasRef.current;
     if (!root || !track || !canvas || acts.length === 0) return;
 
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-    if (reducedMotion.matches) {
-      root.dataset.motion = 'static';
-      return;
-    }
-
     const phoneQuery = window.matchMedia('(max-width: 767px)');
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
     const support = (() => {
@@ -121,7 +115,7 @@ export function IntroExperience({ acts, total, brand, guest }: {
       }
     })();
     let tier: MotionTier = pickTier({
-      reducedMotion: false, webgl: support, saveData: connection?.saveData === true, phone: phoneQuery.matches,
+      webgl: support, saveData: connection?.saveData === true, phone: phoneQuery.matches,
     });
     let camera: CameraConfig = cameraConfig(phoneQuery.matches);
     root.dataset.motion = 'on';
@@ -163,7 +157,6 @@ export function IntroExperience({ acts, total, brand, guest }: {
       amount: 0, lastT: 0, lastX: 0, lastY: 0,
     };
     const applyTier = (next: MotionTier) => {
-      if (next === 'static') return;
       tier = next;
       root.dataset.tier = next;
       if (next === 'css') {

@@ -138,12 +138,11 @@ describe('pemetaan bab intro ke kunci visibility', () => {
 });
 
 describe('pemilihan tier gerak', () => {
-  it('menghormati reduced motion, saveData, dan ketiadaan WebGL', () => {
-    expect(pickTier({ reducedMotion: true, webgl: true, saveData: false, phone: false })).toBe('static');
-    expect(pickTier({ reducedMotion: false, webgl: false, saveData: false, phone: false })).toBe('css');
-    expect(pickTier({ reducedMotion: false, webgl: true, saveData: true, phone: true })).toBe('css');
-    expect(pickTier({ reducedMotion: false, webgl: true, saveData: false, phone: true })).toBe('mobile');
-    expect(pickTier({ reducedMotion: false, webgl: true, saveData: false, phone: false })).toBe('full');
+  it('memilih tier dari WebGL, saveData, dan perangkat', () => {
+    expect(pickTier({ webgl: false, saveData: false, phone: false })).toBe('css');
+    expect(pickTier({ webgl: true, saveData: true, phone: true })).toBe('css');
+    expect(pickTier({ webgl: true, saveData: false, phone: true })).toBe('mobile');
+    expect(pickTier({ webgl: true, saveData: false, phone: false })).toBe('full');
   });
 });
 

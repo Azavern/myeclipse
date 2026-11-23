@@ -899,22 +899,6 @@
 .intro:not([data-motion="on"]) .intro-card--hero .intro-heading { font-size: clamp(2.75rem, 2rem + 4vw, 5.5rem); }
 .intro:not([data-motion="on"]) .intro-bars__fill { transform: none; }
 
-/* Jika preferensi berubah saat halaman sudah berjalan, hentikan tampilan kamera. */
-@media (prefers-reduced-motion: reduce) {
-  .intro[data-motion="on"] .intro-canvas,
-  .intro[data-motion="on"] .intro-hud,
-  .intro[data-motion="on"] .intro-progress { display: none !important; }
-
-  .intro[data-motion="on"] .intro-track { height: auto !important; padding: 24px 0 72px !important; }
-  .intro[data-motion="on"] .intro-stage { position: static !important; height: auto !important; overflow: visible !important; perspective: none !important; }
-  .intro[data-motion="on"] .intro-world { position: static !important; display: grid !important; gap: 64px !important; width: min(1100px, calc(100% - 32px)) !important; margin-inline: auto !important; transform: none !important; }
-  .intro[data-motion="on"] .intro-scene { position: static !important; display: grid !important; gap: 18px !important; visibility: visible !important; transform: none !important; }
-  .intro[data-motion="on"] .intro-card { position: relative !important; left: auto !important; top: auto !important; width: min(760px, 100%) !important; margin-inline: auto !important; visibility: visible !important; opacity: 1 !important; transform: none !important; }
-  .intro[data-motion="on"] .intro-card--member { width: 100% !important; }
-  .intro[data-motion="on"] .intro-ring { display: none !important; }
-  .intro[data-motion="on"] .intro-bars__fill { transform: none !important; }
-}
-
 @media (max-width: 767px) {
   .intro[data-motion="on"] .intro-card { width: min(760px, 90vw); }
   .intro[data-motion="on"] .intro-card--about { width: 88vw; }
